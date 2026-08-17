@@ -18,3 +18,10 @@ composer install
 
 The production artifact must include the generated `vendor/autoload.php`.
 
+## Translations
+
+The module uses the PrestaShop 8 translation system and can be translated from
+**International > Translations > Installed modules translations**.
+
+All new customer-facing and administrator-facing wording must follow the rules
+in [`docs/TRANSLATIONS.md`](docs/TRANSLATIONS.md).

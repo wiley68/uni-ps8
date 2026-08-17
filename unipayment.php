@@ -48,6 +48,11 @@ class Unipayment extends PaymentModule
         return parent::install();
     }
 
+    public function isUsingNewTranslationSystem(): bool
+    {
+        return true;
+    }
+
     public function uninstall(): bool
     {
         return parent::uninstall();
