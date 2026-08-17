@@ -6,7 +6,13 @@ The repository root is the module root and the module technical name is `unipaym
 
 ## Current scope
 
-Phase 0 provides only the installable module foundation. It intentionally contains no payment option, calculator, Control Panel communication, SmartUCF integration, frontend behavior, or business database tables.
+Phase 1 provides the installable module foundation and local configuration for
+the operational enabled flag, UNICID, and encrypted secret. The status panel is
+present, but no Control Panel request is performed before Phase 2.
+
+The current scope intentionally contains no payment option, calculator,
+Control Panel API client, SmartUCF integration, frontend behavior, or business
+database tables.
 
 ## Development
 
