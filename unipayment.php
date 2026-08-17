@@ -71,7 +71,10 @@ class Unipayment extends PaymentModule
     {
         $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
 
-        return $repository->uninstall() && parent::uninstall();
+        $configurationRemoved = $repository->uninstall();
+        $moduleUninstalled = parent::uninstall();
+
+        return $configurationRemoved && $moduleUninstalled;
     }
 
     public function getContent(): string
