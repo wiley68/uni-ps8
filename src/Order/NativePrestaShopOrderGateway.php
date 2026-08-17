@@ -15,7 +15,21 @@ final class NativePrestaShopOrderGateway implements PrestaShopOrderGatewayInterf
     {
         $cart = $this->context->cart;
         $customer = $this->context->customer;
-        $this->module->validateOrder((int)$cart->id, (int)\Configuration::get(OrderStateInstaller::AWAITING), (float)$request->calculation->price, $this->module->displayName, null, [], (int)$cart->id_currency, false, (string)$customer->secure_key);
+        $existingOrderId = (int) \Order::getIdByCartId((int) $cart->id);
+        if ($existingOrderId > 0) {
+            $this->markAwaiting($existingOrderId);
+            return $this->load($existingOrderId);
+        }
+        try {
+            $this->module->validateOrder((int)$cart->id, (int)\Configuration::get(OrderStateInstaller::AWAITING), (float)$request->calculation->price, $this->module->displayName, null, [], (int)$cart->id_currency, false, (string)$customer->secure_key);
+        } catch (\Throwable $exception) {
+            $existingOrderId = (int) \Order::getIdByCartId((int) $cart->id);
+            if ($existingOrderId <= 0) {
+                throw $exception;
+            }
+            $this->markAwaiting($existingOrderId);
+            return $this->load($existingOrderId);
+        }
         if ((int)$this->module->currentOrder <= 0) throw new \RuntimeException('PrestaShop did not create the financing order.');
         return $this->load((int)$this->module->currentOrder);
     }

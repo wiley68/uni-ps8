@@ -25,7 +25,8 @@ final class OrderStateInstaller
                 continue;
             }
             if ($id > 0) {
-                $state = new \OrderState($id); if (\Validate::isLoadedObject($state)) $result = $state->delete() && $result;
+                $state = new \OrderState($id);
+                if (\Validate::isLoadedObject($state)) $result = $state->delete() && $result;
             }
             $result = \Configuration::deleteByName($key) && $result;
         }
@@ -35,8 +36,16 @@ final class OrderStateInstaller
     private function create(string $key, string $name, string $color): bool
     {
         if ((int) \Configuration::get($key) > 0) return true;
-        $state = new \OrderState(); $state->name = []; foreach (\Language::getLanguages(false) as $language) $state->name[(int)$language['id_lang']] = $name;
-        $state->color=$color; $state->send_email=false; $state->module_name='unipayment'; $state->unremovable=true; $state->hidden=false; $state->logable=false; $state->paid=false;
+        $state = new \OrderState();
+        $state->name = [];
+        foreach (\Language::getLanguages(false) as $language) $state->name[(int)$language['id_lang']] = $name;
+        $state->color = $color;
+        $state->send_email = false;
+        $state->module_name = 'unipayment';
+        $state->unremovable = false;
+        $state->hidden = false;
+        $state->logable = false;
+        $state->paid = false;
         return $state->add() && \Configuration::updateValue($key, (int) $state->id);
     }
 }
