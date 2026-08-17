@@ -57,6 +57,7 @@ require_once dirname(__DIR__, 2) . '/src/Configuration/ConfigurationRepository.p
 require_once dirname(__DIR__, 2) . '/src/Security/TokenRepository.php';
 require_once dirname(__DIR__, 2) . '/src/Api/HttpResponse.php';
 require_once dirname(__DIR__, 2) . '/src/Api/HttpTransportInterface.php';
+require_once dirname(__DIR__, 2) . '/src/Api/ShopConfigurationProviderInterface.php';
 require_once dirname(__DIR__, 2) . '/src/Api/Exception/ControlPanelException.php';
 require_once dirname(__DIR__, 2) . '/src/Api/Exception/AuthenticationException.php';
 require_once dirname(__DIR__, 2) . '/src/Api/Exception/HttpException.php';

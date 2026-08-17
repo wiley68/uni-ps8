@@ -53,10 +53,13 @@ class Unipayment extends PaymentModule
         }
 
         $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
-        if ($repository->install()) {
+        $cache = new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache();
+        if ($repository->install() && $cache->install()) {
             return true;
         }
 
+        $cache->uninstall();
+        $repository->uninstall();
         parent::uninstall();
 
         return false;
@@ -70,17 +73,20 @@ class Unipayment extends PaymentModule
     public function uninstall(): bool
     {
         $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
+        $cache = new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache();
 
+        $cacheRemoved = $cache->uninstall();
         $configurationRemoved = $repository->uninstall();
         $moduleUninstalled = parent::uninstall();
 
-        return $configurationRemoved && $moduleUninstalled;
+        return $cacheRemoved && $configurationRemoved && $moduleUninstalled;
     }
 
     public function getContent(): string
     {
         $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
         $tokens = new PrestaShop\Module\Unipayment\Security\TokenRepository();
+        $cacheService = $this->createShopConfigurationService();
         $output = '';
 
         if (Tools::isSubmit('submitUnipaymentConfiguration')) {
@@ -102,6 +108,7 @@ class Unipayment extends PaymentModule
         $hasCredentials = $repository->getUnicid() !== '' && $repository->hasSecret();
         $configurationSubmitted = Tools::isSubmit('submitUnipaymentConfiguration');
 
+        $cacheMetadata = $cacheService->getMetadata();
         $this->context->smarty->assign([
             'unipayment_form_action' => $this->context->link->getAdminLink(
                 'AdminModules',
@@ -125,12 +132,20 @@ class Unipayment extends PaymentModule
                 : ($hasCredentials
                     ? $this->trans('Credentials saved; not authenticated.', [], 'Modules.Unipayment.Admin')
                     : $this->trans('Credentials incomplete.', [], 'Modules.Unipayment.Admin')),
-            'unipayment_cache_status' => $this->trans(
-                'No Control Panel configuration has been cached yet.',
-                [],
-                'Modules.Unipayment.Admin'
-            ),
-            'unipayment_last_refresh' => $this->trans('Never', [], 'Modules.Unipayment.Admin'),
+            'unipayment_cache_status' => $cacheMetadata === null
+                ? $this->trans('No Control Panel configuration has been cached yet.', [], 'Modules.Unipayment.Admin')
+                : ($cacheMetadata['is_fresh']
+                    ? sprintf(
+                        $this->trans('Fresh; expires at %s UTC.', [], 'Modules.Unipayment.Admin'),
+                        $cacheMetadata['expires_at']
+                    )
+                    : sprintf(
+                        $this->trans('Expired at %s UTC.', [], 'Modules.Unipayment.Admin'),
+                        $cacheMetadata['expires_at']
+                    )),
+            'unipayment_last_refresh' => $cacheMetadata === null
+                ? $this->trans('Never', [], 'Modules.Unipayment.Admin')
+                : $cacheMetadata['fetched_at'] . ' UTC',
         ]);
 
         return $output . $this->display(__FILE__, 'views/templates/admin/configuration.tpl');
@@ -178,6 +193,7 @@ class Unipayment extends PaymentModule
 
         if ($credentialsChanged) {
             $tokens->invalidate();
+            (new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache())->clear();
         }
 
         return $this->displayConfirmation(
@@ -199,16 +215,15 @@ class Unipayment extends PaymentModule
             }
 
             if ($action === 'refresh') {
-                $client->refreshToken();
-                $client->getShop();
+                $this->createShopConfigurationService($client)->get(true);
 
                 return $this->displayConfirmation(
-                    $this->trans('The token was refreshed and the shop data was retrieved successfully.', [], 'Modules.Unipayment.Admin')
+                    $this->trans('The shop configuration cache was refreshed successfully.', [], 'Modules.Unipayment.Admin')
                 );
             }
 
             $client->login();
-            $client->getShop();
+            $this->createShopConfigurationService($client)->get(true);
 
             return $this->displayConfirmation(
                 $this->trans('Connection to the Control Panel was successful.', [], 'Modules.Unipayment.Admin')
@@ -250,6 +265,20 @@ class Unipayment extends PaymentModule
             new PrestaShop\Module\Unipayment\Security\TokenRepository(),
             new PrestaShop\Module\Unipayment\Api\CurlHttpTransport(),
             $shopUrl
+        );
+    }
+
+    private function createShopConfigurationService(
+        ?PrestaShop\Module\Unipayment\Api\ControlPanelClient $client = null
+    ): PrestaShop\Module\Unipayment\Configuration\ShopConfigurationService {
+        $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
+        $tokens = new PrestaShop\Module\Unipayment\Security\TokenRepository();
+
+        return new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationService(
+            $repository,
+            new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache(),
+            $client ?? $this->createControlPanelClient(),
+            $tokens
         );
     }
 }

@@ -11,7 +11,7 @@ use PrestaShop\Module\Unipayment\Api\Exception\MalformedJsonException;
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
 use PrestaShop\Module\Unipayment\Security\TokenRepository;
 
-final class ControlPanelClient
+final class ControlPanelClient implements ShopConfigurationProviderInterface
 {
     public const DEFAULT_BASE_URL = 'https://uni.avalonbg.com/api/v1';
 

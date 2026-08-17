@@ -1,6 +1,7 @@
 {
     "intelephense.environment.documentRoot": "/var/www/presta8.avalonbg.com",
     "intelephense.environment.includePaths": [
+        "/var/www/presta8.avalonbg.com/config",
         "/var/www/presta8.avalonbg.com/classes",
         "/var/www/presta8.avalonbg.com/src",
         "/var/www/presta8.avalonbg.com/vendor",
