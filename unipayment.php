@@ -21,7 +21,7 @@ class Unipayment extends PaymentModule
         $this->bootstrap = true;
         $this->ps_versions_compliancy = [
             'min' => '8.0.0',
-            'max' => _PS_VERSION_,
+            'max' => constant('_PS_VERSION_'),
         ];
 
         parent::__construct();
@@ -53,4 +53,3 @@ class Unipayment extends PaymentModule
         return parent::uninstall();
     }
 }
-
