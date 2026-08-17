@@ -2,51 +2,55 @@
 
 declare(strict_types=1);
 
-namespace PrestaShop\Module\Unipayment\Product;
+namespace PrestaShop\Module\Unipayment\Cart;
 
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\CurrencyGate;
-use PrestaShop\Module\Unipayment\Calculator\ProductContext;
 use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
 
-final class ProductCalculatorPresenter
+final class CartCalculatorPresenter
 {
+    /** @var CartSchemeResolver */
+    private $resolver;
+
     /** @var Calculator */
     private $calculator;
 
     /** @var CurrencyGate */
     private $currencyGate;
 
-    public function __construct(Calculator $calculator, ?CurrencyGate $currencyGate = null)
+    public function __construct(CartSchemeResolver $resolver, Calculator $calculator, ?CurrencyGate $currencyGate = null)
     {
+        $this->resolver = $resolver;
         $this->calculator = $calculator;
         $this->currencyGate = $currencyGate ?? new CurrencyGate();
     }
 
     /** @param array<string, mixed> $shop @return array<string, mixed>|null */
-    public function present(array $shop, ProductContext $product, string $currencyIso): ?array
+    public function present(array $shop, CartContext $cart, string $currencyIso): ?array
     {
         if (!$this->currencyGate->supports($shop, $currencyIso)) {
             return null;
         }
-
-        $preferred = $this->calculator->resolvePreferredOffers($shop, $product);
+        $resolution = $this->resolver->resolve($shop, $cart);
         $offers = [];
-        foreach (['standard', 'promo'] as $type) {
-            if ($preferred[$type] === null) {
+        foreach (['standard' => $resolution->standardSchemes, 'promo' => $resolution->promoSchemes] as $buttonType => $schemes) {
+            $preferred = $buttonType === 'standard' ? $resolution->standardOffer : $resolution->promoOffer;
+            if ($preferred === null || $schemes === []) {
                 continue;
             }
-            $schemes = [];
-            foreach ($this->calculator->availableSchemes($shop, $product, $type) as $scheme) {
+            $rows = [];
+            foreach ($schemes as $scheme) {
                 try {
-                    $result = $this->calculator->calculate($shop, $product, $scheme->months, $type, 0.0, $scheme->filterId);
+                    $result = $this->calculator->calculateScheme($shop, $cart->total, $scheme);
                 } catch (UnavailableSchemeException $exception) {
                     continue;
                 }
-                $schemes[] = [
+                $rows[] = [
                     'months' => $scheme->months,
                     'filter_id' => $scheme->filterId,
                     'kop_code' => $scheme->kopCode,
+                    'scheme_type' => $scheme->type,
                     'first_installment' => $result->firstInstallment->amount,
                     'first_installment_locked' => $result->firstInstallment->locked,
                     'financed_amount' => $result->financedAmount,
@@ -56,24 +60,22 @@ final class ProductCalculatorPresenter
                     'gpr' => $result->gpr,
                 ];
             }
-            if ($schemes === []) {
-                continue;
+            if ($rows !== []) {
+                $offers[$buttonType] = [
+                    'type' => $buttonType,
+                    'months' => $preferred->months,
+                    'monthly_installment' => $preferred->monthlyInstallment,
+                    'schemes' => $rows,
+                ];
             }
-            $offers[$type] = [
-                'type' => $type,
-                'months' => $preferred[$type]->months,
-                'monthly_installment' => $preferred[$type]->monthlyInstallment,
-                'schemes' => $schemes,
-            ];
         }
-
         if ($offers === []) {
             return null;
         }
 
         return [
-            'product_id' => $product->productId,
-            'price' => $product->price,
+            'cart_total' => $cart->total,
+            'line_count' => count($cart->lines),
             'currency_iso' => strtoupper($currencyIso),
             'show_installment' => $this->flag($shop['uni_vnoska'] ?? 0),
             'show_first_installment' => $this->flag($shop['uni_first_vnoska'] ?? 0),

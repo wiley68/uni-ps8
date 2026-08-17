@@ -62,6 +62,7 @@ class Unipayment extends PaymentModule
             && $bankStatus->install()
             && $this->registerHook('displayAdminOrderMainBottom')
             && $this->registerHook('displayProductAdditionalInfo')
+            && $this->registerHook('displayShoppingCart')
             && $this->registerHook('actionFrontControllerSetMedia')
         ) {
             return true;
@@ -357,10 +358,26 @@ class Unipayment extends PaymentModule
 
     public function hookActionFrontControllerSetMedia(): void
     {
-        if (!$this->active
-            || !isset($this->context->controller->php_self)
-            || $this->context->controller->php_self !== 'product'
-        ) {
+        if (!$this->active || !isset($this->context->controller->php_self)) {
+            return;
+        }
+
+        if ($this->context->controller->php_self === 'cart') {
+            $this->context->controller->registerStylesheet(
+                'module-unipayment-cart-calculator',
+                'modules/' . $this->name . '/views/css/cart-calculator.css',
+                ['media' => 'all', 'priority' => 150]
+            );
+            $this->context->controller->registerJavascript(
+                'module-unipayment-cart-calculator',
+                'modules/' . $this->name . '/views/js/cart-calculator.js',
+                ['position' => 'bottom', 'priority' => 150]
+            );
+
+            return;
+        }
+
+        if ($this->context->controller->php_self !== 'product') {
             return;
         }
 
@@ -374,6 +391,42 @@ class Unipayment extends PaymentModule
             'modules/' . $this->name . '/views/js/product-calculator.js',
             ['position' => 'bottom', 'priority' => 150]
         );
+    }
+
+    /** @param array<string, mixed> $params */
+    public function hookDisplayShoppingCart(array $params): string
+    {
+        $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
+        if (!$this->active || !$repository->isEnabled()) {
+            return '';
+        }
+        try {
+            $shop = $this->createShopConfigurationService()->get();
+            $calculator = new PrestaShop\Module\Unipayment\Calculator\Calculator();
+            $view = (new PrestaShop\Module\Unipayment\Cart\CartCalculatorPresenter(
+                new PrestaShop\Module\Unipayment\Cart\CartSchemeResolver($calculator),
+                $calculator
+            ))->present(
+                $shop,
+                (new PrestaShop\Module\Unipayment\Cart\CartContextFactory())->create($this->context->cart),
+                (string) $this->context->currency->iso_code
+            );
+        } catch (Throwable $exception) {
+            PrestaShopLogger::addLog('UniPayment cart calculator could not be rendered: ' . get_class($exception), 2);
+
+            return '';
+        }
+        if ($view === null) {
+            return '';
+        }
+        $this->context->smarty->assign([
+            'unipayment_cart_calculator' => $view,
+            'unipayment_cart_calculator_json' => json_encode($view, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
+            'unipayment_cart_calculator_url' => $this->context->link->getModuleLink($this->name, 'cartcalculator', ['ajax' => 1], true),
+            'unipayment_offer_types' => ['standard', 'promo'],
+        ]);
+
+        return $this->display(__FILE__, 'views/templates/hook/cart_calculator.tpl');
     }
 
     /** @param array<string, mixed> $params */

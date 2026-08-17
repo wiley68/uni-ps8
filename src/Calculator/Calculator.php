@@ -6,12 +6,25 @@ namespace PrestaShop\Module\Unipayment\Calculator;
 
 final class Calculator
 {
+    /** @var MonthResolver */
     private $months;
+
+    /** @var SchemaFilterMatcher */
     private $matcher;
+
+    /** @var CoefficientResolver */
     private $coefficients;
+
+    /** @var OfferFactory */
     private $offers;
+
+    /** @var PreferredOfferSelector */
     private $selector;
+
+    /** @var FirstInstallmentResolver */
     private $firstInstallment;
+
+    /** @var FinancialCalculator */
     private $financial;
 
     public function __construct(?string $today = null)
@@ -94,9 +107,11 @@ final class Calculator
         $filters = $shop['kop']['by_schema']['filters'] ?? [];
         $candidates = [];
         foreach (is_array($filters) ? $filters : [] as $filter) {
-            if (!is_array($filter)
+            if (
+                !is_array($filter)
                 || (int) ($filter['uni_promo'] ?? 0) !== ($type === 'promo' ? 1 : 0)
-                || !$this->matcher->matches($filter, $product)) {
+                || !$this->matcher->matches($filter, $product)
+            ) {
                 continue;
             }
             $kop = trim((string) ($filter['uni_kop'] ?? ''));
@@ -162,25 +177,42 @@ final class Calculator
         if (!$scheme instanceof AvailableScheme) {
             throw new UnavailableSchemeException('The selected financing scheme is not available.');
         }
-        $first = $this->firstInstallment->resolve($shop, $product->price, $months, $requestedFirstInstallment, $scheme->filter);
-        $financed = round($product->price - $first->amount, 2);
+        return $this->calculateScheme($shop, $product->price, $scheme, $requestedFirstInstallment);
+    }
+
+    /** @param array<string, mixed> $shop */
+    public function calculateScheme(array $shop, float $price, AvailableScheme $scheme, float $requestedFirstInstallment = 0.0): CalculationResult
+    {
+        $first = $this->firstInstallment->resolve($shop, $price, $scheme->months, $requestedFirstInstallment, $scheme->filter);
+        $financed = round($price - $first->amount, 2);
         $kimb = (float) ($scheme->coefficient['coeff'] ?? 0);
         if ($financed <= 0 || $kimb <= 0) {
             throw new UnavailableSchemeException('The selected financing scheme cannot be calculated.');
         }
         $monthly = round($financed * $kimb, 2);
-        $gpr = $this->financial->calculateGpr($months, $monthly, $financed);
+        $gpr = $this->financial->calculateGpr($scheme->months, $monthly, $financed);
 
         return new CalculationResult(
             $scheme,
-            round($product->price, 2),
+            round($price, 2),
             $first,
             $financed,
             $monthly,
-            round($monthly * $months, 2),
+            round($monthly * $scheme->months, 2),
             round(abs((float) ($scheme->coefficient['interestPercent'] ?? 0)), 2),
             $gpr <= 0.1 ? 0.0 : round($gpr, 2)
         );
+    }
+
+    public function createButtonOffer(AvailableScheme $scheme, float $amount, string $buttonType): ?Offer
+    {
+        return $this->offers->create($buttonType, $scheme->kopCode, $scheme->months, $amount, $scheme->coefficient, $scheme->filterId);
+    }
+
+    /** @param Offer[] $offers */
+    public function selectPreferredOffer(array $offers, int $preferredMonths): ?Offer
+    {
+        return $this->selector->select($offers, $preferredMonths);
     }
 
     /** @param array<string, mixed> $shop @return AvailableScheme[] */
@@ -216,9 +248,11 @@ final class Calculator
         }
         $result = [];
         foreach ($filters as $filter) {
-            if (!is_array($filter)
+            if (
+                !is_array($filter)
                 || (int) ($filter['uni_promo'] ?? 0) !== ($type === 'promo' ? 1 : 0)
-                || !$this->matcher->matches($filter, $product)) {
+                || !$this->matcher->matches($filter, $product)
+            ) {
                 continue;
             }
             $kop = trim((string) ($filter['uni_kop'] ?? ''));

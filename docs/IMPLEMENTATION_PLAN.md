@@ -723,6 +723,19 @@ CartSchemeResolver
 
 или еквивалентен domain service.
 
+### Explicit legacy/business parity rules
+
+Phase 7 умишлено запазва следните две WooCommerce semantics:
+
+1. За всеки cart line product/category identity е на конкретния продукт, но price filters,
+   promo price rules и min/max eligibility се оценяват с общия tax-inclusive products cart total.
+   Quantity влияе чрез този cart total, а не чрез отделна financing evaluation за всяка бройка.
+2. Cart scheme intersection identity е `scheme_type | KOP | months`. `filter_id` е metadata
+   и не участва в intersection key; различни matching filters могат да дадат една обща схема.
+
+Тези правила са compatibility contract с `wiley68/uni-woo` и не трябва да бъдат променяни
+като привидни дефекти без изрично business решение.
+
 ## STOP GATE 7
 
 Тестове с:
