@@ -54,10 +54,19 @@ class Unipayment extends PaymentModule
 
         $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
         $cache = new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache();
-        if ($repository->install() && $cache->install()) {
+        $debugLog = new PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository();
+        $bankStatus = new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository();
+        if ($repository->install()
+            && $cache->install()
+            && $debugLog->install()
+            && $bankStatus->install()
+            && $this->registerHook('displayAdminOrderMainBottom')
+        ) {
             return true;
         }
 
+        $bankStatus->uninstall();
+        $debugLog->uninstall();
         $cache->uninstall();
         $repository->uninstall();
         parent::uninstall();
@@ -74,12 +83,20 @@ class Unipayment extends PaymentModule
     {
         $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
         $cache = new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache();
+        $debugLog = new PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository();
+        $bankStatus = new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository();
 
+        $bankStatusRemoved = $bankStatus->uninstall();
+        $debugLogRemoved = $debugLog->uninstall();
         $cacheRemoved = $cache->uninstall();
         $configurationRemoved = $repository->uninstall();
         $moduleUninstalled = parent::uninstall();
 
-        return $cacheRemoved && $configurationRemoved && $moduleUninstalled;
+        return $bankStatusRemoved
+            && $debugLogRemoved
+            && $cacheRemoved
+            && $configurationRemoved
+            && $moduleUninstalled;
     }
 
     public function getContent(): string
@@ -280,5 +297,24 @@ class Unipayment extends PaymentModule
             $client ?? $this->createControlPanelClient(),
             $tokens
         );
+    }
+
+    /** @param array<string, mixed> $params */
+    public function hookDisplayAdminOrderMainBottom(array $params): string
+    {
+        $idOrder = (int) ($params['id_order'] ?? 0);
+        $bankStatus = (new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository())
+            ->findByOrderId($idOrder);
+        if ($bankStatus === null) {
+            return '';
+        }
+
+        $this->context->smarty->assign([
+            'unipayment_bank_status_id' => $bankStatus['status_id'],
+            'unipayment_bank_status_label' => $bankStatus['status_label'],
+            'unipayment_bank_status_updated_at' => $bankStatus['updated_at'] . ' UTC',
+        ]);
+
+        return $this->display(__FILE__, 'views/templates/hook/admin_order_bank_status.tpl');
     }
 }

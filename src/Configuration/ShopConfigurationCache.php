@@ -128,7 +128,10 @@ final class ShopConfigurationCache implements ShopConfigurationCacheInterface
             return true;
         }
 
-        return (bool) $this->database->delete(self::TABLE, ['unicid' => trim($unicid)]);
+        return (bool) $this->database->delete(
+            self::TABLE,
+            "`unicid` = '" . pSQL(trim($unicid)) . "'"
+        );
     }
 
     public function clear(): bool
