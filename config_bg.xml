@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <module>
     <name>unipayment</name>
-    <displayName><![CDATA[UniCredit Credit Calculator]]></displayName>
-    <version><![CDATA[0.1.0]]></version>
-    <description><![CDATA[Foundation for UniCredit purchases on credit.]]></description>
+    <displayName><![CDATA[УниКредит покупки на Кредит]]></displayName>
+    <version><![CDATA[2.0.0]]></version>
+    <description><![CDATA[Позволява на вашите клиенти да купуват стоки на вноски с УниКредит.]]></description>
     <author><![CDATA[wiley68]]></author>
     <tab><![CDATA[payments_gateways]]></tab>
-	<confirmUninstall><![CDATA[Are you sure you want to uninstall the module?]]></confirmUninstall>
+	<confirmUninstall><![CDATA[Сигурни ли сте, че искате да деинсталирате модула?]]></confirmUninstall>
     <is_configurable>0</is_configurable>
     <need_instance>0</need_instance>
 </module>

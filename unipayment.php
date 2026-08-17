@@ -15,7 +15,7 @@ class Unipayment extends PaymentModule
     {
         $this->name = 'unipayment';
         $this->tab = 'payments_gateways';
-        $this->version = '0.1.0';
+        $this->version = '2.0.0';
         $this->author = 'wiley68';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -32,7 +32,7 @@ class Unipayment extends PaymentModule
             'Modules.Unipayment.Admin'
         );
         $this->description = $this->trans(
-            'Foundation for UniCredit purchases on credit.',
+            'Allows your customers to purchase goods in installments with UniCredit.',
             [],
             'Modules.Unipayment.Admin'
         );
