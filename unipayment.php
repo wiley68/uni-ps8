@@ -63,6 +63,7 @@ class Unipayment extends PaymentModule
             && $this->registerHook('displayAdminOrderMainBottom')
             && $this->registerHook('displayProductAdditionalInfo')
             && $this->registerHook('displayShoppingCart')
+            && $this->registerHook('paymentOptions')
             && $this->registerHook('actionFrontControllerSetMedia')
         ) {
             return true;
@@ -377,6 +378,21 @@ class Unipayment extends PaymentModule
             return;
         }
 
+        if ($this->context->controller->php_self === 'order') {
+            $this->context->controller->registerStylesheet(
+                'module-unipayment-checkout-payment',
+                'modules/' . $this->name . '/views/css/checkout-payment.css',
+                ['media' => 'all', 'priority' => 150]
+            );
+            $this->context->controller->registerJavascript(
+                'module-unipayment-checkout-payment',
+                'modules/' . $this->name . '/views/js/checkout-payment.js',
+                ['position' => 'bottom', 'priority' => 150]
+            );
+
+            return;
+        }
+
         if ($this->context->controller->php_self !== 'product') {
             return;
         }
@@ -427,6 +443,74 @@ class Unipayment extends PaymentModule
         ]);
 
         return $this->display(__FILE__, 'views/templates/hook/cart_calculator.tpl');
+    }
+
+    /** @param array<string, mixed> $params @return array<int, PrestaShop\PrestaShop\Core\Payment\PaymentOption> */
+    public function hookPaymentOptions(array $params): array
+    {
+        $cart = $params['cart'] ?? $this->context->cart;
+        if (!$this->active || !$cart instanceof Cart) {
+            return [];
+        }
+        $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
+        if (!$repository->isEnabled()) {
+            return [];
+        }
+        try {
+            $shop = $this->createShopConfigurationService()->get();
+            $calculator = new PrestaShop\Module\Unipayment\Calculator\Calculator();
+            $cartContext = (new PrestaShop\Module\Unipayment\Cart\CartContextFactory())->create($cart);
+            $currency = $this->context->currency;
+            if (!$currency instanceof Currency && (int) $cart->id_currency > 0) {
+                $currency = new Currency((int) $cart->id_currency);
+            }
+            if (!$currency instanceof Currency || !Validate::isLoadedObject($currency)) {
+                return [];
+            }
+            $view = (new PrestaShop\Module\Unipayment\Checkout\CheckoutPaymentPresenter(
+                $calculator,
+                new PrestaShop\Module\Unipayment\Cart\CartSchemeResolver($calculator),
+                new PrestaShop\Module\Unipayment\Calculator\CurrencyGate(),
+                new PrestaShop\Module\Unipayment\Checkout\CartSnapshot(),
+                new PrestaShop\Module\Unipayment\Checkout\CartSnapshotSigner(_COOKIE_KEY_),
+                new PrestaShop\Module\Unipayment\Checkout\ConsentResolver()
+            ))->present(true, $shop, $cartContext, (string) $currency->iso_code);
+        } catch (Throwable $exception) {
+            PrestaShopLogger::addLog('UniPayment checkout option could not be rendered: ' . get_class($exception), 2);
+
+            return [];
+        }
+        if ($view === null) {
+            return [];
+        }
+        $this->context->smarty->assign([
+            'unipayment_checkout' => $view,
+            'unipayment_checkout_json' => json_encode($view, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
+            'unipayment_checkout_token' => Tools::getToken(false),
+        ]);
+        $option = new PrestaShop\PrestaShop\Core\Payment\PaymentOption();
+        $option->setModuleName($this->name)
+            ->setCallToActionText($this->trans('UniCredit purchases on credit', [], 'Modules.Unipayment.Shop'))
+            ->setAction($this->context->link->getModuleLink($this->name, 'validatecheckout', [], true))
+            ->setAdditionalInformation($this->fetch('module:unipayment/views/templates/hook/checkout_payment.tpl'));
+
+        return [$option];
+    }
+
+    /** @return array<string, string> */
+    public function getCheckoutCustomerData(): array
+    {
+        $customer = $this->context->customer;
+        $addressId = (int) ($this->context->cart->id_address_invoice ?: $this->context->cart->id_address_delivery);
+        $address = $addressId > 0 ? new Address($addressId) : null;
+
+        return [
+            'first_name' => $address instanceof Address && Validate::isLoadedObject($address) ? (string) $address->firstname : (string) $customer->firstname,
+            'last_name' => $address instanceof Address && Validate::isLoadedObject($address) ? (string) $address->lastname : (string) $customer->lastname,
+            'address' => $address instanceof Address && Validate::isLoadedObject($address) ? trim((string) $address->address1 . ' ' . (string) $address->address2) : '',
+            'phone' => $address instanceof Address && Validate::isLoadedObject($address) ? (string) ($address->phone_mobile ?: $address->phone) : '',
+            'email' => (string) $customer->email,
+        ];
     }
 
     /** @param array<string, mixed> $params */

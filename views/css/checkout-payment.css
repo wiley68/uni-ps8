@@ -1,0 +1,9 @@
+.unipayment-checkout { display: grid; gap: .85rem; padding: 1rem; border: 1px solid #ddd; border-radius: .35rem; background: #fff; }
+.unipayment-checkout label { display: grid; gap: .35rem; }
+.unipayment-checkout select, .unipayment-checkout input[type="number"], .unipayment-checkout input[type="text"], .unipayment-checkout input[type="tel"] { width: 100%; padding: .55rem; border: 1px solid #aaa; border-radius: .2rem; }
+.unipayment-checkout__summary { margin: 0; }
+.unipayment-checkout__summary div { display: flex; justify-content: space-between; gap: 1rem; padding: .4rem 0; border-bottom: 1px solid #eee; }
+.unipayment-checkout__summary dt, .unipayment-checkout__summary dd { margin: 0; }
+.unipayment-checkout__summary dd { font-weight: 700; text-align: right; }
+.unipayment-checkout__consents { display: grid; gap: .5rem; }
+.unipayment-checkout__notice { margin: 0; color: #666; font-size: .85rem; }

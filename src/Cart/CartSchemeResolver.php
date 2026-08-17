@@ -51,6 +51,25 @@ final class CartSchemeResolver
         );
     }
 
+    /** @return AvailableScheme[] */
+    public function unifiedSchemes(CartResolution $resolution): array
+    {
+        $schemes = $resolution->standardSchemes;
+        $seen = [];
+        foreach ($schemes as $scheme) {
+            $seen[$this->key($scheme)] = true;
+        }
+        foreach ($resolution->promoSchemes as $scheme) {
+            if (isset($seen[$this->key($scheme)])) {
+                continue;
+            }
+            $schemes[] = $scheme;
+            $seen[$this->key($scheme)] = true;
+        }
+
+        return $schemes;
+    }
+
     /** @param array<int, AvailableScheme[]> $sets @return AvailableScheme[] */
     public function intersect(array $sets): array
     {
