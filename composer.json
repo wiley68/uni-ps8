@@ -1,0 +1,21 @@
+{
+  "name": "wiley68/unipayment",
+  "description": "UniCredit Credit Calculator module for PrestaShop 8",
+  "type": "prestashop-module",
+  "license": "proprietary",
+  "require": {
+    "php": ">=7.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "PrestaShop\\Module\\Unipayment\\": "src/"
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "prepend-autoloader": false
+  }
+}
+
