@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PrestaShop\Module\Unipayment\Order;
+
+use PrestaShop\Module\Unipayment\Checkout\SchemeSelection;
+use PrestaShop\Module\Unipayment\Checkout\ValidatedPaymentRequest;
+
+final class FinancingSnapshotFactory
+{
+    private $cipher;
+
+    public function __construct(SensitiveDataCipher $cipher) { $this->cipher = $cipher; }
+
+    /** @return array<string, mixed> */
+    public function create(ValidatedPaymentRequest $request, CreatedOrder $order): array
+    {
+        $calculation = $request->calculation;
+        $customer = $order->customer;
+        $sensitive = [
+            'egn' => (string) ($request->customer['egn'] ?? ''),
+            'phone2' => (string) ($request->customer['phone2'] ?? ''),
+        ];
+        unset($customer['egn'], $customer['phone2']);
+
+        return [
+            'id_order' => $order->idOrder,
+            'order_reference' => $order->reference,
+            'cart_fingerprint' => $request->cartFingerprint,
+            'scheme_type' => $calculation->scheme->type,
+            'scheme_key' => SchemeSelection::key($calculation->scheme->type, $calculation->scheme->months, $calculation->scheme->filterId),
+            'kop_code' => $calculation->scheme->kopCode,
+            'months' => $calculation->scheme->months,
+            'filter_id' => $calculation->scheme->filterId,
+            'first_installment' => $calculation->firstInstallment->amount,
+            'financed_amount' => $calculation->financedAmount,
+            'monthly_installment' => $calculation->monthlyInstallment,
+            'total_payable' => $calculation->totalPayable,
+            'glp' => $calculation->glp,
+            'gpr' => $calculation->gpr,
+            'coefficient' => (float) ($calculation->scheme->coefficient['coeff'] ?? 0),
+            'order_total' => $order->total,
+            'currency_iso' => $order->currencyIso,
+            'id_currency' => $order->idCurrency,
+            'module_version' => '2.0.0',
+            'submission_source' => 'checkout',
+            'customer_json' => $customer,
+            'address_json' => $order->addresses,
+            'lines_json' => $order->lines,
+            'consents_json' => $request->acceptedConsents,
+            'sensitive_payload' => $this->cipher->encrypt($sensitive),
+            'control_panel_order_id' => null,
+            'lifecycle_status' => OrderOrchestrator::PS_ORDER_CREATED,
+        ];
+    }
+}

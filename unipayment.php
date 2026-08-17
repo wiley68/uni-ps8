@@ -56,10 +56,16 @@ class Unipayment extends PaymentModule
         $cache = new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache();
         $debugLog = new PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository();
         $bankStatus = new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository();
+        $attempts = new PrestaShop\Module\Unipayment\Order\OrderAttemptRepository();
+        $snapshots = new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository();
+        $orderStates = new PrestaShop\Module\Unipayment\Order\OrderStateInstaller();
         if ($repository->install()
             && $cache->install()
             && $debugLog->install()
             && $bankStatus->install()
+            && $attempts->install()
+            && $snapshots->install()
+            && $orderStates->install()
             && $this->registerHook('displayAdminOrderMainBottom')
             && $this->registerHook('displayProductAdditionalInfo')
             && $this->registerHook('displayShoppingCart')
@@ -69,6 +75,9 @@ class Unipayment extends PaymentModule
             return true;
         }
 
+        $orderStates->uninstall();
+        $snapshots->uninstall();
+        $attempts->uninstall();
         $bankStatus->uninstall();
         $debugLog->uninstall();
         $cache->uninstall();
@@ -89,7 +98,13 @@ class Unipayment extends PaymentModule
         $cache = new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache();
         $debugLog = new PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository();
         $bankStatus = new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository();
+        $attempts = new PrestaShop\Module\Unipayment\Order\OrderAttemptRepository();
+        $snapshots = new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository();
+        $orderStates = new PrestaShop\Module\Unipayment\Order\OrderStateInstaller();
 
+        $orderStatesRemoved = $orderStates->uninstall();
+        $snapshotsRemoved = $snapshots->uninstall();
+        $attemptsRemoved = $attempts->uninstall();
         $bankStatusRemoved = $bankStatus->uninstall();
         $debugLogRemoved = $debugLog->uninstall();
         $cacheRemoved = $cache->uninstall();
@@ -97,6 +112,9 @@ class Unipayment extends PaymentModule
         $moduleUninstalled = parent::uninstall();
 
         return $bankStatusRemoved
+            && $attemptsRemoved
+            && $snapshotsRemoved
+            && $orderStatesRemoved
             && $debugLogRemoved
             && $cacheRemoved
             && $configurationRemoved
@@ -306,6 +324,11 @@ class Unipayment extends PaymentModule
     public function getShopConfigurationService(): PrestaShop\Module\Unipayment\Configuration\ShopConfigurationService
     {
         return $this->createShopConfigurationService();
+    }
+
+    public function getControlPanelClient(): PrestaShop\Module\Unipayment\Api\ControlPanelClient
+    {
+        return $this->createControlPanelClient();
     }
 
     /** @param array<string, mixed> $params */

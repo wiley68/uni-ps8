@@ -14,15 +14,18 @@ final class ValidatedPaymentRequest
     public $customer;
     /** @var int[] */
     public $acceptedConsentIds;
+    /** @var array<int, array{id:int,name:string,url:string,mandatory:bool}> */
+    public $acceptedConsents;
     /** @var string */
     public $cartFingerprint;
 
-    /** @param array<string, string> $customer @param int[] $acceptedConsentIds */
-    public function __construct(CalculationResult $calculation, array $customer, array $acceptedConsentIds, string $cartFingerprint)
+    /** @param array<string, string> $customer @param int[] $acceptedConsentIds @param array<int, array{id:int,name:string,url:string,mandatory:bool}> $acceptedConsents */
+    public function __construct(CalculationResult $calculation, array $customer, array $acceptedConsentIds, string $cartFingerprint, array $acceptedConsents = [])
     {
         $this->calculation = $calculation;
         $this->customer = $customer;
         $this->acceptedConsentIds = $acceptedConsentIds;
+        $this->acceptedConsents = $acceptedConsents;
         $this->cartFingerprint = $cartFingerprint;
     }
 

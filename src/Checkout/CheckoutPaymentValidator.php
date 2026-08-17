@@ -66,8 +66,11 @@ final class CheckoutPaymentValidator
         }
         $validatedCustomer = $this->customers->validate($shop, $customer, $posted);
         $accepted = $this->consents->validate($shop, $posted['consent'] ?? []);
+        $acceptedConsents = array_values(array_filter($this->consents->normalize($shop), static function (array $consent) use ($accepted): bool {
+            return in_array($consent['id'], $accepted, true);
+        }));
 
-        return new ValidatedPaymentRequest($calculation, $validatedCustomer, $accepted, $fingerprint);
+        return new ValidatedPaymentRequest($calculation, $validatedCustomer, $accepted, $fingerprint, $acceptedConsents);
     }
 
     /** @param AvailableScheme[] $schemes */

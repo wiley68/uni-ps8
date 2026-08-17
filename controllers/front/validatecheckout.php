@@ -12,6 +12,15 @@ use PrestaShop\Module\Unipayment\Checkout\CheckoutPaymentValidator;
 use PrestaShop\Module\Unipayment\Checkout\CheckoutValidationException;
 use PrestaShop\Module\Unipayment\Checkout\ConsentResolver;
 use PrestaShop\Module\Unipayment\Checkout\CustomerFieldValidator;
+use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
+use PrestaShop\Module\Unipayment\Order\ControlPanelOrderPayloadBuilder;
+use PrestaShop\Module\Unipayment\Order\FinancingSnapshotFactory;
+use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
+use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
+use PrestaShop\Module\Unipayment\Order\OrderAttemptRepository;
+use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
+use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
+use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 
 final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontController
 {
@@ -52,10 +61,31 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 $this->postedSelection(),
                 $module->getCheckoutCustomerData()
             );
-            $this->context->smarty->assign(['unipayment_validated_request' => $request->toArray()]);
+            $shop['_is_mobile'] = $this->context->isMobile();
+            $orchestrator = new OrderOrchestrator(
+                new OrderAttemptRepository(),
+                new FinancingSnapshotRepository(),
+                new NativePrestaShopOrderGateway($module, $this->context),
+                new ControlPanelOrderClientAdapter($module->getControlPanelClient()),
+                new FinancingSnapshotFactory(new SensitiveDataCipher()),
+                new ControlPanelOrderPayloadBuilder()
+            );
+            $result = $orchestrator->orchestrate((int) $this->context->shop->id, (int) $this->context->cart->id, $request, $shop);
+            $this->context->smarty->assign(['unipayment_order_result' => [
+                'id_order' => $result->idOrder,
+                'order_reference' => $result->orderReference,
+                'control_panel_order_id' => $result->controlPanelOrderId,
+            ]]);
             $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
         } catch (CheckoutValidationException $exception) {
             $this->showError($exception->getMessage());
+        } catch (OrderOrchestrationException $exception) {
+            PrestaShopLogger::addLog('UniPayment order orchestration failed: ' . get_class($exception) . '; retryable=' . ($exception->isRetryable() ? '1' : '0'), 2);
+            $this->showError($this->module->getTranslator()->trans(
+                $exception->isRetryable() ? 'The financing order could not be submitted. You can safely try again.' : 'The financing order could not be completed.',
+                [],
+                'Modules.Unipayment.Shop'
+            ));
         } catch (Throwable $exception) {
             PrestaShopLogger::addLog('UniPayment checkout validation failed: ' . get_class($exception), 2);
             $this->showError($this->module->getTranslator()->trans('The financing selection could not be validated.', [], 'Modules.Unipayment.Shop'));
