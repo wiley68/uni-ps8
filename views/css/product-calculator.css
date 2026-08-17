@@ -1,0 +1,23 @@
+.unipayment-product-calculator { margin: 1rem 0; --unipayment-red: #e32620; }
+.unipayment-product-calculator__buttons { display: flex; flex-wrap: wrap; gap: .5rem; }
+.unipayment-product-calculator--stacked .unipayment-product-calculator__buttons { flex-direction: column; align-items: flex-start; }
+.unipayment-product-calculator__button { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; width: min(100%, var(--unipayment-button-width)); min-height: var(--unipayment-button-height); padding: .5rem 1rem; border: 2px solid var(--unipayment-red); border-radius: 999px; background: #fff; color: #222; cursor: pointer; }
+.unipayment-product-calculator--dark .unipayment-product-calculator__button { background: var(--unipayment-red); color: #fff; }
+.unipayment-product-calculator__button-content { display: flex; flex-direction: column; }
+.unipayment-product-calculator__button-title { color: var(--unipayment-red); font-size: 1rem; font-weight: 700; }
+.unipayment-product-calculator--dark .unipayment-product-calculator__button-title { color: #fff; }
+.unipayment-product-calculator__button-price { font-size: .8rem; }
+.unipayment-product-calculator__badge { color: var(--unipayment-red); font-size: 1.8rem; font-weight: 700; }
+.unipayment-product-calculator--dark .unipayment-product-calculator__badge { color: #fff; }
+.unipayment-product-calculator__modal[hidden] { display: none; }
+.unipayment-product-calculator__modal { position: fixed; inset: 0; z-index: 1055; display: grid; place-items: center; padding: 1rem; }
+.unipayment-product-calculator__overlay { position: absolute; inset: 0; width: 100%; border: 0; background: rgba(0,0,0,.55); }
+.unipayment-product-calculator__dialog { position: relative; width: min(100%, 38rem); max-height: calc(100vh - 2rem); overflow: auto; padding: 1.5rem; border-radius: .4rem; background: #fff; box-shadow: 0 1rem 3rem rgba(0,0,0,.3); }
+.unipayment-product-calculator__close { position: absolute; top: .5rem; right: .75rem; border: 0; background: none; font-size: 1.8rem; cursor: pointer; }
+.unipayment-product-calculator__dialog select { width: 100%; margin: .5rem 0 1rem; padding: .5rem; }
+.unipayment-product-calculator__summary { margin: 0 0 1rem; }
+.unipayment-product-calculator__summary div { display: flex; justify-content: space-between; gap: 1rem; padding: .45rem 0; border-bottom: 1px solid #ddd; }
+.unipayment-product-calculator__summary dt, .unipayment-product-calculator__summary dd { margin: 0; }
+.unipayment-product-calculator__summary dd { font-weight: 700; text-align: right; }
+.unipayment-product-calculator__notice { font-size: .85rem; color: #666; }
+body.unipayment-modal-open { overflow: hidden; }

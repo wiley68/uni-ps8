@@ -61,6 +61,8 @@ class Unipayment extends PaymentModule
             && $debugLog->install()
             && $bankStatus->install()
             && $this->registerHook('displayAdminOrderMainBottom')
+            && $this->registerHook('displayProductAdditionalInfo')
+            && $this->registerHook('actionFrontControllerSetMedia')
         ) {
             return true;
         }
@@ -297,6 +299,95 @@ class Unipayment extends PaymentModule
             $client ?? $this->createControlPanelClient(),
             $tokens
         );
+    }
+
+    public function getShopConfigurationService(): PrestaShop\Module\Unipayment\Configuration\ShopConfigurationService
+    {
+        return $this->createShopConfigurationService();
+    }
+
+    /** @param array<string, mixed> $params */
+    public function hookDisplayProductAdditionalInfo(array $params): string
+    {
+        $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
+        if (!$this->active || !$repository->isEnabled()) {
+            return '';
+        }
+
+        $productId = $this->resolveHookProductId($params);
+        $productAttributeId = max(0, (int) Tools::getValue('id_product_attribute', 0));
+        if ($productId <= 0) {
+            return '';
+        }
+
+        try {
+            $shop = $this->createShopConfigurationService()->get();
+            $product = (new PrestaShop\Module\Unipayment\Product\ProductContextFactory())
+                ->create($productId, $productAttributeId);
+            $calculator = (new PrestaShop\Module\Unipayment\Product\ProductCalculatorPresenter(
+                new PrestaShop\Module\Unipayment\Calculator\Calculator()
+            ))->present($shop, $product, (string) $this->context->currency->iso_code);
+        } catch (Throwable $exception) {
+            PrestaShopLogger::addLog('UniPayment product calculator could not be rendered: ' . get_class($exception), 2);
+
+            return '';
+        }
+
+        if ($calculator === null) {
+            return '';
+        }
+
+        $this->context->smarty->assign([
+            'unipayment_calculator' => $calculator,
+            'unipayment_calculator_json' => json_encode(
+                $calculator,
+                JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+            ),
+            'unipayment_calculator_url' => $this->context->link->getModuleLink(
+                $this->name,
+                'productcalculator',
+                ['ajax' => 1],
+                true
+            ),
+            'unipayment_offer_types' => ['standard', 'promo'],
+        ]);
+
+        return $this->display(__FILE__, 'views/templates/hook/product_calculator.tpl');
+    }
+
+    public function hookActionFrontControllerSetMedia(): void
+    {
+        if (!$this->active
+            || !isset($this->context->controller->php_self)
+            || $this->context->controller->php_self !== 'product'
+        ) {
+            return;
+        }
+
+        $this->context->controller->registerStylesheet(
+            'module-unipayment-product-calculator',
+            'modules/' . $this->name . '/views/css/product-calculator.css',
+            ['media' => 'all', 'priority' => 150]
+        );
+        $this->context->controller->registerJavascript(
+            'module-unipayment-product-calculator',
+            'modules/' . $this->name . '/views/js/product-calculator.js',
+            ['position' => 'bottom', 'priority' => 150]
+        );
+    }
+
+    /** @param array<string, mixed> $params */
+    private function resolveHookProductId(array $params): int
+    {
+        $product = $params['product'] ?? null;
+        if (is_object($product) && isset($product->id)) {
+            return (int) $product->id;
+        }
+        if (is_array($product)) {
+            return (int) ($product['id_product'] ?? $product['id'] ?? 0);
+        }
+
+        return max(0, (int) Tools::getValue('id_product', 0));
     }
 
     /** @param array<string, mixed> $params */
