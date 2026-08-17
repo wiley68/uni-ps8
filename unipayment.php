@@ -80,6 +80,7 @@ class Unipayment extends PaymentModule
     public function getContent(): string
     {
         $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
+        $tokens = new PrestaShop\Module\Unipayment\Security\TokenRepository();
         $output = '';
 
         if (Tools::isSubmit('submitUnipaymentConfiguration')) {
@@ -87,13 +88,15 @@ class Unipayment extends PaymentModule
         }
 
         if (Tools::isSubmit('submitUnipaymentRefresh')) {
-            $output .= $this->displayWarning(
-                $this->trans(
-                    'The manual refresh will become available after the Control Panel connection is implemented.',
-                    [],
-                    'Modules.Unipayment.Admin'
-                )
-            );
+            $output .= $this->handleControlPanelAction('refresh');
+        }
+
+        if (Tools::isSubmit('submitUnipaymentConnect')) {
+            $output .= $this->handleControlPanelAction('connect');
+        }
+
+        if (Tools::isSubmit('submitUnipaymentLogout')) {
+            $output .= $this->handleControlPanelAction('logout');
         }
 
         $hasCredentials = $repository->getUnicid() !== '' && $repository->hasSecret();
@@ -114,9 +117,14 @@ class Unipayment extends PaymentModule
                 : $repository->getUnicid(),
             'unipayment_has_secret' => $repository->hasSecret(),
             'unipayment_secret_readable' => $repository->isSecretReadable(),
-            'unipayment_connection_status' => $hasCredentials
-                ? $this->trans('Credentials saved; connection not checked yet.', [], 'Modules.Unipayment.Admin')
-                : $this->trans('Credentials incomplete.', [], 'Modules.Unipayment.Admin'),
+            'unipayment_connection_status' => $tokens->hasToken()
+                ? sprintf(
+                    $this->trans('Authenticated; token expires at %s.', [], 'Modules.Unipayment.Admin'),
+                    date('Y-m-d H:i:s', $tokens->getExpiresAt())
+                )
+                : ($hasCredentials
+                    ? $this->trans('Credentials saved; not authenticated.', [], 'Modules.Unipayment.Admin')
+                    : $this->trans('Credentials incomplete.', [], 'Modules.Unipayment.Admin')),
             'unipayment_cache_status' => $this->trans(
                 'No Control Panel configuration has been cached yet.',
                 [],
@@ -132,6 +140,7 @@ class Unipayment extends PaymentModule
         PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository $repository
     ): string {
         $validator = new PrestaShop\Module\Unipayment\Configuration\ConfigurationValidator();
+        $tokens = new PrestaShop\Module\Unipayment\Security\TokenRepository();
         $unicid = trim((string) Tools::getValue('UNIPAYMENT_UNICID', ''));
         $secret = trim((string) Tools::getValue('UNIPAYMENT_SECRET', ''));
         $errors = $validator->validate($unicid, $secret, $repository->hasSecret());
@@ -154,6 +163,7 @@ class Unipayment extends PaymentModule
             }, $errors));
         }
 
+        $credentialsChanged = $repository->getUnicid() !== $unicid || $secret !== '';
         $saved = $repository->save(
             (bool) Tools::getValue('UNIPAYMENT_ENABLED', false),
             $unicid,
@@ -166,8 +176,80 @@ class Unipayment extends PaymentModule
             );
         }
 
+        if ($credentialsChanged) {
+            $tokens->invalidate();
+        }
+
         return $this->displayConfirmation(
             $this->trans('Settings updated successfully.', [], 'Modules.Unipayment.Admin')
+        );
+    }
+
+    private function handleControlPanelAction(string $action): string
+    {
+        $client = $this->createControlPanelClient();
+
+        try {
+            if ($action === 'logout') {
+                $client->logout();
+
+                return $this->displayConfirmation(
+                    $this->trans('The Control Panel session was closed.', [], 'Modules.Unipayment.Admin')
+                );
+            }
+
+            if ($action === 'refresh') {
+                $client->refreshToken();
+                $client->getShop();
+
+                return $this->displayConfirmation(
+                    $this->trans('The token was refreshed and the shop data was retrieved successfully.', [], 'Modules.Unipayment.Admin')
+                );
+            }
+
+            $client->login();
+            $client->getShop();
+
+            return $this->displayConfirmation(
+                $this->trans('Connection to the Control Panel was successful.', [], 'Modules.Unipayment.Admin')
+            );
+        } catch (PrestaShop\Module\Unipayment\Api\Exception\TimeoutException $exception) {
+            return $this->displayError(
+                $this->trans('The Control Panel request timed out.', [], 'Modules.Unipayment.Admin')
+            );
+        } catch (PrestaShop\Module\Unipayment\Api\Exception\ConnectionException $exception) {
+            return $this->displayError(
+                $this->trans('Could not connect to the Control Panel.', [], 'Modules.Unipayment.Admin')
+            );
+        } catch (PrestaShop\Module\Unipayment\Api\Exception\AuthenticationException $exception) {
+            return $this->displayError(
+                $this->trans('The Control Panel rejected the shop credentials.', [], 'Modules.Unipayment.Admin')
+            );
+        } catch (PrestaShop\Module\Unipayment\Api\Exception\MalformedJsonException $exception) {
+            return $this->displayError(
+                $this->trans('The Control Panel returned an unreadable response.', [], 'Modules.Unipayment.Admin')
+            );
+        } catch (PrestaShop\Module\Unipayment\Api\Exception\InvalidPayloadException $exception) {
+            return $this->displayError(
+                $this->trans('The Control Panel returned an invalid response.', [], 'Modules.Unipayment.Admin')
+            );
+        } catch (PrestaShop\Module\Unipayment\Api\Exception\HttpException $exception) {
+            return $this->displayError(sprintf(
+                $this->trans('The Control Panel returned HTTP status %d.', [], 'Modules.Unipayment.Admin'),
+                $exception->getStatusCode()
+            ));
+        }
+    }
+
+    private function createControlPanelClient(): PrestaShop\Module\Unipayment\Api\ControlPanelClient
+    {
+        $shopUrl = rtrim(Tools::getShopDomainSsl(true) . __PS_BASE_URI__, '/');
+
+        return new PrestaShop\Module\Unipayment\Api\ControlPanelClient(
+            new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository(),
+            new PrestaShop\Module\Unipayment\Security\TokenRepository(),
+            new PrestaShop\Module\Unipayment\Api\CurlHttpTransport(),
+            $shopUrl
         );
     }
 }

@@ -97,12 +97,17 @@
   </dl>
 
   <form action="{$unipayment_form_action|escape:'htmlall':'UTF-8'}" method="post">
+    <button type="submit" name="submitUnipaymentConnect" class="btn btn-default">
+      <i class="icon-link"></i>
+      {l s='Connect and test' d='Modules.Unipayment.Admin'}
+    </button>
     <button type="submit" name="submitUnipaymentRefresh" class="btn btn-default">
       <i class="icon-refresh"></i>
-      {l s='Refresh configuration' d='Modules.Unipayment.Admin'}
+      {l s='Refresh token and shop data' d='Modules.Unipayment.Admin'}
     </button>
-    <p class="help-block">
-      {l s='Manual refresh is not active until the Control Panel connection is available.' d='Modules.Unipayment.Admin'}
-    </p>
+    <button type="submit" name="submitUnipaymentLogout" class="btn btn-default">
+      <i class="icon-signout"></i>
+      {l s='Disconnect' d='Modules.Unipayment.Admin'}
+    </button>
   </form>
 </div>

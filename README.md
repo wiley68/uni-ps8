@@ -6,13 +6,14 @@ The repository root is the module root and the module technical name is `unipaym
 
 ## Current scope
 
-Phase 1 provides the installable module foundation and local configuration for
-the operational enabled flag, UNICID, and encrypted secret. The status panel is
-present, but no Control Panel request is performed before Phase 2.
+Phase 2 provides the installable module foundation, local configuration, and a
+native Control Panel API client. It supports login, token refresh, logout, shop
+retrieval, order creation, and order-status updates. Credentials and Bearer
+tokens are encrypted at rest with the PrestaShop shop encryption key.
 
 The current scope intentionally contains no payment option, calculator,
-Control Panel API client, SmartUCF integration, frontend behavior, or business
-database tables.
+configuration snapshot cache, SmartUCF integration, frontend behavior, or
+business database tables.
 
 ## Development
 

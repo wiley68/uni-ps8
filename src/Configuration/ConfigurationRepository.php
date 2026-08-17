@@ -22,7 +22,14 @@ final class ConfigurationRepository
     {
         $result = true;
 
-        foreach ([self::ENABLED, self::UNICID, self::SECRET] as $key) {
+        foreach ([
+            self::ENABLED,
+            self::UNICID,
+            self::SECRET,
+            'UNIPAYMENT_CP_ACCESS_TOKEN',
+            'UNIPAYMENT_CP_TOKEN_TYPE',
+            'UNIPAYMENT_CP_TOKEN_EXPIRES_AT',
+        ] as $key) {
             $result = \Configuration::deleteByName($key) && $result;
         }
 
