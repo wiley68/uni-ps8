@@ -3,6 +3,12 @@
     "intelephense.environment.includePaths": [
         "/var/www/presta8.avalonbg.com/classes",
         "/var/www/presta8.avalonbg.com/src",
-        "/var/www/presta8.avalonbg.com/vendor"
+        "/var/www/presta8.avalonbg.com/vendor",
+        "/var/www/presta8.avalonbg.com/var"
+    ],
+    "intelephense.files.exclude": [
+        "**/var/cache/**",
+        "**/var/logs/**",
+        "**/var/sessions/**"
     ]
 }
