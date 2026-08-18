@@ -60,7 +60,7 @@
     var step1 = root.querySelector('[data-unipayment-step="1"]');
     var step2 = root.querySelector('[data-unipayment-step="2"]');
     var step3 = root.querySelector('[data-unipayment-step="3"]');
-    var customerForm = root.querySelector('[data-unipayment-customer-form]');
+    var customerForm = root.querySelector('[data-unipayment-customer-form]') || step2;
     var submitError = root.querySelector('[data-unipayment-submit-error]');
     var applyButton = root.querySelector('[data-unipayment-apply]');
     var secondaryButton = root.querySelector('[data-unipayment-secondary]');
@@ -133,7 +133,7 @@
 
     function resetCustomerForm() {
       if (!customerForm || !submitButton) return;
-      customerForm.reset();
+      customerForm.querySelectorAll('input').forEach(function (input) { input.value = input.defaultValue; });
       showCustomerErrors({});
       submitError.textContent = '';
       updateSubmitState(false);

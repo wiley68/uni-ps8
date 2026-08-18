@@ -82,7 +82,7 @@
 
           <div class="unipayment-product-calculator__step" data-unipayment-step="2" hidden>
             <h2 class="unipayment-product-calculator__popup-title">{l s='Попълване на лични данни' d='Modules.Unipayment.Shop'}</h2>
-            <form class="unipayment-product-calculator__customer-form" data-unipayment-customer-form novalidate>
+            <div class="unipayment-product-calculator__customer-form" data-unipayment-customer-form>
               <div class="unipayment-product-calculator__customer-field">
                 <label class="unipayment-product-calculator__customer-label" for="unipayment-first-name-{$unipayment_calculator.product_id|intval}">{l s='Име' d='Modules.Unipayment.Shop'} <span class="unipayment-product-calculator__required" aria-hidden="true">*</span></label>
                 <input class="unipayment-product-calculator__customer-input" id="unipayment-first-name-{$unipayment_calculator.product_id|intval}" name="first_name" type="text" value="{$unipayment_popup.customer.first_name|escape:'htmlall':'UTF-8'}" required aria-required="true" autocomplete="given-name">
@@ -109,7 +109,7 @@
                 <span class="unipayment-product-calculator__field-error" data-unipayment-field-error="email" role="alert"></span>
               </div>
               <span class="unipayment-product-calculator__field-error" data-unipayment-submit-error role="alert"></span>
-            </form>
+            </div>
             <div class="unipayment-product-calculator__popup-actions unipayment-product-calculator__popup-actions--step2">
               <div class="unipayment-product-calculator__popup-actions-group">
                 <button type="button" class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--secondary" data-unipayment-back><span><b>{l s='Назад' d='Modules.Unipayment.Shop'}</b></span></button>

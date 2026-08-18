@@ -45,7 +45,8 @@ assertProductPopupContract(strpos($javascript, "payload.set('popup_offer_type', 
 assertProductPopupContract(strpos($javascript, "payload.set('scheme_key', scheme.key || '')") !== false && strpos($javascript, "payload.set('kop_code', scheme.kop_code || '')") !== false, 'full Product Popup scheme identity must be sent for server-side validation');
 assertProductPopupContract(strpos($javascript, "calculationPayload('validate_step2')") !== false, 'Step 2 submit must send the Step 1 identity for authoritative recalculation');
 assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-back]')") !== false && strpos($javascript, 'setStep(1)') !== false, 'Step 2 Back navigation missing');
-assertProductPopupContract(strpos($javascript, 'customerForm.reset()') !== false, 'Cancel/new popup flow must reset transient Step 2 values');
+assertProductPopupContract(strpos($javascript, 'input.value = input.defaultValue') !== false, 'Cancel/new popup flow must reset transient Step 2 values');
+assertProductPopupContract(strpos($template, '<form class="unipayment-product-calculator__customer-form"') === false, 'Step 2 must not create an invalid form nested inside the Product add-to-cart form');
 assertProductPopupContract(strpos($javascript, 'setStep(3)') !== false, 'successful validation must transition only to the final placeholder');
 assertProductPopupContract(strpos($javascript, 'new AbortController()') !== false && strpos($javascript, 'calculateSequence') !== false, 'abort/stale calculation guards missing');
 assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-close]')") !== false, 'Cancel close behavior missing');
