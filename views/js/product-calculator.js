@@ -83,8 +83,10 @@
       step1.classList.toggle('unipayment-product-calculator__step--active', number === 1);
       step2.hidden = number !== 2;
       step2.classList.toggle('unipayment-product-calculator__step--active', number === 2);
-      step3.hidden = number !== 3;
-      step3.classList.toggle('unipayment-product-calculator__step--active', number === 3);
+      if (step3) {
+        step3.hidden = number !== 3;
+        step3.classList.toggle('unipayment-product-calculator__step--active', number === 3);
+      }
     }
 
     function customerField(name) { return customerForm.querySelector('[name="' + name + '"]'); }
@@ -130,6 +132,7 @@
     }
 
     function resetCustomerForm() {
+      if (!customerForm || !submitButton) return;
       customerForm.reset();
       showCustomerErrors({});
       submitError.textContent = '';
@@ -317,6 +320,10 @@
 
     function transitionToStep2() {
       if (!lastCalculation) return;
+      if (!customerForm || !submitButton || !step3) {
+        errorBox.textContent = 'Формата за лични данни не е заредена. Моля, презаредете страницата.';
+        return;
+      }
       var state = {
         productId: parseInt(root.getAttribute('data-product-id'), 10) || 0,
         productAttributeId: productAttributeId(document), quantity: quantity(), type: activeType,
@@ -333,6 +340,7 @@
     }
 
     function requestStep2Validation() {
+      if (!customerForm || !submitButton || !step3) return;
       if (!updateSubmitState(true)) return;
       var payload = calculationPayload('validate_step2');
       var endpoint = root.getAttribute('data-popup-endpoint');
@@ -340,8 +348,10 @@
       ['first_name', 'last_name', 'address', 'phone', 'email'].forEach(function (name) {
         payload.set(name, customerField(name).value.trim());
       });
-      submitButton.disabled = true;
-      submitButton.setAttribute('aria-disabled', 'true');
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.setAttribute('aria-disabled', 'true');
+      }
       submitError.textContent = '';
       fetch(endpoint, {
         method: 'POST', credentials: 'same-origin', body: payload,
@@ -371,16 +381,18 @@
       if (event.target.closest('[data-unipayment-back]')) setStep(1);
       if (event.target.closest('[data-unipayment-submit]')) requestStep2Validation();
     });
-    customerForm.addEventListener('input', function (event) {
-      if (event.target && event.target.name === 'phone') event.target.value = event.target.value.replace(/[^0-9+() -]/g, '');
-      if (event.target && event.target.name) showCustomerFieldError(event.target.name, customerErrors()[event.target.name] || '');
-      submitError.textContent = '';
-      updateSubmitState(false);
-    });
-    customerForm.addEventListener('change', function (event) {
-      if (event.target && event.target.name) showCustomerFieldError(event.target.name, customerErrors()[event.target.name] || '');
-      updateSubmitState(false);
-    });
+    if (customerForm) {
+      customerForm.addEventListener('input', function (event) {
+        if (event.target && event.target.name === 'phone') event.target.value = event.target.value.replace(/[^0-9+() -]/g, '');
+        if (event.target && event.target.name) showCustomerFieldError(event.target.name, customerErrors()[event.target.name] || '');
+        submitError.textContent = '';
+        updateSubmitState(false);
+      });
+      customerForm.addEventListener('change', function (event) {
+        if (event.target && event.target.name) showCustomerFieldError(event.target.name, customerErrors()[event.target.name] || '');
+        updateSubmitState(false);
+      });
+    }
     select.addEventListener('change', function () { first.value = '0'; first.readOnly = false; calculateNow(); });
     first.addEventListener('input', function () {
       if (first.readOnly) return;
@@ -388,8 +400,10 @@
       lastCalculation = null;
       applyButton.disabled = true;
       secondaryButton.disabled = true;
-      submitButton.disabled = true;
-      submitButton.setAttribute('aria-disabled', 'true');
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.setAttribute('aria-disabled', 'true');
+      }
       window.clearTimeout(calculateTimer);
       calculateTimer = window.setTimeout(calculateNow, 800);
     });
@@ -421,8 +435,10 @@
       lastCalculation = null;
       applyButton.disabled = true;
       secondaryButton.disabled = true;
-      submitButton.disabled = true;
-      submitButton.setAttribute('aria-disabled', 'true');
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.setAttribute('aria-disabled', 'true');
+      }
     };
 
     root.unipaymentRefresh = function () {
