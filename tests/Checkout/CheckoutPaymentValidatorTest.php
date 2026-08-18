@@ -21,10 +21,10 @@ use PrestaShop\Module\Unipayment\Checkout\CustomerFieldValidator;
 
 function assertCheckout(bool $condition, string $message): void { if (!$condition) { fwrite(STDERR, "FAIL: {$message}\n"); exit(1); } }
 function expectCheckoutFailure(callable $callback, string $message): void { try { $callback(); } catch (CheckoutValidationException $exception) { return; } assertCheckout(false, $message); }
-function checkoutCart(float $total = 1000, int $quantity = 1, bool $second = false): CartContext {
+function checkoutCart(float $total = 1000, int $quantity = 1, bool $second = false, array $checkoutState = []): CartContext {
     $lines = [new CartLine(new ProductContext(42, [7], $total), 3, $quantity, $second ? 400 : $total)];
     if ($second) $lines[] = new CartLine(new ProductContext(43, [7], $total), 0, 1, $total - 400);
-    return new CartContext($lines, $total);
+    return new CartContext($lines, $total, $checkoutState);
 }
 
 $calculator = new Calculator('2026-08-17');
@@ -40,6 +40,25 @@ $base = ['scheme_key' => '12:0', 'kop_code' => 'STD', 'first_installment' => 100
 $standard = $validator->validate($shop, $cart, 'BGN', $base + ['monthly_installment' => 0.01, 'gpr' => 999], $customer);
 assertCheckout($standard->calculation->monthlyInstallment === 85.5, 'server-side recalculation did not determine final values');
 assertCheckout($standard->calculation->gpr !== 999.0, 'browser financial values were trusted');
+$freeShipping = checkoutCart(1000, 1, false, ['carrier_id' => 1, 'shipping_total' => '0.00', 'cart_rules' => []]);
+$freeToken = $signer->sign($snapshot->fingerprint($freeShipping, 'BGN'));
+$freeResult = $validator->validate($shop, $freeShipping, 'BGN', array_replace($base, ['cart_snapshot' => $freeToken]), $customer);
+assertCheckout($freeResult->calculation->price === 1000.0, 'free shipping changed the final checkout total');
+$paidShipping = checkoutCart(1050, 1, false, ['carrier_id' => 2, 'shipping_total' => '50.00', 'cart_rules' => []]);
+$paidToken = $signer->sign($snapshot->fingerprint($paidShipping, 'BGN'));
+$paidResult = $validator->validate($shop, $paidShipping, 'BGN', array_replace($base, ['cart_snapshot' => $paidToken]), $customer);
+assertCheckout($paidResult->calculation->price === 1050.0, 'paid shipping was excluded from financing calculation');
+$discounted = checkoutCart(900, 1, false, ['carrier_id' => 1, 'shipping_total' => '0.00', 'cart_rules' => [['id_cart_rule' => 7, 'value_real' => '100.00', 'free_shipping' => 0]]]);
+$discountToken = $signer->sign($snapshot->fingerprint($discounted, 'BGN'));
+$discountResult = $validator->validate($shop, $discounted, 'BGN', array_replace($base, ['cart_snapshot' => $discountToken]), $customer);
+assertCheckout($discountResult->calculation->price === 900.0, 'discount was excluded from financing calculation');
+expectCheckoutFailure(function () use ($validator, $shop, $paidShipping, $freeToken, $base, $customer): void {
+    $validator->validate($shop, $paidShipping, 'BGN', array_replace($base, ['cart_snapshot' => $freeToken]), $customer);
+}, 'changed shipping method accepted');
+$changedDiscount = checkoutCart(900, 1, false, ['carrier_id' => 1, 'shipping_total' => '0.00', 'cart_rules' => [['id_cart_rule' => 8, 'value_real' => '100.00', 'free_shipping' => 0]]]);
+expectCheckoutFailure(function () use ($validator, $shop, $changedDiscount, $discountToken, $base, $customer): void {
+    $validator->validate($shop, $changedDiscount, 'BGN', array_replace($base, ['cart_snapshot' => $discountToken]), $customer);
+}, 'changed discount accepted');
 $promo = $validator->validate($shop, $cart, 'BGN', array_replace($base, ['scheme_key' => 'p:12:0', 'kop_code' => 'PROMO', 'first_installment' => 0]), $customer);
 assertCheckout($promo->calculation->scheme->type === 'promo' && $promo->calculation->glp === 0.0, 'valid promo selection failed');
 
@@ -54,7 +73,7 @@ $schemaShop = calculatorFixture(['uni_eur' => 0, 'uni_typekop' => 1, 'kop' => ['
 expectCheckoutFailure(function () use ($validator, $schemaShop, $cart, $token, $customer): void {
     $validator->validate($schemaShop, $cart, 'BGN', ['scheme_key' => '24', 'kop_code' => 'PRODUCT', 'first_installment' => 0, 'cart_snapshot' => $token], $customer);
 }, 'missing schema filter metadata accepted');
-expectCheckoutFailure(function () use ($validator, $shop, $base, $customer): void { $validator->validate($shop, checkoutCart(1100), 'BGN', $base, $customer); }, 'changed total accepted');
+expectCheckoutFailure(function () use ($validator, $shop, $base, $customer): void { $validator->validate($shop, checkoutCart(1100), 'BGN', $base, $customer); }, 'final total mismatch accepted');
 expectCheckoutFailure(function () use ($validator, $shop, $base, $customer): void { $validator->validate($shop, checkoutCart(1000, 2), 'BGN', $base, $customer); }, 'changed quantity accepted');
 expectCheckoutFailure(function () use ($validator, $shop, $base, $customer): void { $validator->validate($shop, checkoutCart(1000, 1, true), 'BGN', $base, $customer); }, 'added product accepted');
 expectCheckoutFailure(function () use ($validator, $shop, $base, $customer): void { $validator->validate($shop, new CartContext([], 0), 'BGN', $base, $customer); }, 'removed product accepted');

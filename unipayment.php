@@ -482,7 +482,7 @@ class Unipayment extends PaymentModule
         try {
             $shop = $this->createShopConfigurationService()->get();
             $calculator = new PrestaShop\Module\Unipayment\Calculator\Calculator();
-            $cartContext = (new PrestaShop\Module\Unipayment\Cart\CartContextFactory())->create($cart);
+            $cartContext = (new PrestaShop\Module\Unipayment\Cart\CartContextFactory())->createForCheckout($cart);
             $currency = $this->context->currency;
             if (!$currency instanceof Currency && (int) $cart->id_currency > 0) {
                 $currency = new Currency((int) $cart->id_currency);

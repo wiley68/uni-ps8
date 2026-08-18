@@ -26,8 +26,25 @@ final class CartSnapshot
             'currency' => strtoupper(trim($currencyIso)),
             'total' => number_format($cart->total, 2, '.', ''),
             'lines' => $lines,
+            'checkout_state' => $this->normalize($cart->checkoutState),
         ];
 
         return hash('sha256', (string) json_encode($payload, JSON_UNESCAPED_SLASHES));
+    }
+
+    /** @param mixed $value @return mixed */
+    private function normalize($value)
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+        if (array_keys($value) !== range(0, count($value) - 1)) {
+            ksort($value);
+        }
+        foreach ($value as $key => $item) {
+            $value[$key] = $this->normalize($item);
+        }
+
+        return $value;
     }
 }

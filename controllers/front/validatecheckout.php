@@ -43,7 +43,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             /** @var Unipayment $module */
             $module = $this->module;
             $shop = $module->getShopConfigurationService()->get();
-            $cart = (new CartContextFactory())->create($this->context->cart);
+            $cart = (new CartContextFactory())->createForCheckout($this->context->cart);
             $calculator = new Calculator();
             $validator = new CheckoutPaymentValidator(
                 $calculator,
