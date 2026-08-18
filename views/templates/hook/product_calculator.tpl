@@ -63,7 +63,7 @@
               </div>
               <div class="unipayment-product-calculator__popup-row" data-unipayment-first-row>
                 <label class="unipayment-product-calculator__popup-label" for="unipayment-first-{$unipayment_calculator.product_id|intval}">{l s='Първоначална вноска /евро/' d='Modules.Unipayment.Shop'}</label>
-                <div class="unipayment-product-calculator__popup-value"><input id="unipayment-first-{$unipayment_calculator.product_id|intval}" class="unipayment-product-calculator__popup-input" data-unipayment-first type="number" min="0" step="0.01" value="0"></div>
+                <div class="unipayment-product-calculator__popup-value"><input id="unipayment-first-{$unipayment_calculator.product_id|intval}" class="unipayment-product-calculator__popup-input" data-unipayment-first type="text" inputmode="numeric" pattern="[0-9]*" value="0"></div>
               </div>
               <div class="unipayment-product-calculator__popup-row"><div class="unipayment-product-calculator__popup-label">{l s='Обща сума на заема' d='Modules.Unipayment.Shop'}</div><div class="unipayment-product-calculator__popup-value" data-unipayment-display="financed_amount"></div></div>
               <div class="unipayment-product-calculator__popup-row"><div class="unipayment-product-calculator__popup-label"><span class="unipayment-product-calculator__label-desktop">{l s='Размер на погасителна вноска' d='Modules.Unipayment.Shop'}</span><span class="unipayment-product-calculator__label-mobile">{l s='Погасителна вноска' d='Modules.Unipayment.Shop'}</span></div><div class="unipayment-product-calculator__popup-value" data-unipayment-display="monthly_installment"></div></div>

@@ -153,8 +153,10 @@
       displayAmount('total_payable', calculation.total_payable_display);
       root.querySelector('[data-unipayment-display="glp"]').textContent = calculation.glp_display + '%';
       root.querySelector('[data-unipayment-display="gpr"]').textContent = calculation.gpr_display + '%';
-      first.value = Number(calculation.first_installment || 0).toFixed(2);
-      first.readOnly = !!calculation.first_installment_locked;
+      var firstInstallmentLocked = !!calculation.first_installment_locked;
+      var firstInstallment = Number(calculation.first_installment || 0);
+      first.value = firstInstallmentLocked ? firstInstallment.toFixed(2) : String(Math.trunc(firstInstallment));
+      first.readOnly = firstInstallmentLocked;
       firstRow.hidden = !calculation.show_first_installment && !calculation.first_installment_locked;
       errorBox.textContent = '';
       applyButton.disabled = false;
@@ -278,6 +280,7 @@
     select.addEventListener('change', function () { first.value = '0'; first.readOnly = false; calculateNow(); });
     first.addEventListener('input', function () {
       if (first.readOnly) return;
+      first.value = first.value.replace(/\D/g, '');
       lastCalculation = null;
       applyButton.disabled = true;
       secondaryButton.disabled = true;

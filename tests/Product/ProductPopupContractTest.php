@@ -26,8 +26,10 @@ assertProductPopupContract(strpos($template, 'class="unipayment-product-calculat
 assertProductPopupContract(strpos($template, 'unipayment_popup.banner_url') !== false && strpos($template, 'unipayment_popup.banner_url_mobile') !== false, 'CP responsive banner sources missing');
 assertProductPopupContract(strpos($template, 'data-unipayment-step="2" hidden') !== false, 'Step 2 placeholder contract missing');
 assertProductPopupContract(strpos($template, 'data-unipayment-popup-badge') === false && strpos($template, 'unipayment_popup_badge_url') !== false, 'official Apply badge asset missing');
+assertProductPopupContract(strpos($template, 'data-unipayment-first type="text" inputmode="numeric" pattern="[0-9]*"') !== false, 'editable first installment must use an integer-only input contract');
 
 assertProductPopupContract(strpos($javascript, "window.setTimeout(calculateNow, 800)") !== false, 'first-installment debounce contract missing');
+assertProductPopupContract(strpos($javascript, "first.value = first.value.replace(/\\D/g, '')") !== false, 'first-installment non-digit filtering missing');
 assertProductPopupContract(strpos($javascript, 'new AbortController()') !== false && strpos($javascript, 'calculateSequence') !== false, 'abort/stale calculation guards missing');
 assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-close]')") !== false, 'Cancel close behavior missing');
 assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-overlay]')") === false, 'overlay must not close popup');
