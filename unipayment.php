@@ -124,30 +124,21 @@ class Unipayment extends PaymentModule
     public function getContent(): string
     {
         $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
-        $tokens = new PrestaShop\Module\Unipayment\Security\TokenRepository();
-        $cacheService = $this->createShopConfigurationService();
         $output = '';
+
+        if (Tools::isSubmit('submitUnipaymentDownloadJournal')) {
+            $output .= $this->handleDebugJournalDownload($repository);
+        }
 
         if (Tools::isSubmit('submitUnipaymentConfiguration')) {
             $output .= $this->handleConfigurationSubmit($repository);
         }
 
         if (Tools::isSubmit('submitUnipaymentRefresh')) {
-            $output .= $this->handleControlPanelAction('refresh');
+            $output .= $this->handleBankDataRefresh();
         }
 
-        if (Tools::isSubmit('submitUnipaymentConnect')) {
-            $output .= $this->handleControlPanelAction('connect');
-        }
-
-        if (Tools::isSubmit('submitUnipaymentLogout')) {
-            $output .= $this->handleControlPanelAction('logout');
-        }
-
-        $hasCredentials = $repository->getUnicid() !== '' && $repository->hasSecret();
         $configurationSubmitted = Tools::isSubmit('submitUnipaymentConfiguration');
-
-        $cacheMetadata = $cacheService->getMetadata();
         $this->context->smarty->assign([
             'unipayment_form_action' => $this->context->link->getAdminLink(
                 'AdminModules',
@@ -161,30 +152,23 @@ class Unipayment extends PaymentModule
             'unipayment_unicid' => $configurationSubmitted
                 ? trim((string) Tools::getValue('UNIPAYMENT_UNICID', ''))
                 : $repository->getUnicid(),
+            'unipayment_advertising_enabled' => $configurationSubmitted
+                ? (bool) Tools::getValue('UNIPAYMENT_ADVERTISING_ENABLED', false)
+                : $repository->isAdvertisingEnabled(),
+            'unipayment_debug_enabled' => $configurationSubmitted
+                ? (bool) Tools::getValue('UNIPAYMENT_DEBUG_ENABLED', false)
+                : $repository->isDebugEnabled(),
+            'unipayment_product_button_action' => $configurationSubmitted
+                ? (string) Tools::getValue(
+                    'UNIPAYMENT_PRODUCT_BUTTON_ACTION',
+                    PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository::DEFAULT_PRODUCT_BUTTON_ACTION
+                )
+                : $repository->getProductButtonAction(),
+            'unipayment_button_top_spacing' => $configurationSubmitted
+                ? (string) Tools::getValue('UNIPAYMENT_BUTTON_TOP_SPACING', '0')
+                : (string) $repository->getButtonTopSpacing(),
             'unipayment_has_secret' => $repository->hasSecret(),
             'unipayment_secret_readable' => $repository->isSecretReadable(),
-            'unipayment_connection_status' => $tokens->hasToken()
-                ? sprintf(
-                    $this->trans('Authenticated; token expires at %s.', [], 'Modules.Unipayment.Admin'),
-                    date('Y-m-d H:i:s', $tokens->getExpiresAt())
-                )
-                : ($hasCredentials
-                    ? $this->trans('Credentials saved; not authenticated.', [], 'Modules.Unipayment.Admin')
-                    : $this->trans('Credentials incomplete.', [], 'Modules.Unipayment.Admin')),
-            'unipayment_cache_status' => $cacheMetadata === null
-                ? $this->trans('No Control Panel configuration has been cached yet.', [], 'Modules.Unipayment.Admin')
-                : ($cacheMetadata['is_fresh']
-                    ? sprintf(
-                        $this->trans('Fresh; expires at %s UTC.', [], 'Modules.Unipayment.Admin'),
-                        $cacheMetadata['expires_at']
-                    )
-                    : sprintf(
-                        $this->trans('Expired at %s UTC.', [], 'Modules.Unipayment.Admin'),
-                        $cacheMetadata['expires_at']
-                    )),
-            'unipayment_last_refresh' => $cacheMetadata === null
-                ? $this->trans('Never', [], 'Modules.Unipayment.Admin')
-                : $cacheMetadata['fetched_at'] . ' UTC',
         ]);
 
         return $output . $this->display(__FILE__, 'views/templates/admin/configuration.tpl');
@@ -197,23 +181,39 @@ class Unipayment extends PaymentModule
         $tokens = new PrestaShop\Module\Unipayment\Security\TokenRepository();
         $unicid = trim((string) Tools::getValue('UNIPAYMENT_UNICID', ''));
         $secret = trim((string) Tools::getValue('UNIPAYMENT_SECRET', ''));
-        $errors = $validator->validate($unicid, $secret, $repository->hasSecret());
+        $buttonAction = (string) Tools::getValue('UNIPAYMENT_PRODUCT_BUTTON_ACTION', '');
+        $buttonTopSpacing = Tools::getValue('UNIPAYMENT_BUTTON_TOP_SPACING', '');
+        $errors = $validator->validate(
+            $unicid,
+            $secret,
+            $repository->hasSecret(),
+            $buttonAction,
+            $buttonTopSpacing
+        );
 
         if ($errors !== []) {
             return $this->displayError(array_map(function (string $error): string {
                 if ($error === PrestaShop\Module\Unipayment\Configuration\ConfigurationValidator::ERROR_UNICID_REQUIRED) {
-                    return $this->trans('UNICID is required.', [], 'Modules.Unipayment.Admin');
+                    return $this->trans('Полето „Уникален идентификационен код на магазина Ви“ е задължително.', [], 'Modules.Unipayment.Admin');
                 }
 
                 if ($error === PrestaShop\Module\Unipayment\Configuration\ConfigurationValidator::ERROR_UNICID_INVALID) {
-                    return $this->trans('UNICID must be a valid UUID with no more than 36 characters.', [], 'Modules.Unipayment.Admin');
+                    return $this->trans('Идентификационният код трябва да бъде валиден UUID и не може да надвишава 36 символа.', [], 'Modules.Unipayment.Admin');
                 }
 
                 if ($error === PrestaShop\Module\Unipayment\Configuration\ConfigurationValidator::ERROR_SECRET_REQUIRED) {
-                    return $this->trans('Secret is required.', [], 'Modules.Unipayment.Admin');
+                    return $this->trans('Полето „Секретен код на магазина Ви“ е задължително.', [], 'Modules.Unipayment.Admin');
                 }
 
-                return $this->trans('Secret cannot exceed 64 characters.', [], 'Modules.Unipayment.Admin');
+                if ($error === PrestaShop\Module\Unipayment\Configuration\ConfigurationValidator::ERROR_BUTTON_ACTION_INVALID) {
+                    return $this->trans('Моля изберете валидно действие за бутона Купи.', [], 'Modules.Unipayment.Admin');
+                }
+
+                if ($error === PrestaShop\Module\Unipayment\Configuration\ConfigurationValidator::ERROR_BUTTON_TOP_SPACING_INVALID) {
+                    return $this->trans('Свободното място над бутона трябва да бъде цяло число между 0 и 200 px.', [], 'Modules.Unipayment.Admin');
+                }
+
+                return $this->trans('Секретният код не може да надвишава 64 символа.', [], 'Modules.Unipayment.Admin');
             }, $errors));
         }
 
@@ -221,12 +221,16 @@ class Unipayment extends PaymentModule
         $saved = $repository->save(
             (bool) Tools::getValue('UNIPAYMENT_ENABLED', false),
             $unicid,
-            $secret !== '' ? $secret : null
+            $secret !== '' ? $secret : null,
+            (bool) Tools::getValue('UNIPAYMENT_ADVERTISING_ENABLED', false),
+            (bool) Tools::getValue('UNIPAYMENT_DEBUG_ENABLED', false),
+            $buttonAction,
+            (int) $buttonTopSpacing
         );
 
         if (!$saved) {
             return $this->displayError(
-                $this->trans('The module configuration could not be saved.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Настройките на модула не можаха да бъдат записани.', [], 'Modules.Unipayment.Admin')
             );
         }
 
@@ -236,63 +240,83 @@ class Unipayment extends PaymentModule
         }
 
         return $this->displayConfirmation(
-            $this->trans('Settings updated successfully.', [], 'Modules.Unipayment.Admin')
+            $this->trans('Настройките са записани успешно.', [], 'Modules.Unipayment.Admin')
         );
     }
 
-    private function handleControlPanelAction(string $action): string
+    private function handleBankDataRefresh(): string
     {
         $client = $this->createControlPanelClient();
 
         try {
-            if ($action === 'logout') {
-                $client->logout();
-
-                return $this->displayConfirmation(
-                    $this->trans('The Control Panel session was closed.', [], 'Modules.Unipayment.Admin')
-                );
-            }
-
-            if ($action === 'refresh') {
-                $this->createShopConfigurationService($client)->get(true);
-
-                return $this->displayConfirmation(
-                    $this->trans('The shop configuration cache was refreshed successfully.', [], 'Modules.Unipayment.Admin')
-                );
-            }
-
-            $client->login();
             $this->createShopConfigurationService($client)->get(true);
 
             return $this->displayConfirmation(
-                $this->trans('Connection to the Control Panel was successful.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Данните са обновени успешно.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\TimeoutException $exception) {
             return $this->displayError(
-                $this->trans('The Control Panel request timed out.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Времето за връзка с банката изтече. Моля опитайте отново.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\ConnectionException $exception) {
             return $this->displayError(
-                $this->trans('Could not connect to the Control Panel.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Неуспешна връзка с банката. Моля опитайте отново.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\AuthenticationException $exception) {
             return $this->displayError(
-                $this->trans('The Control Panel rejected the shop credentials.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Данните за достъп до банката бяха отхвърлени.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\MalformedJsonException $exception) {
             return $this->displayError(
-                $this->trans('The Control Panel returned an unreadable response.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Банката върна нечетим отговор.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\InvalidPayloadException $exception) {
             return $this->displayError(
-                $this->trans('The Control Panel returned an invalid response.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Банката върна невалиден отговор.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\HttpException $exception) {
-            return $this->displayError(sprintf(
-                $this->trans('The Control Panel returned HTTP status %d.', [], 'Modules.Unipayment.Admin'),
-                $exception->getStatusCode()
-            ));
+            return $this->displayError(
+                $this->trans('Данните не можаха да бъдат обновени. Проверете настройките и опитайте отново.', [], 'Modules.Unipayment.Admin')
+            );
         }
+    }
+
+    private function handleDebugJournalDownload(
+        PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository $repository
+    ): string {
+        $employee = $this->context->employee;
+        $submittedToken = (string) Tools::getValue('token', '');
+        if (!$employee instanceof Employee
+            || !Validate::isLoadedObject($employee)
+            || !hash_equals(Tools::getAdminTokenLite('AdminModules'), $submittedToken)
+        ) {
+            return $this->displayError(
+                $this->trans('Нямате право да изтеглите журнала с операции.', [], 'Modules.Unipayment.Admin')
+            );
+        }
+
+        $journal = new PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDiagnosticJournal(
+            $repository,
+            new PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository()
+        );
+        try {
+            $json = json_encode(
+                $journal->buildExport(),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+            );
+        } catch (JsonException $exception) {
+            return $this->displayError(
+                $this->trans('Журналът с операции не можа да бъде изтеглен.', [], 'Modules.Unipayment.Admin')
+            );
+        }
+
+        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Disposition: attachment; filename="unipayment-smartucf-log-' . gmdate('Ymd-His') . '.json"');
+        header('Content-Length: ' . strlen($json));
+        header('Cache-Control: no-store');
+        header('X-Content-Type-Options: nosniff');
+        echo $json;
+        exit;
     }
 
     private function createControlPanelClient(): PrestaShop\Module\Unipayment\Api\ControlPanelClient

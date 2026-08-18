@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use PrestaShop\Module\Unipayment\Api\Exception\ModuleApiException;
+use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
 use PrestaShop\Module\Unipayment\Controller\ModuleApiController;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDiagnosticJournal;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository;
 
 final class UnipaymentSmartucfdebuglogModuleFrontController extends ModuleApiController
@@ -21,7 +23,10 @@ final class UnipaymentSmartucfdebuglogModuleFrontController extends ModuleApiCon
             throw new ModuleApiException('The order_id field is invalid.', 400);
         }
 
-        $log = (new SmartUcfDebugLogRepository())->findLatestByOrderId($orderId);
+        $log = (new SmartUcfDiagnosticJournal(
+            new ConfigurationRepository(),
+            new SmartUcfDebugLogRepository()
+        ))->findLatestByOrderId($orderId);
         if ($log === null) {
             throw new ModuleApiException('No SmartUCF diagnostic record was found for this order.', 404);
         }

@@ -1,113 +1,81 @@
 <div class="panel">
-  <div class="panel-heading">
-    <i class="icon-cogs"></i>
-    {l s='Module configuration' d='Modules.Unipayment.Admin'}
-  </div>
+  <div class="panel-heading"><i class="icon-cogs"></i> {l s='Системни настройки' d='Modules.Unipayment.Admin'}</div>
+  {if !$unipayment_secret_readable}<div class="alert alert-danger">{l s='Съхраненият секретен код не може да бъде прочетен. Въведете го отново.' d='Modules.Unipayment.Admin'}</div>{/if}
 
-  {if !$unipayment_secret_readable}
-    <div class="alert alert-danger">
-      {l s='The stored secret cannot be decrypted. Enter the secret again before using the connection.' d='Modules.Unipayment.Admin'}
-    </div>
-  {/if}
-
-  <form action="{$unipayment_form_action|escape:'htmlall':'UTF-8'}" method="post" class="form-horizontal">
+  <form id="unipayment-settings-form" action="{$unipayment_form_action|escape:'htmlall':'UTF-8'}" method="post" class="form-horizontal">
     <div class="form-group">
-      <label class="control-label col-lg-3" for="UNIPAYMENT_ENABLED">
-        {l s='Enable credit purchases' d='Modules.Unipayment.Admin'}
-      </label>
+      <label class="control-label col-lg-3" for="UNIPAYMENT_ENABLED_on">{l s='УниКредит покупки на Кредит' d='Modules.Unipayment.Admin'}</label>
       <div class="col-lg-9">
         <span class="switch prestashop-switch fixed-width-lg">
-          <input type="radio" name="UNIPAYMENT_ENABLED" id="UNIPAYMENT_ENABLED_on" value="1"{if $unipayment_enabled} checked="checked"{/if}>
-          <label for="UNIPAYMENT_ENABLED_on">{l s='Yes' d='Admin.Global'}</label>
-          <input type="radio" name="UNIPAYMENT_ENABLED" id="UNIPAYMENT_ENABLED_off" value="0"{if !$unipayment_enabled} checked="checked"{/if}>
-          <label for="UNIPAYMENT_ENABLED_off">{l s='No' d='Admin.Global'}</label>
-          <a class="slide-button btn"></a>
+          <input type="radio" name="UNIPAYMENT_ENABLED" id="UNIPAYMENT_ENABLED_on" value="1"{if $unipayment_enabled} checked="checked"{/if}><label for="UNIPAYMENT_ENABLED_on">{l s='Yes' d='Admin.Global'}</label>
+          <input type="radio" name="UNIPAYMENT_ENABLED" id="UNIPAYMENT_ENABLED_off" value="0"{if !$unipayment_enabled} checked="checked"{/if}><label for="UNIPAYMENT_ENABLED_off">{l s='No' d='Admin.Global'}</label><a class="slide-button btn"></a>
         </span>
-        <p class="help-block">
-          {l s='Controls the UniCredit functionality without disabling the PrestaShop module.' d='Modules.Unipayment.Admin'}
-        </p>
+        <p class="help-block">{l s='Дава възможност на Вашите клиенти да закупуват стока на изплащане с УниКредит.' d='Modules.Unipayment.Admin'}</p>
       </div>
     </div>
 
     <div class="form-group">
-      <label class="control-label col-lg-3 required" for="UNIPAYMENT_UNICID">UNICID</label>
+      <label class="control-label col-lg-3 required" for="UNIPAYMENT_UNICID">{l s='Уникален идентификационен код на магазина Ви' d='Modules.Unipayment.Admin'}</label>
       <div class="col-lg-9">
-        <input
-          type="text"
-          name="UNIPAYMENT_UNICID"
-          id="UNIPAYMENT_UNICID"
-          value="{$unipayment_unicid|escape:'htmlall':'UTF-8'}"
-          maxlength="36"
-          required
-        >
-        <p class="help-block">
-          {l s='Unique shop identifier provided by the Control Panel.' d='Modules.Unipayment.Admin'}
-        </p>
+        <input type="text" name="UNIPAYMENT_UNICID" id="UNIPAYMENT_UNICID" value="{$unipayment_unicid|escape:'htmlall':'UTF-8'}" maxlength="36" required>
+        <p class="help-block">{l s='Уникален идентификационен код на магазина Ви в системата на УниКредит.' d='Modules.Unipayment.Admin'}</p>
       </div>
     </div>
 
     <div class="form-group">
-      <label class="control-label col-lg-3 required" for="UNIPAYMENT_SECRET">
-        {l s='Secret' d='Modules.Unipayment.Admin'}
-      </label>
+      <label class="control-label col-lg-3 required" for="UNIPAYMENT_SECRET">{l s='Секретен код на магазина Ви' d='Modules.Unipayment.Admin'}</label>
       <div class="col-lg-9">
-        <input
-          type="password"
-          name="UNIPAYMENT_SECRET"
-          id="UNIPAYMENT_SECRET"
-          value=""
-          maxlength="64"
-          autocomplete="new-password"
-          {if !$unipayment_has_secret}required{/if}
-        >
-        <p class="help-block">
-          {if $unipayment_has_secret}
-            {l s='A secret is stored. Leave this field empty to keep it unchanged.' d='Modules.Unipayment.Admin'}
-          {else}
-            {l s='Secret provided by the Control Panel.' d='Modules.Unipayment.Admin'}
-          {/if}
-        </p>
+        <input type="password" name="UNIPAYMENT_SECRET" id="UNIPAYMENT_SECRET" value="" maxlength="64" autocomplete="new-password"{if !$unipayment_has_secret} required{/if}>
+        <p class="help-block">{l s='Секретен код на магазина Ви в системата на УниКредит.' d='Modules.Unipayment.Admin'} {if $unipayment_has_secret}{l s='Оставете празно, за да запазите текущия секретен код.' d='Modules.Unipayment.Admin'}{/if}</p>
       </div>
     </div>
 
-    <div class="panel-footer">
-      <button type="submit" name="submitUnipaymentConfiguration" class="btn btn-default pull-right">
-        <i class="process-icon-save"></i>
-        {l s='Save' d='Admin.Actions'}
-      </button>
+    <div class="form-group">
+      <label class="control-label col-lg-3" for="UNIPAYMENT_ADVERTISING_ENABLED_on">{l s='Визуализиране на реклама' d='Modules.Unipayment.Admin'}</label>
+      <div class="col-lg-9">
+        <span class="switch prestashop-switch fixed-width-lg">
+          <input type="radio" name="UNIPAYMENT_ADVERTISING_ENABLED" id="UNIPAYMENT_ADVERTISING_ENABLED_on" value="1"{if $unipayment_advertising_enabled} checked="checked"{/if}><label for="UNIPAYMENT_ADVERTISING_ENABLED_on">{l s='Yes' d='Admin.Global'}</label>
+          <input type="radio" name="UNIPAYMENT_ADVERTISING_ENABLED" id="UNIPAYMENT_ADVERTISING_ENABLED_off" value="0"{if !$unipayment_advertising_enabled} checked="checked"{/if}><label for="UNIPAYMENT_ADVERTISING_ENABLED_off">{l s='No' d='Admin.Global'}</label><a class="slide-button btn"></a>
+        </span>
+        <p class="help-block">{l s='Можете да включвате или изключвате показването на реклама в началната страница на магазина.' d='Modules.Unipayment.Admin'}</p>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="control-label col-lg-3" for="UNIPAYMENT_DEBUG_ENABLED_on">{l s='Режим отстраняване на грешки' d='Modules.Unipayment.Admin'}</label>
+      <div class="col-lg-9">
+        <span class="switch prestashop-switch fixed-width-lg">
+          <input type="radio" name="UNIPAYMENT_DEBUG_ENABLED" id="UNIPAYMENT_DEBUG_ENABLED_on" value="1"{if $unipayment_debug_enabled} checked="checked"{/if}><label for="UNIPAYMENT_DEBUG_ENABLED_on">{l s='Yes' d='Admin.Global'}</label>
+          <input type="radio" name="UNIPAYMENT_DEBUG_ENABLED" id="UNIPAYMENT_DEBUG_ENABLED_off" value="0"{if !$unipayment_debug_enabled} checked="checked"{/if}><label for="UNIPAYMENT_DEBUG_ENABLED_off">{l s='No' d='Admin.Global'}</label><a class="slide-button btn"></a>
+        </span>
+        <p class="help-block">{l s='Моля изберете тази опция ако искате да включите режима за отстраняване на грешки.' d='Modules.Unipayment.Admin'}</p>
+        <p class="help-block">{l s='При активен режим заявката и отговорът към SmartUCF при създаване на поръчка се записват в журнал в базата данни (съхранение 3 месеца).' d='Modules.Unipayment.Admin'}</p>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="control-label col-lg-3" for="UNIPAYMENT_PRODUCT_BUTTON_ACTION">{l s='Бутон купи (Добави в количката/Купи)' d='Modules.Unipayment.Admin'}</label>
+      <div class="col-lg-9">
+        <select name="UNIPAYMENT_PRODUCT_BUTTON_ACTION" id="UNIPAYMENT_PRODUCT_BUTTON_ACTION">
+          <option value="add_to_cart"{if $unipayment_product_button_action === 'add_to_cart'} selected="selected"{/if}>{l s='Добави в количката' d='Modules.Unipayment.Admin'}</option>
+          <option value="buy"{if $unipayment_product_button_action === 'buy'} selected="selected"{/if}>{l s='Купи' d='Modules.Unipayment.Admin'}</option>
+        </select>
+        <p class="help-block">{l s='Начин на работа на допълнителния бутон в прозореца на модула в продуктова страница. „Добави в количката“ — допълнителния бутон в прозореца добавя продукта в количката. „Купи“ — допълнителния бутон в прозореца прехвърля към чекаут/покупка с предварително избран платежен метод УниКредит на изплащане.' d='Modules.Unipayment.Admin'}</p>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="control-label col-lg-3" for="UNIPAYMENT_BUTTON_TOP_SPACING">{l s='Свободно място над бутона' d='Modules.Unipayment.Admin'}</label>
+      <div class="col-lg-9">
+        <div class="input-group fixed-width-sm"><input type="number" name="UNIPAYMENT_BUTTON_TOP_SPACING" id="UNIPAYMENT_BUTTON_TOP_SPACING" value="{$unipayment_button_top_spacing|escape:'htmlall':'UTF-8'}" min="0" max="200" step="1"><span class="input-group-addon">px</span></div>
+        <p class="help-block">{l s='Свободно място над бутона в px.' d='Modules.Unipayment.Admin'}</p>
+      </div>
     </div>
   </form>
-</div>
 
-<div class="panel">
-  <div class="panel-heading">
-    <i class="icon-info-circle"></i>
-    {l s='Control Panel status' d='Modules.Unipayment.Admin'}
+  <div class="panel-footer" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <button type="submit" name="submitUnipaymentConfiguration" form="unipayment-settings-form" class="btn btn-primary"><i class="process-icon-save"></i> {l s='Запази настройките' d='Modules.Unipayment.Admin'}</button>
+    <form action="{$unipayment_form_action|escape:'htmlall':'UTF-8'}" method="post" style="margin:0;"><button type="submit" name="submitUnipaymentRefresh" class="btn btn-default"><i class="icon-refresh"></i> {l s='Обнови данните от банката' d='Modules.Unipayment.Admin'}</button></form>
+    <form action="{$unipayment_form_action|escape:'htmlall':'UTF-8'}" method="post" style="margin:0;"><button type="submit" name="submitUnipaymentDownloadJournal" class="btn btn-default"><i class="icon-download"></i> {l s='Изтегли журнал операции' d='Modules.Unipayment.Admin'}</button></form>
   </div>
-
-  <dl class="dl-horizontal">
-    <dt>{l s='Connection status' d='Modules.Unipayment.Admin'}</dt>
-    <dd>{$unipayment_connection_status|escape:'htmlall':'UTF-8'}</dd>
-
-    <dt>{l s='Cache status' d='Modules.Unipayment.Admin'}</dt>
-    <dd>{$unipayment_cache_status|escape:'htmlall':'UTF-8'}</dd>
-
-    <dt>{l s='Last successful refresh' d='Modules.Unipayment.Admin'}</dt>
-    <dd>{$unipayment_last_refresh|escape:'htmlall':'UTF-8'}</dd>
-  </dl>
-
-  <form action="{$unipayment_form_action|escape:'htmlall':'UTF-8'}" method="post">
-    <button type="submit" name="submitUnipaymentConnect" class="btn btn-default">
-      <i class="icon-link"></i>
-      {l s='Connect and test' d='Modules.Unipayment.Admin'}
-    </button>
-    <button type="submit" name="submitUnipaymentRefresh" class="btn btn-default">
-      <i class="icon-refresh"></i>
-      {l s='Refresh token and shop data' d='Modules.Unipayment.Admin'}
-    </button>
-    <button type="submit" name="submitUnipaymentLogout" class="btn btn-default">
-      <i class="icon-signout"></i>
-      {l s='Disconnect' d='Modules.Unipayment.Admin'}
-    </button>
-  </form>
 </div>

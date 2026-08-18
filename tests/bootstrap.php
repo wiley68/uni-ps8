@@ -7,4 +7,5 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
+require_once dirname(__DIR__) . '/src/Configuration/ConfigurationRepository.php';
 require_once dirname(__DIR__) . '/src/Configuration/ConfigurationValidator.php';

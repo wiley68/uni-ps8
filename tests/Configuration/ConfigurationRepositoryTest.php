@@ -63,10 +63,26 @@ if (!$repository->install() || !$repository->isEnabled()) {
     fwrite(STDERR, "FAIL: configuration defaults were not installed\n");
     exit(1);
 }
+if ($repository->isAdvertisingEnabled()
+    || $repository->isDebugEnabled()
+    || $repository->getProductButtonAction() !== ConfigurationRepository::BUTTON_ACTION_ADD_TO_CART
+    || $repository->getButtonTopSpacing() !== 0
+) {
+    fwrite(STDERR, "FAIL: local configuration defaults differ from Woo reference\n");
+    exit(1);
+}
 
 $plainSecret = 'local-test-value';
-if (!$repository->save(false, '123e4567-e89b-12d3-a456-426614174000', $plainSecret)) {
+if (!$repository->save(false, '123e4567-e89b-12d3-a456-426614174000', $plainSecret, true, true, ConfigurationRepository::BUTTON_ACTION_BUY, 24)) {
     fwrite(STDERR, "FAIL: configuration was not saved\n");
+    exit(1);
+}
+if (!$repository->isAdvertisingEnabled()
+    || !$repository->isDebugEnabled()
+    || $repository->getProductButtonAction() !== ConfigurationRepository::BUTTON_ACTION_BUY
+    || $repository->getButtonTopSpacing() !== 24
+) {
+    fwrite(STDERR, "FAIL: local configuration values were not saved\n");
     exit(1);
 }
 
@@ -84,6 +100,14 @@ $storedSecret = Configuration::$values[ConfigurationRepository::SECRET];
 $repository->save(true, '123e4567-e89b-12d3-a456-426614174000', null);
 if (Configuration::$values[ConfigurationRepository::SECRET] !== $storedSecret) {
     fwrite(STDERR, "FAIL: empty secret input did not preserve the stored value\n");
+    exit(1);
+}
+
+$repository->save(true, '123e4567-e89b-12d3-a456-426614174000', null, false, false, 'invalid', -10);
+if ($repository->getProductButtonAction() !== ConfigurationRepository::BUTTON_ACTION_ADD_TO_CART
+    || $repository->getButtonTopSpacing() !== 0
+) {
+    fwrite(STDERR, "FAIL: repository safety normalization failed\n");
     exit(1);
 }
 

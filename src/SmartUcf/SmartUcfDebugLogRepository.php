@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\SmartUcf;
 
-final class SmartUcfDebugLogRepository
+final class SmartUcfDebugLogRepository implements SmartUcfDebugLogStoreInterface
 {
     public const TABLE = 'unipayment_smartucf_log';
+    public const RETENTION_MONTHS = 3;
 
     /** @var \Db */
     private $database;
@@ -41,9 +42,26 @@ final class SmartUcfDebugLogRepository
         return (bool) $this->database->execute('DROP TABLE IF EXISTS `' . $this->tableName() . '`');
     }
 
+    /** @param array<string, mixed> $entry */
+    public function insert(array $entry): bool
+    {
+        $this->prune();
+
+        return (bool) $this->database->insert($this->tableName(), [
+            'id_order' => max(0, (int) ($entry['ps_order_id'] ?? 0)),
+            'order_id' => trim((string) ($entry['order_id'] ?? '')),
+            'http_status' => max(0, (int) ($entry['http_code'] ?? 0)),
+            'request_json' => $this->encodeBody($entry['request'] ?? null),
+            'response_json' => $this->encodeBody($entry['response'] ?? null),
+            'transport_error' => isset($entry['transport_error']) ? (string) $entry['transport_error'] : null,
+            'created_at' => (string) ($entry['created_at_gmt'] ?? gmdate('Y-m-d H:i:s')),
+        ]);
+    }
+
     /** @return array<string, mixed>|null */
     public function findLatestByOrderId(string $orderId): ?array
     {
+        $this->prune();
         $orderId = trim($orderId);
         if ($orderId === '') {
             return null;
@@ -58,6 +76,39 @@ final class SmartUcfDebugLogRepository
             return null;
         }
 
+        return $this->formatRow($row);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function findAll(): array
+    {
+        $this->prune();
+        $rows = $this->database->executeS(sprintf('SELECT * FROM `%s` ORDER BY `id` ASC', $this->tableName()));
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_values(array_map(function (array $row): array {
+            return $this->formatRow($row);
+        }, $rows));
+    }
+
+    public function prune(?\DateTimeImmutable $now = null): bool
+    {
+        $cutoff = ($now ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
+            ->modify('-' . self::RETENTION_MONTHS . ' months')
+            ->format('Y-m-d H:i:s');
+
+        return (bool) $this->database->execute(sprintf(
+            "DELETE FROM `%s` WHERE `created_at` < '%s'",
+            $this->tableName(),
+            pSQL($cutoff)
+        ));
+    }
+
+    /** @param array<string, mixed> $row @return array<string, mixed> */
+    private function formatRow(array $row): array
+    {
         return [
             'id' => (int) $row['id'],
             'order_id' => (string) $row['order_id'],
@@ -68,6 +119,15 @@ final class SmartUcfDebugLogRepository
             'response' => $this->decodeBody((string) $row['response_json']),
             'transport_error' => $row['transport_error'] !== null ? (string) $row['transport_error'] : null,
         ];
+    }
+
+    private function encodeBody($body): string
+    {
+        try {
+            return json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            return 'null';
+        }
     }
 
     private function decodeBody(string $body)

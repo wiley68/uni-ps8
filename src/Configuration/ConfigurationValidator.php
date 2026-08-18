@@ -10,11 +10,19 @@ final class ConfigurationValidator
     public const ERROR_UNICID_INVALID = 'unicid_invalid';
     public const ERROR_SECRET_REQUIRED = 'secret_required';
     public const ERROR_SECRET_TOO_LONG = 'secret_too_long';
+    public const ERROR_BUTTON_ACTION_INVALID = 'button_action_invalid';
+    public const ERROR_BUTTON_TOP_SPACING_INVALID = 'button_top_spacing_invalid';
 
     /**
      * @return string[]
      */
-    public function validate(string $unicid, string $secret, bool $hasStoredSecret): array
+    public function validate(
+        string $unicid,
+        string $secret,
+        bool $hasStoredSecret,
+        string $productButtonAction = ConfigurationRepository::DEFAULT_PRODUCT_BUTTON_ACTION,
+        $buttonTopSpacing = ConfigurationRepository::DEFAULT_BUTTON_TOP_SPACING
+    ): array
     {
         $errors = [];
 
@@ -28,6 +36,20 @@ final class ConfigurationValidator
             $errors[] = self::ERROR_SECRET_REQUIRED;
         } elseif (strlen($secret) > 64) {
             $errors[] = self::ERROR_SECRET_TOO_LONG;
+        }
+
+        if (!in_array($productButtonAction, [
+            ConfigurationRepository::BUTTON_ACTION_ADD_TO_CART,
+            ConfigurationRepository::BUTTON_ACTION_BUY,
+        ], true)) {
+            $errors[] = self::ERROR_BUTTON_ACTION_INVALID;
+        }
+
+        if (!is_scalar($buttonTopSpacing)
+            || preg_match('/^\d+$/', (string) $buttonTopSpacing) !== 1
+            || (int) $buttonTopSpacing > ConfigurationRepository::MAX_BUTTON_TOP_SPACING
+        ) {
+            $errors[] = self::ERROR_BUTTON_TOP_SPACING_INVALID;
         }
 
         return $errors;

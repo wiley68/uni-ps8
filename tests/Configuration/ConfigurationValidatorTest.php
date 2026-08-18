@@ -30,6 +30,30 @@ $cases = [
         [ConfigurationValidator::ERROR_SECRET_TOO_LONG],
         $validator->validate($validUnicid, str_repeat('x', 65), false),
     ],
+    'accepts add to cart and zero spacing' => [
+        [],
+        $validator->validate($validUnicid, 'secret', false, 'add_to_cart', '0'),
+    ],
+    'accepts buy and positive spacing' => [
+        [],
+        $validator->validate($validUnicid, 'secret', false, 'buy', '24'),
+    ],
+    'rejects an invalid button action' => [
+        [ConfigurationValidator::ERROR_BUTTON_ACTION_INVALID],
+        $validator->validate($validUnicid, 'secret', false, 'checkout', '0'),
+    ],
+    'rejects negative spacing' => [
+        [ConfigurationValidator::ERROR_BUTTON_TOP_SPACING_INVALID],
+        $validator->validate($validUnicid, 'secret', false, 'add_to_cart', '-1'),
+    ],
+    'rejects non-integer spacing' => [
+        [ConfigurationValidator::ERROR_BUTTON_TOP_SPACING_INVALID],
+        $validator->validate($validUnicid, 'secret', false, 'add_to_cart', '12px'),
+    ],
+    'rejects spacing above Woo limit' => [
+        [ConfigurationValidator::ERROR_BUTTON_TOP_SPACING_INVALID],
+        $validator->validate($validUnicid, 'secret', false, 'add_to_cart', '201'),
+    ],
 ];
 
 foreach ($cases as $name => [$expected, $actual]) {
