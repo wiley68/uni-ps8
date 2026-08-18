@@ -76,11 +76,14 @@ final class ProductCalculatorPresenter
             'price' => $product->price,
             'currency_iso' => strtoupper($currencyIso),
             'show_installment' => $this->flag($shop['uni_vnoska'] ?? 0),
+            'button_type' => $this->flag($shop['uni_vnoska'] ?? 0) ? 'standard' : 'image',
             'show_first_installment' => $this->flag($shop['uni_first_vnoska'] ?? 0),
             'dark_button' => $this->flag($shop['uni_type_button'] ?? 0),
+            'design' => $this->flag($shop['uni_type_button'] ?? 0) ? 'alternative' : 'standard',
             'buttons_in_row' => (int) ($shop['uni_button_row'] ?? 1) === 1,
-            'button_width' => $this->dimension($shop['uni_button_width'] ?? 290, 290),
-            'button_height' => $this->dimension($shop['uni_button_height'] ?? 56, 56),
+            'button_width' => $this->dimension($shop['uni_button_width'] ?? 290, 290, 100, 600),
+            'button_height' => $this->dimension($shop['uni_button_height'] ?? 56, 56, 30, 120),
+            'heading' => trim((string) ($shop['uni_zaglavie'] ?? '')),
             'offers' => $offers,
         ];
     }
@@ -92,10 +95,10 @@ final class ProductCalculatorPresenter
     }
 
     /** @param mixed $value */
-    private function dimension($value, int $fallback): int
+    private function dimension($value, int $fallback, int $minimum, int $maximum): int
     {
         $dimension = (int) $value;
 
-        return $dimension >= 40 && $dimension <= 800 ? $dimension : $fallback;
+        return $dimension >= $minimum && $dimension <= $maximum ? $dimension : $fallback;
     }
 }

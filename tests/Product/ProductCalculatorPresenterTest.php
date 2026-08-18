@@ -27,12 +27,48 @@ $view = $presenter->present(calculatorFixture(['uni_eur' => 0]), $product, 'BGN'
 
 assertProductPresenter(is_array($view), 'BGN product calculator must be available');
 assertProductPresenter(isset($view['offers']['standard'], $view['offers']['promo']), 'standard and promo buttons must be present');
+assertProductPresenter($view['design'] === 'standard' && $view['dark_button'] === false, 'standard design must be the safe default');
+assertProductPresenter($view['button_type'] === 'image' && $view['show_installment'] === false, 'image-oriented button must hide installment information');
+assertProductPresenter($view['buttons_in_row'] === true, 'one-row layout must be the safe default');
+assertProductPresenter($view['button_width'] === 290 && $view['button_height'] === 56, 'Woo dimensions must be the safe defaults');
 assertProductPresenter($view['offers']['standard']['months'] === 12, 'preferred standard month must come from the domain');
 assertProductPresenter(count($view['offers']['standard']['schemes']) === 3, 'all enabled standard schemes must be exposed');
 assertProductPresenter($view['offers']['promo']['schemes'][0]['glp'] === 0.0, 'promo scheme must remain zero-interest');
 assertProductPresenter($presenter->present(calculatorFixture(['uni_eur' => 0]), $product, 'EUR') === null, 'mismatched currency must hide calculator');
 assertProductPresenter($presenter->present(calculatorFixture(['uni_eur' => 3]), $product, 'EUR') !== null, 'EUR-only configuration must support EUR');
 assertProductPresenter($presenter->present(calculatorFixture(['uni_status' => 0]), $product, 'BGN') === null, 'inactive shop must hide calculator');
+
+$visualView = $presenter->present(calculatorFixture([
+    'uni_vnoska' => 1,
+    'uni_type_button' => 1,
+    'uni_button_row' => 0,
+    'uni_button_width' => 420,
+    'uni_button_height' => 72,
+    'uni_zaglavie' => 'Финансиране от УниКредит',
+]), $product, 'BGN');
+assertProductPresenter(is_array($visualView), 'visual configuration must preserve an available calculator');
+assertProductPresenter($visualView['design'] === 'alternative' && $visualView['dark_button'] === true, 'alternative design must use the red Woo variant');
+assertProductPresenter($visualView['button_type'] === 'standard' && $visualView['show_installment'] === true, 'standard button type must expose installment information');
+assertProductPresenter($visualView['buttons_in_row'] === false, 'two-row setting must produce the stacked layout');
+assertProductPresenter($visualView['button_width'] === 420 && $visualView['button_height'] === 72, 'valid CP dimensions must reach the AJAX presenter result');
+assertProductPresenter($visualView['heading'] === 'Финансиране от УниКредит', 'CP heading must reach the presenter result');
+
+$invalidDimensions = $presenter->present(calculatorFixture([
+    'uni_button_width' => 99,
+    'uni_button_height' => 121,
+]), $product, 'BGN');
+assertProductPresenter(is_array($invalidDimensions), 'invalid visual configuration must not disable financing');
+assertProductPresenter($invalidDimensions['button_width'] === 290 && $invalidDimensions['button_height'] === 56, 'out-of-contract dimensions must use Woo defaults');
+
+$standardOnly = $presenter->present(calculatorFixture([
+    'kop' => ['by_default' => ['uni_kop_promo' => '']],
+]), $product, 'BGN');
+assertProductPresenter(is_array($standardOnly) && isset($standardOnly['offers']['standard']) && !isset($standardOnly['offers']['promo']), 'standard-only product must expose only its available button');
+
+$promoOnly = $presenter->present(calculatorFixture([
+    'kop' => ['by_default' => ['uni_kop_default' => '']],
+]), $product, 'BGN');
+assertProductPresenter(is_array($promoOnly) && isset($promoOnly['offers']['promo']) && !isset($promoOnly['offers']['standard']), 'promo-only product must expose only its available button');
 
 $schema = calculatorFixture([
     'uni_typekop' => 1,

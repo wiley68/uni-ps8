@@ -1,26 +1,31 @@
 {if isset($unipayment_calculator) && $unipayment_calculator}
 <section
-  class="unipayment-product-calculator{if $unipayment_calculator.dark_button} unipayment-product-calculator--dark{/if}{if !$unipayment_calculator.buttons_in_row} unipayment-product-calculator--stacked{/if}"
+  class="unipayment-product-calculator{if $unipayment_calculator.dark_button} unipayment-product-calculator--dark{/if}{if !$unipayment_calculator.show_installment} unipayment-product-calculator--no-installment{/if}{if !$unipayment_calculator.buttons_in_row} unipayment-product-calculator--stacked{/if}"
   data-unipayment-calculator
   data-product-id="{$unipayment_calculator.product_id|intval}"
   data-endpoint="{$unipayment_calculator_url|escape:'htmlall':'UTF-8'}"
   data-calculator="{$unipayment_calculator_json|escape:'htmlall':'UTF-8'}"
   data-months-label="{l s='%d months' d='Modules.Unipayment.Shop'}"
   data-month-label="{l s='month' d='Modules.Unipayment.Shop'}"
-  style="--unipayment-button-width: {$unipayment_calculator.button_width|intval}px; --unipayment-button-height: {$unipayment_calculator.button_height|intval}px;"
+  data-logo-standard="{$unipayment_logo_url|escape:'htmlall':'UTF-8'}"
+  data-logo-alternative="{$unipayment_logo_alternative_url|escape:'htmlall':'UTF-8'}"
+  style="margin-top: {$unipayment_button_top_spacing|intval}px; --unipayment-button-width: {$unipayment_calculator.button_width|intval}px; --unipayment-button-height: {$unipayment_calculator.button_height|intval}px;"
 >
+  {if $unipayment_calculator.heading !== ''}<p class="unipayment-product-calculator__heading">{$unipayment_calculator.heading|escape:'htmlall':'UTF-8'}</p>{/if}
   <div class="unipayment-product-calculator__buttons">
     {foreach from=$unipayment_offer_types item=offer_type}
       <button type="button" class="unipayment-product-calculator__button unipayment-product-calculator__button--{$offer_type|escape:'htmlall':'UTF-8'}" data-unipayment-offer="{$offer_type|escape:'htmlall':'UTF-8'}"{if !isset($unipayment_calculator.offers[$offer_type])} hidden{/if}>
-        {if $offer_type === 'promo'}<span class="unipayment-product-calculator__badge" aria-hidden="true">%</span>{/if}
         <span class="unipayment-product-calculator__button-content">
-          <span class="unipayment-product-calculator__button-title">
-            {if $offer_type === 'promo'}{l s='Promo installments' d='Modules.Unipayment.Shop'}{else}{l s='Buy on installments' d='Modules.Unipayment.Shop'}{/if}
-          </span>
-          {if $unipayment_calculator.show_installment}
-            <span class="unipayment-product-calculator__button-price" data-unipayment-preferred-price>{if isset($unipayment_calculator.offers[$offer_type])}{$unipayment_calculator.offers[$offer_type].monthly_installment|string_format:'%.2f'|escape:'htmlall':'UTF-8'} {$unipayment_calculator.currency_iso|escape:'htmlall':'UTF-8'} / {l s='month' d='Modules.Unipayment.Shop'}{/if}</span>
-          {/if}
+          <span class="unipayment-product-calculator__button-title">{l s='Купи на изплащане' d='Modules.Unipayment.Shop'}</span>
+          <span class="unipayment-product-calculator__button-price" data-unipayment-preferred-price>{if isset($unipayment_calculator.offers[$offer_type])}{$unipayment_calculator.offers[$offer_type].monthly_installment|string_format:'%.2f'|escape:'htmlall':'UTF-8'} {$unipayment_calculator.currency_iso|escape:'htmlall':'UTF-8'} / {l s='month' d='Modules.Unipayment.Shop'}{/if}</span>
         </span>
+        {if $offer_type === 'promo'}
+          <span class="unipayment-product-calculator__badge" aria-hidden="true">0%</span>
+        {else}
+          <span class="unipayment-product-calculator__logo">
+            <img src="{if $unipayment_calculator.dark_button}{$unipayment_logo_alternative_url|escape:'htmlall':'UTF-8'}{else}{$unipayment_logo_url|escape:'htmlall':'UTF-8'}{/if}" alt="{l s='UniCredit' d='Modules.Unipayment.Shop'}" data-unipayment-logo>
+          </span>
+        {/if}
       </button>
     {/foreach}
   </div>

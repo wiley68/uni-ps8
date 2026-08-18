@@ -48,6 +48,19 @@
     return field ? Math.max(1, parseInt(field.value, 10) || 1) : 1;
   }
 
+  function applyVisualConfig(root, config) {
+    var available = config || {};
+    root.classList.toggle('unipayment-product-calculator--dark', !!available.dark_button);
+    root.classList.toggle('unipayment-product-calculator--no-installment', !available.show_installment);
+    root.classList.toggle('unipayment-product-calculator--stacked', available.buttons_in_row === false);
+    root.style.setProperty('--unipayment-button-width', (parseInt(available.button_width, 10) || 290) + 'px');
+    root.style.setProperty('--unipayment-button-height', (parseInt(available.button_height, 10) || 56) + 'px');
+    var logo = root.querySelector('[data-unipayment-logo]');
+    if (logo) {
+      logo.src = root.getAttribute(available.dark_button ? 'data-logo-alternative' : 'data-logo-standard') || logo.src;
+    }
+  }
+
   function setup(root) {
     if (root.dataset.unipaymentReady === '1') return;
     root.dataset.unipaymentReady = '1';
@@ -123,6 +136,7 @@
       config = next;
       root.setAttribute('data-calculator', JSON.stringify(next || {}));
       root.hidden = !next;
+      if (next) applyVisualConfig(root, next);
       root.querySelectorAll('[data-unipayment-offer]').forEach(function (button) {
         var type = button.getAttribute('data-unipayment-offer');
         var offer = next && next.offers ? next.offers[type] : null;

@@ -388,6 +388,9 @@ class Unipayment extends PaymentModule
 
         $this->context->smarty->assign([
             'unipayment_calculator' => $calculator,
+            'unipayment_button_top_spacing' => $repository->getButtonTopSpacing(),
+            'unipayment_logo_url' => $this->_path . 'views/img/product/uni_logo.svg',
+            'unipayment_logo_alternative_url' => $this->_path . 'views/img/product/uni_logo_red.svg',
             'unipayment_calculator_json' => json_encode(
                 $calculator,
                 JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
