@@ -95,15 +95,20 @@ final class SmartUcfDebugLogRepository implements SmartUcfDebugLogStoreInterface
 
     public function prune(?\DateTimeImmutable $now = null): bool
     {
-        $cutoff = ($now ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
-            ->modify('-' . self::RETENTION_MONTHS . ' months')
-            ->format('Y-m-d H:i:s');
+        $cutoff = self::retentionCutoff($now);
 
         return (bool) $this->database->execute(sprintf(
             "DELETE FROM `%s` WHERE `created_at` < '%s'",
             $this->tableName(),
             pSQL($cutoff)
         ));
+    }
+
+    public static function retentionCutoff(?\DateTimeImmutable $now = null): string
+    {
+        return ($now ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
+            ->modify('-' . self::RETENTION_MONTHS . ' months')
+            ->format('Y-m-d H:i:s');
     }
 
     /** @param array<string, mixed> $row @return array<string, mixed> */

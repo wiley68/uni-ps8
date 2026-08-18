@@ -67,7 +67,7 @@
     <div class="form-group">
       <label class="control-label col-lg-3" for="UNIPAYMENT_BUTTON_TOP_SPACING">{l s='Свободно място над бутона' d='Modules.Unipayment.Admin'}</label>
       <div class="col-lg-9">
-        <div class="input-group fixed-width-sm"><input type="number" name="UNIPAYMENT_BUTTON_TOP_SPACING" id="UNIPAYMENT_BUTTON_TOP_SPACING" value="{$unipayment_button_top_spacing|escape:'htmlall':'UTF-8'}" min="0" max="200" step="1"><span class="input-group-addon">px</span></div>
+        <input type="number" class="fixed-width-sm" name="UNIPAYMENT_BUTTON_TOP_SPACING" id="UNIPAYMENT_BUTTON_TOP_SPACING" value="{$unipayment_button_top_spacing|escape:'htmlall':'UTF-8'}" min="0" max="200" step="1">
         <p class="help-block">{l s='Свободно място над бутона в px.' d='Modules.Unipayment.Admin'}</p>
       </div>
     </div>
