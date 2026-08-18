@@ -25,6 +25,17 @@ assertProductPopupContract(strpos($template, 'data-unipayment-close') !== false 
 assertProductPopupContract(strpos($template, 'class="unipayment-product-calculator__overlay" aria-hidden="true"') !== false, 'overlay must be presentation-only');
 assertProductPopupContract(strpos($template, 'unipayment_popup.banner_url') !== false && strpos($template, 'unipayment_popup.banner_url_mobile') !== false, 'CP responsive banner sources missing');
 assertProductPopupContract(strpos($template, 'data-unipayment-step="2" hidden') !== false, 'Step 2 placeholder contract missing');
+assertProductPopupContract(strpos($template, "s='Попълване на лични данни'") !== false, 'Woo Step 2 heading missing');
+$step2Fields = ['first_name', 'last_name', 'address', 'phone', 'email'];
+foreach ($step2Fields as $field) {
+    assertProductPopupContract(substr_count($template, 'name="' . $field . '"') === 1, "Step 2 field {$field} must occur exactly once");
+}
+assertProductPopupContract(strpos($template, 'name="egn"') === false && strpos($template, 'name="phone2"') === false, 'out-of-scope Process 2 fields must not be added to Product Popup Step 2');
+assertProductPopupContract(substr_count($template, 'required aria-required="true"') === 5, 'all five Step 2 customer fields must be required');
+foreach (['Име', 'Фамилия', 'Адрес', 'Мобилен телефон', 'E-Mail', 'Назад', 'Изпрати'] as $step2Label) {
+    assertProductPopupContract(strpos($template, $step2Label) !== false, "missing Step 2 label {$step2Label}");
+}
+assertProductPopupContract(strpos($template, 'data-unipayment-step="3" hidden') !== false, 'final informational placeholder missing');
 assertProductPopupContract(strpos($template, 'data-unipayment-popup-badge') === false && strpos($template, 'unipayment_popup_badge_url') !== false, 'official Apply badge asset missing');
 assertProductPopupContract(strpos($template, 'data-unipayment-first type="text" inputmode="numeric" pattern="[0-9]*"') !== false, 'editable first installment must use an integer-only input contract');
 
@@ -32,6 +43,10 @@ assertProductPopupContract(strpos($javascript, "window.setTimeout(calculateNow, 
 assertProductPopupContract(strpos($javascript, "first.value = first.value.replace(/\\D/g, '')") !== false, 'first-installment non-digit filtering missing');
 assertProductPopupContract(strpos($javascript, "payload.set('popup_offer_type', activeType)") !== false, 'popup context must be sent for authoritative mixed-scheme validation');
 assertProductPopupContract(strpos($javascript, "payload.set('scheme_key', scheme.key || '')") !== false && strpos($javascript, "payload.set('kop_code', scheme.kop_code || '')") !== false, 'full Product Popup scheme identity must be sent for server-side validation');
+assertProductPopupContract(strpos($javascript, "calculationPayload('validate_step2')") !== false, 'Step 2 submit must send the Step 1 identity for authoritative recalculation');
+assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-back]')") !== false && strpos($javascript, 'setStep(1)') !== false, 'Step 2 Back navigation missing');
+assertProductPopupContract(strpos($javascript, 'customerForm.reset()') !== false, 'Cancel/new popup flow must reset transient Step 2 values');
+assertProductPopupContract(strpos($javascript, 'setStep(3)') !== false, 'successful validation must transition only to the final placeholder');
 assertProductPopupContract(strpos($javascript, 'new AbortController()') !== false && strpos($javascript, 'calculateSequence') !== false, 'abort/stale calculation guards missing');
 assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-close]')") !== false, 'Cancel close behavior missing');
 assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-overlay]')") === false, 'overlay must not close popup');
@@ -45,9 +60,11 @@ assertProductPopupContract(strpos($javascript, 'unipaymentInvalidatePopup') !== 
 
 assertProductPopupContract(strpos($controller, 'ProductContextFactory())->create') !== false, 'server-authoritative product price reconstruction missing');
 assertProductPopupContract(strpos($controller, 'ProductPopupCalculator(new Calculator())') !== false, 'Phase 5 calculator integration missing');
+assertProductPopupContract(strpos($controller, "if (\$action === 'validate_step2')") !== false && strpos($controller, 'ProductPopupCustomerValidator') !== false, 'Step 2 server validation contract missing');
 foreach (['validateOrder', 'OrderOrchestrator', 'ControlPanel', 'SmartUcf'] as $forbidden) {
     assertProductPopupContract(strpos($controller, $forbidden) === false, "popup must not invoke {$forbidden}");
 }
+assertProductPopupContract(strpos($controller, "Tools::getValue('monthly_installment'") === false && strpos($controller, "Tools::getValue('total_payable'") === false, 'browser financial values must not be trusted during Step 2 validation');
 foreach (['delete', 'deleteProduct', 'updateQty'] as $forbiddenCartMutation) {
     assertProductPopupContract(strpos($controller, $forbiddenCartMutation) === false, 'shortcut controller must not remove or independently mutate existing cart products');
 }
@@ -57,6 +74,7 @@ assertProductPopupContract(strpos($preferenceStore, 'function clear(') !== false
 assertProductPopupContract(strpos($checkoutJs, 'data-module-name="unipayment"') !== false, 'module-scoped Checkout payment UX preselection missing');
 assertProductPopupContract(strpos($checkoutJs, '.click()') !== false && strpos($checkoutJs, '.submit()') === false, 'payment preselection must not submit an order');
 assertProductPopupContract(strpos($css, '[data-unipayment-calculator] .unipayment-product-calculator__modal') !== false, 'popup CSS is not module-scoped');
+assertProductPopupContract(strpos($css, '[data-unipayment-calculator] .unipayment-product-calculator__customer-form') !== false, 'Step 2 CSS is not module-scoped');
 assertProductPopupContract(strpos($css, "popup-calc-bg.png") !== false, 'Woo financing block asset missing');
 assertProductPopupContract(is_file($root . '/views/img/product/popup-calc-bg.png') && is_file($root . '/views/img/product/uni_mini_logo.png'), 'Woo popup assets were not copied locally');
 

@@ -7,7 +7,7 @@ namespace PrestaShop\Module\Unipayment\Product;
 final class ProductPopupPresenter
 {
     /** @param array<string, mixed> $shop @return array<string, mixed> */
-    public function present(array $shop, string $buttonAction): array
+    public function present(array $shop, string $buttonAction, array $customer = []): array
     {
         $bannerLink = $this->url($shop['reklama_url'] ?? '');
         if ($bannerLink === '') {
@@ -21,6 +21,14 @@ final class ProductPopupPresenter
             'currency_mode' => (int) ($shop['uni_eur'] ?? 0),
             'button_action' => $buttonAction === 'buy' ? 'buy' : 'add_to_cart',
             'secondary_label' => $buttonAction === 'buy' ? 'Купи' : 'Добави в количката',
+            'customer' => array_replace([
+                'first_name' => '',
+                'last_name' => '',
+                'address' => '',
+                'phone' => '',
+                'email' => '',
+                'is_logged' => false,
+            ], $customer),
         ];
     }
 

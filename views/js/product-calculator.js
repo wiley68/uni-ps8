@@ -59,8 +59,12 @@
     var firstRow = root.querySelector('[data-unipayment-first-row]');
     var step1 = root.querySelector('[data-unipayment-step="1"]');
     var step2 = root.querySelector('[data-unipayment-step="2"]');
+    var step3 = root.querySelector('[data-unipayment-step="3"]');
+    var customerForm = root.querySelector('[data-unipayment-customer-form]');
+    var submitError = root.querySelector('[data-unipayment-submit-error]');
     var applyButton = root.querySelector('[data-unipayment-apply]');
     var secondaryButton = root.querySelector('[data-unipayment-secondary]');
+    var submitButton = root.querySelector('[data-unipayment-submit]');
     var errorBox = root.querySelector('[data-unipayment-popup-error]');
     var activeType = '';
     var lastCalculation = null;
@@ -79,6 +83,57 @@
       step1.classList.toggle('unipayment-product-calculator__step--active', number === 1);
       step2.hidden = number !== 2;
       step2.classList.toggle('unipayment-product-calculator__step--active', number === 2);
+      step3.hidden = number !== 3;
+      step3.classList.toggle('unipayment-product-calculator__step--active', number === 3);
+    }
+
+    function customerField(name) { return customerForm.querySelector('[name="' + name + '"]'); }
+    function fieldError(name) { return customerForm.querySelector('[data-unipayment-field-error="' + name + '"]'); }
+    function nonEmpty(value) { return String(value || '').trim() !== ''; }
+    function validPhone(value) { var phone = String(value || '').trim(); return phone !== '' && /^[-0-9+() ]+$/.test(phone) && /\d/.test(phone); }
+    function validEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim()); }
+
+    function customerErrors() {
+      var errors = {};
+      ['first_name', 'last_name', 'address'].forEach(function (name) {
+        if (!nonEmpty(customerField(name).value)) errors[name] = 'Полето е задължително.';
+      });
+      var phone = customerField('phone').value;
+      if (!nonEmpty(phone)) errors.phone = 'Полето е задължително.';
+      else if (!validPhone(phone)) errors.phone = 'Въведете валиден телефонен номер.';
+      var email = customerField('email').value;
+      if (!nonEmpty(email)) errors.email = 'Полето е задължително.';
+      else if (!validEmail(email)) errors.email = 'Въведете валиден e-mail адрес.';
+      return errors;
+    }
+
+    function showCustomerErrors(errors) {
+      ['first_name', 'last_name', 'address', 'phone', 'email'].forEach(function (name) {
+        var message = errors[name] || '';
+        fieldError(name).textContent = message;
+        customerField(name).setAttribute('aria-invalid', message ? 'true' : 'false');
+      });
+    }
+
+    function showCustomerFieldError(name, message) {
+      fieldError(name).textContent = message || '';
+      customerField(name).setAttribute('aria-invalid', message ? 'true' : 'false');
+    }
+
+    function updateSubmitState(showErrors) {
+      var errors = customerErrors();
+      if (showErrors) showCustomerErrors(errors);
+      var valid = Object.keys(errors).length === 0 && !!lastCalculation;
+      submitButton.disabled = !valid;
+      submitButton.setAttribute('aria-disabled', valid ? 'false' : 'true');
+      return valid;
+    }
+
+    function resetCustomerForm() {
+      customerForm.reset();
+      showCustomerErrors({});
+      submitError.textContent = '';
+      updateSubmitState(false);
     }
 
     function resetPopup() {
@@ -97,6 +152,7 @@
       errorBox.textContent = '';
       applyButton.disabled = true;
       secondaryButton.disabled = true;
+      resetCustomerForm();
       setStep(1);
     }
 
@@ -271,6 +327,39 @@
       root.unipaymentSelectedFinancing = state;
       root.dispatchEvent(new CustomEvent('unipayment:schemeSelected', { bubbles: true, detail: state }));
       setStep(2);
+      showCustomerErrors({});
+      submitError.textContent = '';
+      updateSubmitState(false);
+    }
+
+    function requestStep2Validation() {
+      if (!updateSubmitState(true)) return;
+      var payload = calculationPayload('validate_step2');
+      var endpoint = root.getAttribute('data-popup-endpoint');
+      if (!payload || !endpoint) return;
+      ['first_name', 'last_name', 'address', 'phone', 'email'].forEach(function (name) {
+        payload.set(name, customerField(name).value.trim());
+      });
+      submitButton.disabled = true;
+      submitButton.setAttribute('aria-disabled', 'true');
+      submitError.textContent = '';
+      fetch(endpoint, {
+        method: 'POST', credentials: 'same-origin', body: payload,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }
+      }).then(function (response) {
+        return response.json().then(function (body) {
+          if (!response.ok || !body.success) {
+            if (body && body.errors) showCustomerErrors(body.errors);
+            submitError.textContent = body.message || 'Данните не могат да бъдат валидирани.';
+            throw new Error(body.message || 'validation');
+          }
+          applyCalculation(body.calculation);
+          root.unipaymentValidatedCustomer = body.customer;
+          setStep(3);
+        });
+      }).catch(function () {
+        if (!step2.hidden) updateSubmitState(false);
+      });
     }
 
     root.addEventListener('click', function (event) {
@@ -279,6 +368,18 @@
       if (event.target.closest('[data-unipayment-close]')) close();
       if (event.target.closest('[data-unipayment-secondary]')) handleSecondary();
       if (event.target.closest('[data-unipayment-apply]')) transitionToStep2();
+      if (event.target.closest('[data-unipayment-back]')) setStep(1);
+      if (event.target.closest('[data-unipayment-submit]')) requestStep2Validation();
+    });
+    customerForm.addEventListener('input', function (event) {
+      if (event.target && event.target.name === 'phone') event.target.value = event.target.value.replace(/[^0-9+() -]/g, '');
+      if (event.target && event.target.name) showCustomerFieldError(event.target.name, customerErrors()[event.target.name] || '');
+      submitError.textContent = '';
+      updateSubmitState(false);
+    });
+    customerForm.addEventListener('change', function (event) {
+      if (event.target && event.target.name) showCustomerFieldError(event.target.name, customerErrors()[event.target.name] || '');
+      updateSubmitState(false);
     });
     select.addEventListener('change', function () { first.value = '0'; first.readOnly = false; calculateNow(); });
     first.addEventListener('input', function () {
@@ -287,6 +388,8 @@
       lastCalculation = null;
       applyButton.disabled = true;
       secondaryButton.disabled = true;
+      submitButton.disabled = true;
+      submitButton.setAttribute('aria-disabled', 'true');
       window.clearTimeout(calculateTimer);
       calculateTimer = window.setTimeout(calculateNow, 800);
     });
@@ -318,6 +421,8 @@
       lastCalculation = null;
       applyButton.disabled = true;
       secondaryButton.disabled = true;
+      submitButton.disabled = true;
+      submitButton.setAttribute('aria-disabled', 'true');
     };
 
     root.unipaymentRefresh = function () {

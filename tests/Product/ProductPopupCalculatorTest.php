@@ -74,6 +74,8 @@ assertProductPopup($visual['banner_url'] === 'https://cdn.example.test/desktop.j
 assertProductPopup($visual['banner_url_mobile'] === 'https://cdn.example.test/mobile.jpg', 'CP uni_picturem banner source missing');
 assertProductPopup($visual['button_action'] === 'buy' && $visual['secondary_label'] === 'Купи', 'Buy action presentation contract failed');
 assertProductPopup((new ProductPopupPresenter())->present([], 'add_to_cart')['secondary_label'] === 'Добави в количката', 'Add-to-cart action label failed');
+$customerPresentation = (new ProductPopupPresenter())->present([], 'add_to_cart', ['first_name' => 'Иван', 'email' => 'ivan@example.test', 'is_logged' => true]);
+assertProductPopup($customerPresentation['customer']['first_name'] === 'Иван' && $customerPresentation['customer']['email'] === 'ivan@example.test' && $customerPresentation['customer']['is_logged'], 'Product Popup customer prefill model was not exposed');
 $fallbackLink = (new ProductPopupPresenter())->present(['reklama_url' => '', 'uni_backurl' => 'https://example.test/fallback'], 'add_to_cart');
 assertProductPopup($fallbackLink['banner_link'] === 'https://example.test/fallback', 'Woo uni_backurl fallback semantics failed');
 

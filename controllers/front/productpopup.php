@@ -5,7 +5,9 @@ declare(strict_types=1);
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Checkout\CheckoutPreferenceStore;
 use PrestaShop\Module\Unipayment\Product\ProductContextFactory;
+use PrestaShop\Module\Unipayment\Product\ProductPopupCustomerValidator;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCalculator;
+use PrestaShop\Module\Unipayment\Product\ProductPopupValidationException;
 
 final class UnipaymentProductPopupModuleFrontController extends ModuleFrontController
 {
@@ -65,7 +67,25 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                 (float) $firstRaw
             );
 
-            if ((string) Tools::getValue('popup_action', 'calculate') === 'preselect') {
+            $action = (string) Tools::getValue('popup_action', 'calculate');
+            if ($action === 'validate_step2') {
+                $customer = (new ProductPopupCustomerValidator())->validate([
+                    'first_name' => Tools::getValue('first_name', ''),
+                    'last_name' => Tools::getValue('last_name', ''),
+                    'address' => Tools::getValue('address', ''),
+                    'phone' => Tools::getValue('phone', ''),
+                    'email' => Tools::getValue('email', ''),
+                ]);
+
+                return [
+                    'success' => true,
+                    'step' => 'final_placeholder',
+                    'calculation' => $calculation,
+                    'customer' => $customer,
+                ];
+            }
+
+            if ($action === 'preselect') {
                 $cart = $this->ensureCart();
                 (new CheckoutPreferenceStore())->save($this->context->cookie, [
                     'product_id' => (int) $productId,
@@ -88,6 +108,10 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             }
 
             return ['success' => true, 'calculation' => $calculation];
+        } catch (ProductPopupValidationException $exception) {
+            http_response_code(422);
+
+            return ['success' => false, 'message' => 'The customer details are invalid.', 'errors' => $exception->errors()];
         } catch (Throwable $exception) {
             PrestaShopLogger::addLog('UniPayment product popup request failed: ' . get_class($exception), 2);
 

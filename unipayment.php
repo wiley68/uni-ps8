@@ -139,6 +139,22 @@ class Unipayment extends PaymentModule
         }
 
         $configurationSubmitted = Tools::isSubmit('submitUnipaymentConfiguration');
+        $contextCustomer = $this->context->customer;
+        $isLogged = $contextCustomer instanceof Customer && $contextCustomer->isLogged();
+        $addresses = $isLogged ? $contextCustomer->getAddresses((int) $this->context->language->id) : [];
+        $cart = $this->context->cart;
+        $customerPrefill = (new PrestaShop\Module\Unipayment\Product\ProductPopupCustomerPrefill())->present(
+            $isLogged,
+            $isLogged ? [
+                'firstname' => (string) $contextCustomer->firstname,
+                'lastname' => (string) $contextCustomer->lastname,
+                'email' => (string) $contextCustomer->email,
+            ] : [],
+            is_array($addresses) ? $addresses : [],
+            $cart instanceof Cart ? (int) $cart->id_address_delivery : 0,
+            $cart instanceof Cart ? (int) $cart->id_address_invoice : 0
+        );
+
         $this->context->smarty->assign([
             'unipayment_form_action' => $this->context->link->getAdminLink(
                 'AdminModules',
@@ -390,7 +406,8 @@ class Unipayment extends PaymentModule
             'unipayment_calculator' => $calculator,
             'unipayment_popup' => (new PrestaShop\Module\Unipayment\Product\ProductPopupPresenter())->present(
                 $shop,
-                $repository->getProductButtonAction()
+                $repository->getProductButtonAction(),
+                $customerPrefill
             ),
             'unipayment_button_top_spacing' => $repository->getButtonTopSpacing(),
             'unipayment_logo_url' => $this->_path . 'views/img/product/uni_logo.svg',

@@ -80,7 +80,45 @@
             </div>
           </div>
 
-          <div class="unipayment-product-calculator__step" data-unipayment-step="2" hidden aria-live="polite" aria-label="{l s='Application details' d='Modules.Unipayment.Shop'}"></div>
+          <div class="unipayment-product-calculator__step" data-unipayment-step="2" hidden>
+            <h2 class="unipayment-product-calculator__popup-title">{l s='Попълване на лични данни' d='Modules.Unipayment.Shop'}</h2>
+            <form class="unipayment-product-calculator__customer-form" data-unipayment-customer-form novalidate>
+              <div class="unipayment-product-calculator__customer-field">
+                <label class="unipayment-product-calculator__customer-label" for="unipayment-first-name-{$unipayment_calculator.product_id|intval}">{l s='Име' d='Modules.Unipayment.Shop'} <span class="unipayment-product-calculator__required" aria-hidden="true">*</span></label>
+                <input class="unipayment-product-calculator__customer-input" id="unipayment-first-name-{$unipayment_calculator.product_id|intval}" name="first_name" type="text" value="{$unipayment_popup.customer.first_name|escape:'htmlall':'UTF-8'}" required aria-required="true" autocomplete="given-name">
+                <span class="unipayment-product-calculator__field-error" data-unipayment-field-error="first_name" role="alert"></span>
+              </div>
+              <div class="unipayment-product-calculator__customer-field">
+                <label class="unipayment-product-calculator__customer-label" for="unipayment-last-name-{$unipayment_calculator.product_id|intval}">{l s='Фамилия' d='Modules.Unipayment.Shop'} <span class="unipayment-product-calculator__required" aria-hidden="true">*</span></label>
+                <input class="unipayment-product-calculator__customer-input" id="unipayment-last-name-{$unipayment_calculator.product_id|intval}" name="last_name" type="text" value="{$unipayment_popup.customer.last_name|escape:'htmlall':'UTF-8'}" required aria-required="true" autocomplete="family-name">
+                <span class="unipayment-product-calculator__field-error" data-unipayment-field-error="last_name" role="alert"></span>
+              </div>
+              <div class="unipayment-product-calculator__customer-field">
+                <label class="unipayment-product-calculator__customer-label" for="unipayment-address-{$unipayment_calculator.product_id|intval}">{l s='Адрес' d='Modules.Unipayment.Shop'} <span class="unipayment-product-calculator__required" aria-hidden="true">*</span></label>
+                <input class="unipayment-product-calculator__customer-input" id="unipayment-address-{$unipayment_calculator.product_id|intval}" name="address" type="text" value="{$unipayment_popup.customer.address|escape:'htmlall':'UTF-8'}" required aria-required="true" autocomplete="street-address">
+                <span class="unipayment-product-calculator__field-error" data-unipayment-field-error="address" role="alert"></span>
+              </div>
+              <div class="unipayment-product-calculator__customer-field">
+                <label class="unipayment-product-calculator__customer-label" for="unipayment-phone-{$unipayment_calculator.product_id|intval}">{l s='Мобилен телефон' d='Modules.Unipayment.Shop'} <span class="unipayment-product-calculator__required" aria-hidden="true">*</span></label>
+                <input class="unipayment-product-calculator__customer-input" id="unipayment-phone-{$unipayment_calculator.product_id|intval}" name="phone" type="tel" value="{$unipayment_popup.customer.phone|escape:'htmlall':'UTF-8'}" required aria-required="true" autocomplete="tel" inputmode="tel">
+                <span class="unipayment-product-calculator__field-error" data-unipayment-field-error="phone" role="alert"></span>
+              </div>
+              <div class="unipayment-product-calculator__customer-field">
+                <label class="unipayment-product-calculator__customer-label" for="unipayment-email-{$unipayment_calculator.product_id|intval}">{l s='E-Mail' d='Modules.Unipayment.Shop'} <span class="unipayment-product-calculator__required" aria-hidden="true">*</span></label>
+                <input class="unipayment-product-calculator__customer-input" id="unipayment-email-{$unipayment_calculator.product_id|intval}" name="email" type="email" value="{$unipayment_popup.customer.email|escape:'htmlall':'UTF-8'}" required aria-required="true" autocomplete="email">
+                <span class="unipayment-product-calculator__field-error" data-unipayment-field-error="email" role="alert"></span>
+              </div>
+              <span class="unipayment-product-calculator__field-error" data-unipayment-submit-error role="alert"></span>
+            </form>
+            <div class="unipayment-product-calculator__popup-actions unipayment-product-calculator__popup-actions--step2">
+              <div class="unipayment-product-calculator__popup-actions-group">
+                <button type="button" class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--secondary" data-unipayment-back><span><b>{l s='Назад' d='Modules.Unipayment.Shop'}</b></span></button>
+                <button type="button" class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--secondary" data-unipayment-close><span><b>{l s='Отказ' d='Modules.Unipayment.Shop'}</b></span></button>
+              </div>
+              <button type="button" class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--primary" data-unipayment-submit disabled aria-disabled="true"><span><b>{l s='Изпрати' d='Modules.Unipayment.Shop'}</b></span><i style="background-image:url('{$unipayment_popup_badge_url|escape:'htmlall':'UTF-8'}')" aria-hidden="true"></i></button>
+            </div>
+          </div>
+          <div class="unipayment-product-calculator__step" data-unipayment-step="3" hidden aria-live="polite" aria-label="{l s='Validated application details' d='Modules.Unipayment.Shop'}"></div>
         </div>
       </div>
     </div>
