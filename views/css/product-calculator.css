@@ -110,11 +110,13 @@
   flex: 0 0 var(--unipayment-button-width);
 }
 
-[data-unipayment-calculator] button.unipayment-product-calculator__button:hover,
+[data-unipayment-calculator] button.unipayment-product-calculator__button:hover {
+  background: var(--unipayment-red-hover-bg) none;
+}
+
 [data-unipayment-calculator] button.unipayment-product-calculator__button:focus-visible {
   outline: 2px solid transparent;
   outline-offset: 2px;
-  background: var(--unipayment-red-hover-bg) none;
   box-shadow: 0 2px 6px rgba(0, 0, 0, .12), 0 0 0 2px rgba(238, 46, 36, .35);
 }
 
@@ -203,9 +205,11 @@
   color: #fff;
 }
 
-[data-unipayment-calculator].unipayment-product-calculator--dark button.unipayment-product-calculator__button:hover,
-[data-unipayment-calculator].unipayment-product-calculator--dark button.unipayment-product-calculator__button:focus-visible {
+[data-unipayment-calculator].unipayment-product-calculator--dark button.unipayment-product-calculator__button:hover {
   background: #d9261f none;
+}
+
+[data-unipayment-calculator].unipayment-product-calculator--dark button.unipayment-product-calculator__button:focus-visible {
   box-shadow: 0 2px 6px rgba(0, 0, 0, .12), 0 0 0 2px rgba(238, 46, 36, .35);
 }
 

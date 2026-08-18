@@ -36,11 +36,24 @@ assertProductVisualContract(is_file($root . '/views/fonts/roboto-condensed/LICEN
 assertProductVisualContract(is_file($root . '/views/img/product/uni_logo.svg'), 'standard logo asset must be local');
 assertProductVisualContract(is_file($root . '/views/img/product/uni_logo_red.svg'), 'alternative logo asset must be local');
 
-preg_match_all('/[^{}]*:(?:hover|focus-visible)[^{]*\{([^}]+)\}/', $css, $hoverBlocks);
-assertProductVisualContract($hoverBlocks[1] !== [], 'button hover/focus rules must exist');
-foreach ($hoverBlocks[1] as $hoverBlock) {
-    assertProductVisualContract(!preg_match('/border(?:-color|-width|-style)?\s*:/', $hoverBlock), 'hover/focus rules must not change the button border');
+preg_match_all('/([^{}]+:hover)\s*\{([^}]+)\}/', $css, $hoverRules, PREG_SET_ORDER);
+assertProductVisualContract(count($hoverRules) === 2, 'standard and alternative button hover rules must exist separately');
+foreach ($hoverRules as $hoverRule) {
+    assertProductVisualContract(strpos($hoverRule[1], '[data-unipayment-calculator]') !== false, 'hover selector must remain module-scoped');
+    assertProductVisualContract(!preg_match('/border(?:-color|-width|-style)?\s*:/', $hoverRule[2]), 'hover must not change the button border');
+    assertProductVisualContract(!preg_match('/(?:box-shadow|text-shadow|transform|filter|opacity|outline)\s*:/', $hoverRule[2]), 'hover must not add geometry, shadow, filter, opacity or outline effects');
+    preg_match_all('/(?:^|;)\s*([a-z-]+)\s*:/m', trim($hoverRule[2]), $hoverProperties);
+    assertProductVisualContract($hoverProperties[1] === ['background'], 'hover may change only the background property');
 }
+assertProductVisualContract(strpos($css, 'button.unipayment-product-calculator__button:hover,') === false, 'mouse hover must not share a selector with keyboard focus');
+assertProductVisualContract((bool) preg_match('/button\.unipayment-product-calculator__button:focus-visible\s*\{[^}]*box-shadow:/s', $css), 'keyboard focus-visible must retain a separate visible indicator');
+
+preg_match('/button\.unipayment-product-calculator__button \.unipayment-product-calculator__button-title\s*\{([^}]+)\}/', $css, $titleRule);
+assertProductVisualContract(isset($titleRule[1]), 'main red text rule must exist');
+assertProductVisualContract(!preg_match('/(?:text-shadow|filter|opacity|transform|text-stroke|-webkit-text-stroke)\s*:/', $titleRule[1]), 'main red text must not have blur, shadow, opacity, transform or stroke effects');
+assertProductVisualContract(strpos($css, 'button.unipayment-product-calculator__button::before') === false && strpos($css, 'button.unipayment-product-calculator__button::after') === false, 'button must not have pseudo-element glow overlays');
+assertProductVisualContract(strpos($css, 'background: var(--unipayment-red-hover-bg) none') !== false, 'standard hover must use the Woo background');
+assertProductVisualContract(strpos($css, 'background: #d9261f none') !== false, 'alternative hover must use the Woo background');
 assertProductVisualContract(strpos($css, 'background: #fff none') !== false, 'standard design color must remain intact');
 assertProductVisualContract(strpos($css, 'background: var(--unipayment-red) none') !== false, 'alternative design color must remain intact');
 
