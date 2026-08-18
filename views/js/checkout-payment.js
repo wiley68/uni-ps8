@@ -20,6 +20,9 @@
     var kop = root.querySelector('[data-unipayment-kop]');
     var first = root.querySelector('[data-unipayment-first]');
     var firstRow = root.querySelector('[data-unipayment-first-row]');
+    if (config.preselect_payment && Number(config.default_first_installment) >= 0) {
+      first.value = Number(config.default_first_installment).toFixed(2);
+    }
 
     function render() {
       var scheme = config.schemes[select.selectedIndex];
@@ -39,6 +42,12 @@
     }
     select.addEventListener('change', render);
     render();
+
+    if (config.preselect_payment && document.body.dataset.unipaymentPaymentPreselected !== '1') {
+      var paymentOption = document.querySelector('input[name="payment-option"][data-module-name="unipayment"]');
+      if (paymentOption && !paymentOption.checked) paymentOption.click();
+      if (paymentOption) document.body.dataset.unipaymentPaymentPreselected = '1';
+    }
   }
 
   function initialize() { document.querySelectorAll('[data-unipayment-checkout]').forEach(setup); }

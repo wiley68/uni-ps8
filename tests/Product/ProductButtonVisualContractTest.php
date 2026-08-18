@@ -36,7 +36,7 @@ assertProductVisualContract(is_file($root . '/views/fonts/roboto-condensed/LICEN
 assertProductVisualContract(is_file($root . '/views/img/product/uni_logo.svg'), 'standard logo asset must be local');
 assertProductVisualContract(is_file($root . '/views/img/product/uni_logo_red.svg'), 'alternative logo asset must be local');
 
-preg_match_all('/([^{}]+:hover)\s*\{([^}]+)\}/', $css, $hoverRules, PREG_SET_ORDER);
+preg_match_all('/([^{}]*button\.unipayment-product-calculator__button:hover)\s*\{([^}]+)\}/', $css, $hoverRules, PREG_SET_ORDER);
 assertProductVisualContract(count($hoverRules) === 2, 'standard and alternative button hover rules must exist separately');
 foreach ($hoverRules as $hoverRule) {
     assertProductVisualContract(strpos($hoverRule[1], '[data-unipayment-calculator]') !== false, 'hover selector must remain module-scoped');

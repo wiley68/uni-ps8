@@ -5,10 +5,14 @@
   data-product-id="{$unipayment_calculator.product_id|intval}"
   data-endpoint="{$unipayment_calculator_url|escape:'htmlall':'UTF-8'}"
   data-calculator="{$unipayment_calculator_json|escape:'htmlall':'UTF-8'}"
-  data-months-label="{l s='%d months' d='Modules.Unipayment.Shop'}"
+  data-months-label="{l s='%d месеца' d='Modules.Unipayment.Shop'}"
   data-month-label="{l s='month' d='Modules.Unipayment.Shop'}"
   data-logo-standard="{$unipayment_logo_url|escape:'htmlall':'UTF-8'}"
   data-logo-alternative="{$unipayment_logo_alternative_url|escape:'htmlall':'UTF-8'}"
+  data-popup-endpoint="{$unipayment_popup_url|escape:'htmlall':'UTF-8'}"
+  data-popup-token="{$unipayment_popup_token|escape:'htmlall':'UTF-8'}"
+  data-button-action="{$unipayment_popup.button_action|escape:'htmlall':'UTF-8'}"
+  data-checkout-url="{$unipayment_checkout_url|escape:'htmlall':'UTF-8'}"
   style="margin-top: {$unipayment_button_top_spacing|intval}px; --unipayment-button-width: {$unipayment_calculator.button_width|intval}px; --unipayment-button-height: {$unipayment_calculator.button_height|intval}px;"
 >
   {if $unipayment_calculator.heading !== ''}<p class="unipayment-product-calculator__heading">{$unipayment_calculator.heading|escape:'htmlall':'UTF-8'}</p>{/if}
@@ -31,23 +35,54 @@
   </div>
 
   <div class="unipayment-product-calculator__modal" data-unipayment-modal hidden aria-hidden="true">
-    <button type="button" class="unipayment-product-calculator__overlay" data-unipayment-close aria-label="{l s='Close' d='Modules.Unipayment.Shop'}"></button>
-    <div class="unipayment-product-calculator__dialog" role="dialog" aria-modal="true" aria-labelledby="unipayment-calculator-title-{$unipayment_calculator.product_id|intval}">
-      <button type="button" class="unipayment-product-calculator__close" data-unipayment-close aria-label="{l s='Close' d='Modules.Unipayment.Shop'}">&times;</button>
-      <h2 id="unipayment-calculator-title-{$unipayment_calculator.product_id|intval}">{l s='Choose an installment plan' d='Modules.Unipayment.Shop'}</h2>
-      <label for="unipayment-months-{$unipayment_calculator.product_id|intval}">{l s='Repayment period' d='Modules.Unipayment.Shop'}</label>
-      <select id="unipayment-months-{$unipayment_calculator.product_id|intval}" data-unipayment-schemes></select>
-      <dl class="unipayment-product-calculator__summary">
-        <div><dt>{l s='Product price' d='Modules.Unipayment.Shop'}</dt><dd data-unipayment-value="price"></dd></div>
-        <div data-unipayment-first-row><dt>{l s='First installment' d='Modules.Unipayment.Shop'}</dt><dd data-unipayment-value="first_installment"></dd></div>
-        <div><dt>{l s='Financed amount' d='Modules.Unipayment.Shop'}</dt><dd data-unipayment-value="financed_amount"></dd></div>
-        <div><dt>{l s='Monthly installment' d='Modules.Unipayment.Shop'}</dt><dd data-unipayment-value="monthly_installment"></dd></div>
-        <div><dt>{l s='Total amount due' d='Modules.Unipayment.Shop'}</dt><dd data-unipayment-value="total_due"></dd></div>
-        <div><dt>{l s='Annual interest rate' d='Modules.Unipayment.Shop'}</dt><dd data-unipayment-value="glp"></dd></div>
-        <div><dt>{l s='Annual percentage rate' d='Modules.Unipayment.Shop'}</dt><dd data-unipayment-value="gpr"></dd></div>
-      </dl>
-      <p class="unipayment-product-calculator__notice">{l s='The selected plan will be validated again before purchase.' d='Modules.Unipayment.Shop'}</p>
-      <button type="button" class="btn btn-primary unipayment-product-calculator__select" data-unipayment-select>{l s='Select this plan' d='Modules.Unipayment.Shop'}</button>
+    <div class="unipayment-product-calculator__overlay" aria-hidden="true"></div>
+    <div class="unipayment-product-calculator__modal-scroll">
+      <div class="unipayment-product-calculator__dialog" role="dialog" aria-modal="true" aria-labelledby="unipayment-calculator-title-{$unipayment_calculator.product_id|intval}">
+        {if $unipayment_popup.banner_url || $unipayment_popup.banner_url_mobile}
+          <div class="unipayment-product-calculator__banner">
+            {if $unipayment_popup.banner_link}<a href="{$unipayment_popup.banner_link|escape:'htmlall':'UTF-8'}" target="_blank" rel="noopener noreferrer">{/if}
+            <picture>
+              {if $unipayment_popup.banner_url_mobile}<source media="(max-width: 768px)" srcset="{$unipayment_popup.banner_url_mobile|escape:'htmlall':'UTF-8'}">{/if}
+              <img src="{if $unipayment_popup.banner_url}{$unipayment_popup.banner_url|escape:'htmlall':'UTF-8'}{else}{$unipayment_popup.banner_url_mobile|escape:'htmlall':'UTF-8'}{/if}" alt="{l s='UniCredit purchases on credit' d='Modules.Unipayment.Shop'}">
+            </picture>
+            {if $unipayment_popup.banner_link}</a>{/if}
+          </div>
+        {/if}
+
+        <div class="unipayment-product-calculator__popup-panel">
+          <div class="unipayment-product-calculator__step unipayment-product-calculator__step--active" data-unipayment-step="1">
+            <h2 id="unipayment-calculator-title-{$unipayment_calculator.product_id|intval}" class="unipayment-product-calculator__popup-title">{l s='Избор на схема за лизинг' d='Modules.Unipayment.Shop'}</h2>
+            <div class="unipayment-product-calculator__popup-calc">
+              <div class="unipayment-product-calculator__popup-row">
+                <div class="unipayment-product-calculator__popup-label">{l s='Цена на артикула' d='Modules.Unipayment.Shop'}</div>
+                <div class="unipayment-product-calculator__popup-value" data-unipayment-display="price"></div>
+              </div>
+              <div class="unipayment-product-calculator__popup-row">
+                <label class="unipayment-product-calculator__popup-label" for="unipayment-months-{$unipayment_calculator.product_id|intval}"><span class="unipayment-product-calculator__label-desktop">{l s='Брой месеци за погасяване' d='Modules.Unipayment.Shop'}</span><span class="unipayment-product-calculator__label-mobile">{l s='Брой месеци' d='Modules.Unipayment.Shop'}</span></label>
+                <div class="unipayment-product-calculator__popup-value"><select id="unipayment-months-{$unipayment_calculator.product_id|intval}" class="unipayment-product-calculator__popup-select" data-unipayment-schemes></select></div>
+              </div>
+              <div class="unipayment-product-calculator__popup-row" data-unipayment-first-row>
+                <label class="unipayment-product-calculator__popup-label" for="unipayment-first-{$unipayment_calculator.product_id|intval}">{l s='Първоначална вноска /евро/' d='Modules.Unipayment.Shop'}</label>
+                <div class="unipayment-product-calculator__popup-value"><input id="unipayment-first-{$unipayment_calculator.product_id|intval}" class="unipayment-product-calculator__popup-input" data-unipayment-first type="number" min="0" step="0.01" value="0"></div>
+              </div>
+              <div class="unipayment-product-calculator__popup-row"><div class="unipayment-product-calculator__popup-label">{l s='Обща сума на заема' d='Modules.Unipayment.Shop'}</div><div class="unipayment-product-calculator__popup-value" data-unipayment-display="financed_amount"></div></div>
+              <div class="unipayment-product-calculator__popup-row"><div class="unipayment-product-calculator__popup-label"><span class="unipayment-product-calculator__label-desktop">{l s='Размер на погасителна вноска' d='Modules.Unipayment.Shop'}</span><span class="unipayment-product-calculator__label-mobile">{l s='Погасителна вноска' d='Modules.Unipayment.Shop'}</span></div><div class="unipayment-product-calculator__popup-value" data-unipayment-display="monthly_installment"></div></div>
+              <div class="unipayment-product-calculator__popup-row"><div class="unipayment-product-calculator__popup-label">{l s='Обща дължима сума' d='Modules.Unipayment.Shop'}</div><div class="unipayment-product-calculator__popup-value" data-unipayment-display="total_payable"></div></div>
+              <div class="unipayment-product-calculator__popup-row"><div class="unipayment-product-calculator__popup-label">{l s='ГЛП' d='Modules.Unipayment.Shop'}</div><div class="unipayment-product-calculator__popup-value unipayment-product-calculator__popup-value--red" data-unipayment-display="glp"></div></div>
+              <div class="unipayment-product-calculator__popup-row"><div class="unipayment-product-calculator__popup-label">{l s='ГПР' d='Modules.Unipayment.Shop'}</div><div class="unipayment-product-calculator__popup-value unipayment-product-calculator__popup-value--red" data-unipayment-display="gpr"></div></div>
+              <div class="unipayment-product-calculator__popup-row unipayment-product-calculator__popup-row--note" data-unipayment-popup-error role="alert"></div>
+            </div>
+
+            <div class="unipayment-product-calculator__popup-actions">
+              <button type="button" class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--secondary" data-unipayment-close><span><b>{l s='Отказ' d='Modules.Unipayment.Shop'}</b></span></button>
+              <button type="button" class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--secondary" data-unipayment-secondary><span><b>{$unipayment_popup.secondary_label|escape:'htmlall':'UTF-8'}</b></span></button>
+              <button type="button" class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--primary" data-unipayment-apply disabled><span><b>{l s='Кандидатствай' d='Modules.Unipayment.Shop'}</b></span><i style="background-image:url('{$unipayment_popup_badge_url|escape:'htmlall':'UTF-8'}')" aria-hidden="true"></i></button>
+            </div>
+          </div>
+
+          <div class="unipayment-product-calculator__step" data-unipayment-step="2" hidden aria-live="polite" aria-label="{l s='Application details' d='Modules.Unipayment.Shop'}"></div>
+        </div>
+      </div>
     </div>
   </div>
 </section>

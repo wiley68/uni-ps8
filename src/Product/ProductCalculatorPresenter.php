@@ -44,9 +44,12 @@ final class ProductCalculatorPresenter
                     continue;
                 }
                 $schemes[] = [
+                    'key' => \PrestaShop\Module\Unipayment\Checkout\SchemeSelection::key($scheme->type, $scheme->months, $scheme->filterId),
+                    'scheme_type' => $scheme->type,
                     'months' => $scheme->months,
                     'filter_id' => $scheme->filterId,
                     'kop_code' => $scheme->kopCode,
+                    'description' => is_array($scheme->filter) ? trim((string) ($scheme->filter['uni_kop_desc'] ?? '')) : '',
                     'first_installment' => $result->firstInstallment->amount,
                     'first_installment_locked' => $result->firstInstallment->locked,
                     'financed_amount' => $result->financedAmount,
@@ -62,6 +65,11 @@ final class ProductCalculatorPresenter
             $offers[$type] = [
                 'type' => $type,
                 'months' => $preferred[$type]->months,
+                'preferred_scheme_key' => \PrestaShop\Module\Unipayment\Checkout\SchemeSelection::key(
+                    $preferred[$type]->type,
+                    $preferred[$type]->months,
+                    $preferred[$type]->filterId
+                ),
                 'monthly_installment' => $preferred[$type]->monthlyInstallment,
                 'installment_label' => $this->installmentLabel(
                     $preferred[$type]->months,

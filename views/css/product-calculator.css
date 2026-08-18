@@ -226,15 +226,363 @@
     max-width: 100%;
   }
 }
-.unipayment-product-calculator__modal[hidden] { display: none; }
-.unipayment-product-calculator__modal { position: fixed; inset: 0; z-index: 1055; display: grid; place-items: center; padding: 1rem; }
-.unipayment-product-calculator__overlay { position: absolute; inset: 0; width: 100%; border: 0; background: rgba(0,0,0,.55); }
-.unipayment-product-calculator__dialog { position: relative; width: min(100%, 38rem); max-height: calc(100vh - 2rem); overflow: auto; padding: 1.5rem; border-radius: .4rem; background: #fff; box-shadow: 0 1rem 3rem rgba(0,0,0,.3); }
-.unipayment-product-calculator__close { position: absolute; top: .5rem; right: .75rem; border: 0; background: none; font-size: 1.8rem; cursor: pointer; }
-.unipayment-product-calculator__dialog select { width: 100%; margin: .5rem 0 1rem; padding: .5rem; }
-.unipayment-product-calculator__summary { margin: 0 0 1rem; }
-.unipayment-product-calculator__summary div { display: flex; justify-content: space-between; gap: 1rem; padding: .45rem 0; border-bottom: 1px solid #ddd; }
-.unipayment-product-calculator__summary dt, .unipayment-product-calculator__summary dd { margin: 0; }
-.unipayment-product-calculator__summary dd { font-weight: 700; text-align: right; }
-.unipayment-product-calculator__notice { font-size: .85rem; color: #666; }
-body.unipayment-modal-open { overflow: hidden; }
+[data-unipayment-calculator] .unipayment-product-calculator__modal {
+  --unipayment-popup-red: #ed1c24;
+  --unipayment-popup-border: #d4d4d8;
+  --unipayment-popup-shadow: #f4f4f5;
+  --unipayment-popup-muted: #696969;
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: block;
+  box-sizing: border-box;
+  height: 100%;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
+  font-family: "Unipayment Roboto Condensed", sans-serif;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__modal[hidden],
+[data-unipayment-calculator] .unipayment-product-calculator__step[hidden] {
+  display: none;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__modal *,
+[data-unipayment-calculator] .unipayment-product-calculator__modal *::before,
+[data-unipayment-calculator] .unipayment-product-calculator__modal *::after {
+  box-sizing: border-box;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgba(0, 0, 0, .4);
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__modal-scroll {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  padding: 24px 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__dialog {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  margin: auto;
+  background: #fefefe;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, .2), 0 6px 20px rgba(0, 0, 0, .19);
+  color: var(--unipayment-popup-muted);
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__banner,
+[data-unipayment-calculator] .unipayment-product-calculator__banner a {
+  display: block;
+  line-height: 0;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__banner picture,
+[data-unipayment-calculator] .unipayment-product-calculator__banner img {
+  display: block;
+  width: 100%;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__banner img {
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-panel {
+  padding: 20px;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-title {
+  margin: 0 0 16px;
+  padding: 0 4px;
+  color: #000;
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: left;
+  text-transform: none;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-calc {
+  width: 100%;
+  padding: 8px 25px 5px 100px;
+  border: 2px solid var(--unipayment-popup-border);
+  border-radius: 14.5px 14.5px 80px 14.5px;
+  background: #fff url('../img/product/popup-calc-bg.png') no-repeat left center / 150px 150px;
+  box-shadow: 1px 1px 1px 1px var(--unipayment-popup-shadow);
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: 32px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-row[hidden] {
+  display: none;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-row--note {
+  min-height: 18px;
+  margin-top: 8px;
+  color: var(--unipayment-popup-red);
+  font-size: 14px;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-label {
+  flex: 1 1 auto;
+  margin: 0;
+  color: #000;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-wrap: nowrap;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__label-mobile {
+  display: none;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-value {
+  flex: 0 0 auto;
+  max-width: 55%;
+  color: var(--unipayment-popup-red);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: right;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-select,
+[data-unipayment-calculator] .unipayment-product-calculator__popup-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 240px;
+  margin: 0;
+  padding: 0 16px;
+  border: 0;
+  border-bottom: 1px solid #b0b0b0;
+  border-radius: 0;
+  outline: none;
+  background-color: #fff;
+  box-shadow: none;
+  color: var(--unipayment-popup-red);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1.2;
+  text-align: right;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-select {
+  padding-left: 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23b0b0b0' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: 10px 6px;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-select option {
+  text-align: right;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-select:focus,
+[data-unipayment-calculator] .unipayment-product-calculator__popup-select:focus-visible,
+[data-unipayment-calculator] .unipayment-product-calculator__popup-input:focus,
+[data-unipayment-calculator] .unipayment-product-calculator__popup-input:focus-visible {
+  outline: none;
+  background-color: #fff;
+  box-shadow: none;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-input[readonly] {
+  border-bottom: 0;
+  opacity: .85;
+}
+
+[data-unipayment-calculator] .unipayment-product-calculator__popup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+[data-unipayment-calculator] button.unipayment-product-calculator__popup-button {
+  --unipayment-popup-button-offset: 4px;
+  --unipayment-popup-button-reveal: 1px;
+  position: relative;
+  display: inline-block;
+  min-width: 140px;
+  margin: 0;
+  padding: 0 var(--unipayment-popup-button-reveal) var(--unipayment-popup-button-reveal) 0;
+  border: 0;
+  border-radius: 6px;
+  outline: none;
+  background: #a1a1aa none;
+  box-shadow: none;
+  color: #fff;
+  font: inherit;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+  cursor: pointer;
+  transition: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+[data-unipayment-calculator] button.unipayment-product-calculator__popup-button > span {
+  position: relative;
+  top: var(--unipayment-popup-button-offset);
+  left: var(--unipayment-popup-button-offset);
+  z-index: 1;
+  display: block;
+  padding: 0 var(--unipayment-popup-button-reveal) var(--unipayment-popup-button-reveal) 0;
+  border: 3px solid var(--unipayment-popup-border);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 1px 1px 1px 1px var(--unipayment-popup-shadow);
+}
+
+[data-unipayment-calculator] button.unipayment-product-calculator__popup-button b {
+  display: block;
+  padding: 8px 20px;
+  background: #a1a1aa;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 20px;
+  text-align: center;
+  text-shadow: 1px 1px #729696;
+}
+
+[data-unipayment-calculator] button.unipayment-product-calculator__popup-button--primary {
+  margin-left: auto;
+  color: var(--unipayment-popup-red);
+}
+
+[data-unipayment-calculator] button.unipayment-product-calculator__popup-button--primary b {
+  color: var(--unipayment-popup-red);
+}
+
+[data-unipayment-calculator] button.unipayment-product-calculator__popup-button:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+}
+
+[data-unipayment-calculator] button.unipayment-product-calculator__popup-button:hover,
+[data-unipayment-calculator] button.unipayment-product-calculator__popup-button:focus,
+[data-unipayment-calculator] button.unipayment-product-calculator__popup-button:focus-visible,
+[data-unipayment-calculator] button.unipayment-product-calculator__popup-button:active {
+  border: 0;
+  outline: none;
+  background: #a1a1aa none;
+  box-shadow: none;
+  filter: none;
+  color: inherit;
+  text-decoration: none;
+  transform: none;
+}
+
+[data-unipayment-calculator] button.unipayment-product-calculator__popup-button > i {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  z-index: 20;
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  background-color: #fff;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  box-shadow: 6px 6px 7px rgba(105, 105, 105, .75);
+  pointer-events: none;
+}
+
+body.unipayment-modal-open {
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  [data-unipayment-calculator] .unipayment-product-calculator__modal-scroll {
+    padding: 12px 8px;
+  }
+
+  [data-unipayment-calculator] .unipayment-product-calculator__dialog {
+    max-width: 100%;
+  }
+
+  [data-unipayment-calculator] .unipayment-product-calculator__popup-calc {
+    width: 100%;
+    padding: 12px;
+    border-radius: 14px;
+    background-image: none;
+  }
+
+  [data-unipayment-calculator] .unipayment-product-calculator__popup-row {
+    flex-direction: column;
+    align-items: flex-start;
+    row-gap: 6px;
+  }
+
+  [data-unipayment-calculator] .unipayment-product-calculator__popup-value {
+    width: 100%;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  [data-unipayment-calculator] .unipayment-product-calculator__popup-select,
+  [data-unipayment-calculator] .unipayment-product-calculator__popup-input {
+    min-width: 0;
+  }
+
+  [data-unipayment-calculator] .unipayment-product-calculator__label-desktop {
+    display: none;
+  }
+
+  [data-unipayment-calculator] .unipayment-product-calculator__label-mobile {
+    display: inline;
+  }
+
+  [data-unipayment-calculator] .unipayment-product-calculator__popup-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  [data-unipayment-calculator] button.unipayment-product-calculator__popup-button {
+    --unipayment-popup-button-offset: 3px;
+    width: 100%;
+    border-radius: 3px;
+  }
+
+  [data-unipayment-calculator] button.unipayment-product-calculator__popup-button > span {
+    border-width: 2px;
+    border-radius: 3px;
+  }
+}

@@ -34,4 +34,21 @@ assertCheckoutPresenter(is_array($view) && count($view['schemes']) === 5, 'unifi
 assertCheckoutPresenter($view['consents'][0]['mandatory'] && !$view['consents'][1]['mandatory'], 'mandatory/optional consent distinction failed');
 assertCheckoutPresenter(strpos($view['cart_snapshot'], '.') !== false, 'signed cart snapshot missing');
 
+$preferredScheme = $view['schemes'][1];
+$preferredView = $presenter->present(true, $shop, $cart, 'BGN', [
+    'scheme_type' => $preferredScheme['scheme_type'],
+    'kop_code' => $preferredScheme['kop_code'],
+    'months' => $preferredScheme['months'],
+    'filter_id' => $preferredScheme['filter_id'],
+    'first_installment' => 100.0,
+]);
+assertCheckoutPresenter(is_array($preferredView) && $preferredView['preselect_payment'] === true, 'valid Product preference must enable Checkout UX preselection');
+assertCheckoutPresenter($preferredView['default_scheme_key'] === $preferredScheme['key'], 'matching cart-wide scheme must be preselected');
+assertCheckoutPresenter($preferredView['default_first_installment'] === 100.0, 'valid preferred first installment must reach Checkout UI');
+
+$invalidPreferredView = $presenter->present(true, $shop, $cart, 'BGN', [
+    'scheme_type' => 'standard', 'kop_code' => 'STALE', 'months' => 99, 'filter_id' => 0, 'first_installment' => 100.0,
+]);
+assertCheckoutPresenter(is_array($invalidPreferredView) && $invalidPreferredView['preselect_payment'] === false, 'invalid Product preference must not override cart-wide Checkout schemes');
+
 fwrite(STDOUT, "OK (Phase 8 checkout payment presenter)\n");

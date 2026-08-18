@@ -1,0 +1,60 @@
+<?php
+
+declare(strict_types=1);
+
+if (PHP_SAPI !== 'cli') { exit(1); }
+
+require dirname(__DIR__, 2) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/Calculator/fixtures.php';
+
+use PrestaShop\Module\Unipayment\Calculator\Calculator;
+use PrestaShop\Module\Unipayment\Calculator\ProductContext;
+use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
+use PrestaShop\Module\Unipayment\Product\ProductPopupCalculator;
+use PrestaShop\Module\Unipayment\Product\ProductPopupPresenter;
+
+function assertProductPopup(bool $condition, string $message): void
+{
+    if (!$condition) { fwrite(STDERR, "FAIL: {$message}\n"); exit(1); }
+}
+
+$popup = new ProductPopupCalculator(new Calculator('2026-08-17'));
+$product = new ProductContext(42, [7, 9], 1000.0);
+$shop = calculatorFixture(['uni_eur' => 3]);
+$standard = $popup->calculate($shop, $product, 'EUR', 'standard', 12, 0, 100.0);
+assertProductPopup($standard['scheme_type'] === 'standard' && $standard['months'] === 12, 'Standard popup context was not preserved');
+assertProductPopup($standard['first_installment'] === 100.0 && !$standard['first_installment_locked'], 'editable first installment was not calculated server-side');
+assertProductPopup($standard['price_display']['primary'] === '1000.00 евро', 'Woo EUR popup formatting changed');
+assertProductPopup($standard['monthly_installment_display']['primary'] === '85.50 евро', 'dependent values were not recalculated from financed amount');
+
+$promo = $popup->calculate($shop, $product, 'EUR', 'promo', 12, 0, 0.0);
+assertProductPopup($promo['scheme_type'] === 'promo' && $promo['glp_display'] === '0.00', 'Promo popup must remain isolated and zero-interest');
+
+$schemaShop = calculatorFixture([
+    'uni_eur' => 0,
+    'uni_typekop' => 1,
+    'kop' => ['by_schema' => ['filters' => schemaFiltersFixture()]],
+]);
+$locked = $popup->calculate($schemaShop, $product, 'BGN', 'standard', 24, 11, 200.0);
+assertProductPopup($locked['first_installment_locked'] && $locked['first_installment'] === 41.67, 'scheme-locked first installment must ignore browser input');
+
+try {
+    $popup->calculate($shop, $product, 'EUR', 'promo', 6, 0, 0.0);
+    assertProductPopup(false, 'invalid Promo month was accepted');
+} catch (UnavailableSchemeException $exception) {
+    assertProductPopup(true, 'invalid selection rejected');
+}
+
+$visual = (new ProductPopupPresenter())->present([
+    'uni_picture' => 'https://cdn.example.test/desktop.jpg',
+    'uni_picturem' => 'https://cdn.example.test/mobile.jpg',
+    'reklama_url' => 'https://example.test/info',
+], 'buy');
+assertProductPopup($visual['banner_url'] === 'https://cdn.example.test/desktop.jpg', 'CP uni_picture banner source missing');
+assertProductPopup($visual['banner_url_mobile'] === 'https://cdn.example.test/mobile.jpg', 'CP uni_picturem banner source missing');
+assertProductPopup($visual['button_action'] === 'buy' && $visual['secondary_label'] === 'Купи', 'Buy action presentation contract failed');
+assertProductPopup((new ProductPopupPresenter())->present([], 'add_to_cart')['secondary_label'] === 'Добави в количката', 'Add-to-cart action label failed');
+$fallbackLink = (new ProductPopupPresenter())->present(['reklama_url' => '', 'uni_backurl' => 'https://example.test/fallback'], 'add_to_cart');
+assertProductPopup($fallbackLink['banner_link'] === 'https://example.test/fallback', 'Woo uni_backurl fallback semantics failed');
+
+fwrite(STDOUT, "OK (Product popup authoritative calculation and presentation)\n");

@@ -388,9 +388,14 @@ class Unipayment extends PaymentModule
 
         $this->context->smarty->assign([
             'unipayment_calculator' => $calculator,
+            'unipayment_popup' => (new PrestaShop\Module\Unipayment\Product\ProductPopupPresenter())->present(
+                $shop,
+                $repository->getProductButtonAction()
+            ),
             'unipayment_button_top_spacing' => $repository->getButtonTopSpacing(),
             'unipayment_logo_url' => $this->_path . 'views/img/product/uni_logo.svg',
             'unipayment_logo_alternative_url' => $this->_path . 'views/img/product/uni_logo_red.svg',
+            'unipayment_popup_badge_url' => $this->_path . 'views/img/product/uni_mini_logo.png',
             'unipayment_calculator_json' => json_encode(
                 $calculator,
                 JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
@@ -401,6 +406,9 @@ class Unipayment extends PaymentModule
                 ['ajax' => 1],
                 true
             ),
+            'unipayment_popup_url' => $this->context->link->getModuleLink($this->name, 'productpopup', ['ajax' => 1], true),
+            'unipayment_popup_token' => Tools::getToken(false),
+            'unipayment_checkout_url' => $this->context->link->getPageLink('order', true),
             'unipayment_offer_types' => ['standard', 'promo'],
         ]);
 
@@ -517,6 +525,12 @@ class Unipayment extends PaymentModule
             if (!$currency instanceof Currency || !Validate::isLoadedObject($currency)) {
                 return [];
             }
+            $preferenceStore = new PrestaShop\Module\Unipayment\Checkout\CheckoutPreferenceStore();
+            $preference = $preferenceStore->load(
+                $this->context->cookie,
+                (int) $cart->id,
+                (int) $this->context->customer->id
+            );
             $view = (new PrestaShop\Module\Unipayment\Checkout\CheckoutPaymentPresenter(
                 $calculator,
                 new PrestaShop\Module\Unipayment\Cart\CartSchemeResolver($calculator),
@@ -524,7 +538,10 @@ class Unipayment extends PaymentModule
                 new PrestaShop\Module\Unipayment\Checkout\CartSnapshot(),
                 new PrestaShop\Module\Unipayment\Checkout\CartSnapshotSigner(_COOKIE_KEY_),
                 new PrestaShop\Module\Unipayment\Checkout\ConsentResolver()
-            ))->present(true, $shop, $cartContext, (string) $currency->iso_code);
+            ))->present(true, $shop, $cartContext, (string) $currency->iso_code, $preference);
+            if ($preference !== null && empty($view['preselect_payment'])) {
+                $preferenceStore->clear($this->context->cookie);
+            }
         } catch (Throwable $exception) {
             PrestaShopLogger::addLog('UniPayment checkout option could not be rendered: ' . get_class($exception), 2);
 
