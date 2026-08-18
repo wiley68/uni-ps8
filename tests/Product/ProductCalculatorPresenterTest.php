@@ -38,6 +38,21 @@ assertProductPresenter($presenter->present(calculatorFixture(['uni_eur' => 0]), 
 assertProductPresenter($presenter->present(calculatorFixture(['uni_eur' => 3]), $product, 'EUR') !== null, 'EUR-only configuration must support EUR');
 assertProductPresenter($presenter->present(calculatorFixture(['uni_status' => 0]), $product, 'BGN') === null, 'inactive shop must hide calculator');
 
+$eurLabelView = $presenter->present(
+    calculatorFixture(['uni_eur' => 3]),
+    new ProductContext(42, [7, 9], 1026.21),
+    'EUR'
+);
+assertProductPresenter(is_array($eurLabelView), 'EUR label fixture must be available');
+assertProductPresenter($eurLabelView['offers']['standard']['installment_label'] === '12 x 97.49 евро', 'EUR button label must match Woo exactly');
+assertProductPresenter(strpos($eurLabelView['offers']['standard']['installment_label'], '€') === false, 'EUR button label must not contain a symbol');
+assertProductPresenter(strpos($eurLabelView['offers']['standard']['installment_label'], 'EUR') === false, 'EUR button label must not contain an ISO code');
+assertProductPresenter((bool) preg_match('/^12 x \d+\.\d{2} евро$/', $eurLabelView['offers']['standard']['installment_label']), 'button label must contain months, dot separator and exactly two decimals');
+assertProductPresenter((bool) preg_match('/^12 x \d+\.\d{2} евро$/', $eurLabelView['offers']['promo']['installment_label']), 'promo label must use the same Woo contract');
+
+$bgnLabelView = $presenter->present(calculatorFixture(['uni_eur' => 0]), $product, 'BGN');
+assertProductPresenter(is_array($bgnLabelView) && (bool) preg_match('/ лв\.$/u', $bgnLabelView['offers']['standard']['installment_label']), 'BGN-only button label must use the Woo лв. suffix');
+
 $visualView = $presenter->present(calculatorFixture([
     'uni_vnoska' => 1,
     'uni_type_button' => 1,

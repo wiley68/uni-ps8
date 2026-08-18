@@ -38,8 +38,13 @@
     return field ? Math.max(0, parseInt(field.value, 10) || 0) : 0;
   }
 
+  function buttonInstallmentLabel(offer) {
+    return offer && typeof offer.installment_label === 'string' ? offer.installment_label : '';
+  }
+
   if (typeof module === 'object' && module.exports) {
     module.exports.productAttributeId = productAttributeId;
+    module.exports.buttonInstallmentLabel = buttonInstallmentLabel;
     return;
   }
 
@@ -142,7 +147,7 @@
         var offer = next && next.offers ? next.offers[type] : null;
         button.hidden = !offer;
         var price = button.querySelector('[data-unipayment-preferred-price]');
-        if (price && offer) price.textContent = formatAmount(offer.monthly_installment, next.currency_iso) + ' / ' + (root.getAttribute('data-month-label') || 'month');
+        if (price && offer) price.textContent = buttonInstallmentLabel(offer);
       });
       close();
     };

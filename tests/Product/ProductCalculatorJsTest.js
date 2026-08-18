@@ -1,7 +1,9 @@
 'use strict';
 
 var assert = require('assert');
-var productAttributeId = require('../../views/js/product-calculator.js').productAttributeId;
+var productCalculator = require('../../views/js/product-calculator.js');
+var productAttributeId = productCalculator.productAttributeId;
+var buttonInstallmentLabel = productCalculator.buttonInstallmentLabel;
 
 function element(attributes, value) {
   return {
@@ -29,5 +31,11 @@ assert.strictEqual(productAttributeId(productDocument('{"id_product_attribute":0
 assert.strictEqual(productAttributeId(productDocument('{malformed', null)), 0);
 assert.strictEqual(productAttributeId(productDocument(null, '7')), 7);
 assert.strictEqual(productAttributeId(productDocument('{malformed', '9')), 9);
+assert.strictEqual(buttonInstallmentLabel({
+  months: 12,
+  monthly_installment: 97.49,
+  installment_label: '12 x 97.49 евро'
+}), '12 x 97.49 евро');
+assert.strictEqual(buttonInstallmentLabel(null), '');
 
-console.log('OK (Phase 6 product combination DOM source)');
+console.log('OK (Phase 6 product combination DOM source and Woo button label)');

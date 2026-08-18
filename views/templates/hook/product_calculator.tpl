@@ -17,7 +17,7 @@
       <button type="button" class="unipayment-product-calculator__button unipayment-product-calculator__button--{$offer_type|escape:'htmlall':'UTF-8'}" data-unipayment-offer="{$offer_type|escape:'htmlall':'UTF-8'}"{if !isset($unipayment_calculator.offers[$offer_type])} hidden{/if}>
         <span class="unipayment-product-calculator__button-content">
           <span class="unipayment-product-calculator__button-title">{l s='Купи на изплащане' d='Modules.Unipayment.Shop'}</span>
-          <span class="unipayment-product-calculator__button-price" data-unipayment-preferred-price>{if isset($unipayment_calculator.offers[$offer_type])}{$unipayment_calculator.offers[$offer_type].monthly_installment|string_format:'%.2f'|escape:'htmlall':'UTF-8'} {$unipayment_calculator.currency_iso|escape:'htmlall':'UTF-8'} / {l s='month' d='Modules.Unipayment.Shop'}{/if}</span>
+          <span class="unipayment-product-calculator__button-price" data-unipayment-preferred-price>{if isset($unipayment_calculator.offers[$offer_type])}{$unipayment_calculator.offers[$offer_type].installment_label|escape:'htmlall':'UTF-8'}{/if}</span>
         </span>
         {if $offer_type === 'promo'}
           <span class="unipayment-product-calculator__badge" aria-hidden="true">0%</span>
