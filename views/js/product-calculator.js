@@ -2,6 +2,7 @@
   'use strict';
 
   var selector = '[data-unipayment-calculator]';
+  var domRefreshTimer = null;
 
   function parseConfig(root) {
     try {
@@ -41,6 +42,7 @@
     var refreshTimer = null;
     var refreshRequest = null;
     var refreshSequence = 0;
+    var lastRequestKey = '';
 
     function renderScheme() {
       var offer = config && config.offers ? config.offers[activeType] : null;
@@ -122,6 +124,10 @@
         var productId = parseInt(root.getAttribute('data-product-id'), 10) || 0;
         if (!endpoint || !productId) return;
 
+        var requestKey = productId + ':' + attributeId() + ':' + quantity();
+        if (requestKey === lastRequestKey) return;
+        lastRequestKey = requestKey;
+
         if (refreshRequest && typeof refreshRequest.abort === 'function') refreshRequest.abort();
         refreshRequest = typeof AbortController === 'function' ? new AbortController() : null;
         var sequence = ++refreshSequence;
@@ -138,7 +144,10 @@
             if (sequence === refreshSequence) root.unipaymentUpdate(payload.success ? payload.calculator : null);
           })
           .catch(function (error) {
-            if (sequence === refreshSequence && (!error || error.name !== 'AbortError')) root.unipaymentUpdate(null);
+            if (sequence === refreshSequence && (!error || error.name !== 'AbortError')) {
+              lastRequestKey = '';
+              root.unipaymentUpdate(null);
+            }
           });
       }, 80);
     };
@@ -155,9 +164,34 @@
     });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize);
-  else initialize();
-  if (window.prestashop && typeof window.prestashop.on === 'function') window.prestashop.on('updatedProduct', refresh);
+  function scheduleDomRefresh() {
+    window.clearTimeout(domRefreshTimer);
+    domRefreshTimer = window.setTimeout(refresh, 0);
+  }
+
+  function mutationNeedsRefresh(mutation) {
+    var target = mutation.target && mutation.target.nodeType === 1 ? mutation.target : mutation.target.parentElement;
+    return !target || !target.closest(selector);
+  }
+
+  function initializeProductObservers() {
+    var productActions = document.querySelector('.product-actions');
+    if (!productActions || typeof MutationObserver !== 'function') return;
+
+    var observer = new MutationObserver(function (mutations) {
+      if (mutations.some(mutationNeedsRefresh)) scheduleDomRefresh();
+    });
+    observer.observe(productActions, { childList: true, subtree: true });
+  }
+
+  function start() {
+    initialize();
+    initializeProductObservers();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+  if (window.prestashop && typeof window.prestashop.on === 'function') window.prestashop.on('updatedProduct', scheduleDomRefresh);
   document.addEventListener('input', function (event) {
     if (event.target && event.target.matches('#quantity_wanted, input[name="qty"], input[name="quantity"]')) refresh();
   });
