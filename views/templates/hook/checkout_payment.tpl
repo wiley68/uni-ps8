@@ -1,3 +1,4 @@
+<form method="post" action="{$unipayment_checkout_action|escape:'htmlall':'UTF-8'}">
 <div class="unipayment-checkout" data-unipayment-checkout data-config="{$unipayment_checkout_json|escape:'htmlall':'UTF-8'}">
   <input type="hidden" name="unipayment_checkout_submit" value="1">
   <input type="hidden" name="unipayment_checkout_token" value="{$unipayment_checkout_token|escape:'htmlall':'UTF-8'}">
@@ -37,3 +38,4 @@
   {/if}
   <p class="unipayment-checkout__notice">{l s='All financing values will be recalculated and validated after submission.' d='Modules.Unipayment.Shop'}</p>
 </div>
+</form>

@@ -510,12 +510,13 @@ class Unipayment extends PaymentModule
             'unipayment_checkout' => $view,
             'unipayment_checkout_json' => json_encode($view, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'unipayment_checkout_token' => Tools::getToken(false),
+            'unipayment_checkout_action' => $this->context->link->getModuleLink($this->name, 'validatecheckout', [], true),
         ]);
         $option = new PrestaShop\PrestaShop\Core\Payment\PaymentOption();
         $option->setModuleName($this->name)
             ->setCallToActionText($this->trans('UniCredit purchases on credit', [], 'Modules.Unipayment.Shop'))
             ->setAction($this->context->link->getModuleLink($this->name, 'validatecheckout', [], true))
-            ->setAdditionalInformation($this->fetch('module:unipayment/views/templates/hook/checkout_payment.tpl'));
+            ->setForm($this->fetch('module:unipayment/views/templates/hook/checkout_payment.tpl'));
 
         return [$option];
     }
