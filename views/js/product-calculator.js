@@ -22,9 +22,25 @@
     }
   }
 
-  function attributeId() {
-    var field = document.querySelector('input[name="id_product_attribute"]');
+  function productAttributeId(doc) {
+    var productDetails = doc.querySelector('#product-details[data-product]');
+    if (productDetails) {
+      try {
+        var productState = JSON.parse(productDetails.getAttribute('data-product') || '{}');
+        var stateAttributeId = parseInt(productState.id_product_attribute, 10) || 0;
+        if (stateAttributeId > 0) return stateAttributeId;
+      } catch (error) {
+        // Fall back to the theme's hidden field when the PrestaShop state is unavailable.
+      }
+    }
+
+    var field = doc.querySelector('input[name="id_product_attribute"]');
     return field ? Math.max(0, parseInt(field.value, 10) || 0) : 0;
+  }
+
+  if (typeof module === 'object' && module.exports) {
+    module.exports.productAttributeId = productAttributeId;
+    return;
   }
 
   function quantity() {
@@ -94,7 +110,7 @@
         var offer = config.offers[activeType];
         var scheme = offer.schemes[select.selectedIndex];
         root.dispatchEvent(new CustomEvent('unipayment:schemeSelected', { bubbles: true, detail: {
-          productId: config.product_id, productAttributeId: attributeId(), type: activeType,
+          productId: config.product_id, productAttributeId: productAttributeId(document), type: activeType,
           months: scheme.months, filterId: scheme.filter_id
         }}));
         close();
@@ -124,7 +140,9 @@
         var productId = parseInt(root.getAttribute('data-product-id'), 10) || 0;
         if (!endpoint || !productId) return;
 
-        var requestKey = productId + ':' + attributeId() + ':' + quantity();
+        var currentAttributeId = productAttributeId(document);
+        var currentQuantity = quantity();
+        var requestKey = productId + ':' + currentAttributeId + ':' + currentQuantity;
         if (requestKey === lastRequestKey) return;
         lastRequestKey = requestKey;
 
@@ -133,8 +151,8 @@
         var sequence = ++refreshSequence;
         var url = endpoint + (endpoint.indexOf('?') === -1 ? '?' : '&') +
           'id_product=' + encodeURIComponent(productId) +
-          '&id_product_attribute=' + encodeURIComponent(attributeId()) +
-          '&quantity=' + encodeURIComponent(quantity());
+          '&id_product_attribute=' + encodeURIComponent(currentAttributeId) +
+          '&quantity=' + encodeURIComponent(currentQuantity);
         var options = { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } };
         if (refreshRequest) options.signal = refreshRequest.signal;
 
