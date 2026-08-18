@@ -336,7 +336,7 @@
   justify-content: space-between;
   column-gap: 32px;
   width: 100%;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 [data-unipayment-calculator] .unipayment-product-calculator__popup-row[hidden] {
@@ -351,8 +351,10 @@
 }
 
 [data-unipayment-calculator] .unipayment-product-calculator__popup-label {
+  display: block;
   flex: 1 1 auto;
   margin: 0;
+  padding: 0;
   color: #000;
   font-size: 18px;
   font-weight: 400;
