@@ -25,7 +25,8 @@ final class UnipaymentProductCalculatorModuleFrontController extends ModuleFront
         $productId = filter_var(Tools::getValue('id_product'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $attributeValue = Tools::getValue('id_product_attribute', 0);
         $attributeId = filter_var($attributeValue, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
-        if ($productId === false || $attributeId === false) {
+        $quantity = filter_var(Tools::getValue('quantity', 1), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($productId === false || $attributeId === false || $quantity === false) {
             return $this->errorResponse(400, 'Invalid calculator request.');
         }
 
@@ -37,7 +38,7 @@ final class UnipaymentProductCalculatorModuleFrontController extends ModuleFront
             /** @var Unipayment $module */
             $module = $this->module;
             $shop = $module->getShopConfigurationService()->get();
-            $product = (new ProductContextFactory())->create((int) $productId, (int) $attributeId);
+            $product = (new ProductContextFactory())->create((int) $productId, (int) $attributeId, (int) $quantity);
             $calculator = (new ProductCalculatorPresenter(new Calculator()))->present(
                 $shop,
                 $product,

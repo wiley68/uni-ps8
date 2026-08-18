@@ -26,6 +26,11 @@
     return field ? Math.max(0, parseInt(field.value, 10) || 0) : 0;
   }
 
+  function quantity() {
+    var field = document.querySelector('#quantity_wanted, input[name="qty"], input[name="quantity"]');
+    return field ? Math.max(1, parseInt(field.value, 10) || 1) : 1;
+  }
+
   function setup(root) {
     if (root.dataset.unipaymentReady === '1') return;
     root.dataset.unipaymentReady = '1';
@@ -33,6 +38,9 @@
     var modal = root.querySelector('[data-unipayment-modal]');
     var select = root.querySelector('[data-unipayment-schemes]');
     var activeType = '';
+    var refreshTimer = null;
+    var refreshRequest = null;
+    var refreshSequence = 0;
 
     function renderScheme() {
       var offer = config && config.offers ? config.offers[activeType] : null;
@@ -106,6 +114,34 @@
       });
       close();
     };
+
+    root.unipaymentRefresh = function () {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(function () {
+        var endpoint = root.getAttribute('data-endpoint');
+        var productId = parseInt(root.getAttribute('data-product-id'), 10) || 0;
+        if (!endpoint || !productId) return;
+
+        if (refreshRequest && typeof refreshRequest.abort === 'function') refreshRequest.abort();
+        refreshRequest = typeof AbortController === 'function' ? new AbortController() : null;
+        var sequence = ++refreshSequence;
+        var url = endpoint + (endpoint.indexOf('?') === -1 ? '?' : '&') +
+          'id_product=' + encodeURIComponent(productId) +
+          '&id_product_attribute=' + encodeURIComponent(attributeId()) +
+          '&quantity=' + encodeURIComponent(quantity());
+        var options = { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } };
+        if (refreshRequest) options.signal = refreshRequest.signal;
+
+        fetch(url, options)
+          .then(function (response) { if (!response.ok) throw new Error('calculator'); return response.json(); })
+          .then(function (payload) {
+            if (sequence === refreshSequence) root.unipaymentUpdate(payload.success ? payload.calculator : null);
+          })
+          .catch(function (error) {
+            if (sequence === refreshSequence && (!error || error.name !== 'AbortError')) root.unipaymentUpdate(null);
+          });
+      }, 80);
+    };
   }
 
   function initialize() {
@@ -115,19 +151,17 @@
   function refresh() {
     document.querySelectorAll(selector).forEach(function (root) {
       setup(root);
-      var endpoint = root.getAttribute('data-endpoint');
-      var productId = parseInt(root.getAttribute('data-product-id'), 10) || 0;
-      if (!endpoint || !productId) return;
-      var url = endpoint + (endpoint.indexOf('?') === -1 ? '?' : '&') +
-        'id_product=' + encodeURIComponent(productId) + '&id_product_attribute=' + encodeURIComponent(attributeId());
-      fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then(function (response) { if (!response.ok) throw new Error('calculator'); return response.json(); })
-        .then(function (payload) { root.unipaymentUpdate(payload.success ? payload.calculator : null); })
-        .catch(function () { root.unipaymentUpdate(null); });
+      root.unipaymentRefresh();
     });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize);
   else initialize();
   if (window.prestashop && typeof window.prestashop.on === 'function') window.prestashop.on('updatedProduct', refresh);
+  document.addEventListener('input', function (event) {
+    if (event.target && event.target.matches('#quantity_wanted, input[name="qty"], input[name="quantity"]')) refresh();
+  });
+  document.addEventListener('change', function (event) {
+    if (event.target && event.target.matches('#quantity_wanted, input[name="qty"], input[name="quantity"]')) refresh();
+  });
 }());

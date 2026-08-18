@@ -8,10 +8,13 @@ use PrestaShop\Module\Unipayment\Calculator\ProductContext;
 
 final class ProductContextFactory
 {
-    public function create(int $productId, int $productAttributeId = 0): ProductContext
+    public function create(int $productId, int $productAttributeId = 0, int $quantity = 1): ProductContext
     {
         if ($productId <= 0) {
             throw new \InvalidArgumentException('A valid product ID is required.');
+        }
+        if ($quantity <= 0) {
+            throw new \InvalidArgumentException('A valid product quantity is required.');
         }
 
         $product = new \Product($productId, false, (int) \Context::getContext()->language->id);
@@ -22,8 +25,9 @@ final class ProductContextFactory
             throw new \InvalidArgumentException('The selected product combination is invalid.');
         }
 
-        $price = (float) $product->getPrice(true, $productAttributeId > 0 ? $productAttributeId : null, 6);
-        if (!is_finite($price) || $price <= 0) {
+        $unitPrice = (float) $product->getPrice(true, $productAttributeId > 0 ? $productAttributeId : null, 6);
+        $price = $unitPrice * $quantity;
+        if (!is_finite($unitPrice) || $unitPrice <= 0 || !is_finite($price) || $price <= 0) {
             throw new \InvalidArgumentException('The product price is invalid.');
         }
 
