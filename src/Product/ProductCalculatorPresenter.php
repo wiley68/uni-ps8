@@ -17,10 +17,14 @@ final class ProductCalculatorPresenter
     /** @var CurrencyGate */
     private $currencyGate;
 
+    /** @var ProductPopupSchemeList */
+    private $popupSchemes;
+
     public function __construct(Calculator $calculator, ?CurrencyGate $currencyGate = null)
     {
         $this->calculator = $calculator;
         $this->currencyGate = $currencyGate ?? new CurrencyGate();
+        $this->popupSchemes = new ProductPopupSchemeList($calculator);
     }
 
     /** @param array<string, mixed> $shop @return array<string, mixed>|null */
@@ -37,19 +41,19 @@ final class ProductCalculatorPresenter
                 continue;
             }
             $schemes = [];
-            foreach ($this->calculator->availableSchemes($shop, $product, $type) as $scheme) {
+            foreach ($this->popupSchemes->schemes($shop, $product, $type) as $scheme) {
                 try {
-                    $result = $this->calculator->calculate($shop, $product, $scheme->months, $type, 0.0, $scheme->filterId);
+                    $result = $this->calculator->calculateScheme($shop, $product->price, $scheme, 0.0);
                 } catch (UnavailableSchemeException $exception) {
                     continue;
                 }
                 $schemes[] = [
-                    'key' => \PrestaShop\Module\Unipayment\Checkout\SchemeSelection::key($scheme->type, $scheme->months, $scheme->filterId),
+                    'key' => ProductPopupSchemeList::key($scheme),
                     'scheme_type' => $scheme->type,
                     'months' => $scheme->months,
                     'filter_id' => $scheme->filterId,
                     'kop_code' => $scheme->kopCode,
-                    'description' => is_array($scheme->filter) ? trim((string) ($scheme->filter['uni_kop_desc'] ?? '')) : '',
+                    'description' => ProductPopupSchemeList::description($shop, $scheme),
                     'first_installment' => $result->firstInstallment->amount,
                     'first_installment_locked' => $result->firstInstallment->locked,
                     'financed_amount' => $result->financedAmount,
@@ -65,8 +69,9 @@ final class ProductCalculatorPresenter
             $offers[$type] = [
                 'type' => $type,
                 'months' => $preferred[$type]->months,
-                'preferred_scheme_key' => \PrestaShop\Module\Unipayment\Checkout\SchemeSelection::key(
+                'preferred_scheme_key' => ProductPopupSchemeList::keyFromParts(
                     $preferred[$type]->type,
+                    $preferred[$type]->kopCode,
                     $preferred[$type]->months,
                     $preferred[$type]->filterId
                 ),

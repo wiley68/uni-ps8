@@ -172,7 +172,10 @@
       payload.set('id_product', root.getAttribute('data-product-id') || '0');
       payload.set('id_product_attribute', String(productAttributeId(document)));
       payload.set('quantity', String(quantity()));
+      payload.set('popup_offer_type', activeType);
+      payload.set('scheme_key', scheme.key || '');
       payload.set('scheme_type', scheme.scheme_type || activeType);
+      payload.set('kop_code', scheme.kop_code || '');
       payload.set('months', String(scheme.months));
       payload.set('filter_id', String(scheme.filter_id || 0));
       payload.set('first_installment', first.value || '0');

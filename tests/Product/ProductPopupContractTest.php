@@ -30,6 +30,8 @@ assertProductPopupContract(strpos($template, 'data-unipayment-first type="text" 
 
 assertProductPopupContract(strpos($javascript, "window.setTimeout(calculateNow, 800)") !== false, 'first-installment debounce contract missing');
 assertProductPopupContract(strpos($javascript, "first.value = first.value.replace(/\\D/g, '')") !== false, 'first-installment non-digit filtering missing');
+assertProductPopupContract(strpos($javascript, "payload.set('popup_offer_type', activeType)") !== false, 'popup context must be sent for authoritative mixed-scheme validation');
+assertProductPopupContract(strpos($javascript, "payload.set('scheme_key', scheme.key || '')") !== false && strpos($javascript, "payload.set('kop_code', scheme.kop_code || '')") !== false, 'full Product Popup scheme identity must be sent for server-side validation');
 assertProductPopupContract(strpos($javascript, 'new AbortController()') !== false && strpos($javascript, 'calculateSequence') !== false, 'abort/stale calculation guards missing');
 assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-close]')") !== false, 'Cancel close behavior missing');
 assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-overlay]')") === false, 'overlay must not close popup');

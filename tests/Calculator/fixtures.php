@@ -14,7 +14,9 @@ function calculatorFixture(array $overrides = []): array
         'kop' => [
             'by_default' => [
                 'uni_kop_default' => 'STD',
+                'uni_kop_default_desc' => '',
                 'uni_kop_promo' => 'PROMO',
+                'uni_kop_promo_desc' => '0% лихва за компютри',
                 'uni_promo_price' => 500,
                 'uni_promo_meseci_znak' => 'eq',
                 'uni_promo_meseci' => '12_24',
@@ -57,6 +59,7 @@ function schemaFiltersFixture(): array
             'id' => 12, 'category_id' => 7, 'product_id' => null, 'uni_meseci' => '12',
             'uni_price_from' => 500, 'uni_price_to' => 1000, 'uni_promo' => 1, 'uni_parva' => 0,
             'uni_date_from' => '2026-08-17', 'uni_date_to' => '2026-08-17', 'uni_kop' => 'ZERO',
+            'uni_kop_desc' => '0% schema promotion',
         ],
     ];
 }

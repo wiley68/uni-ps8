@@ -31,10 +31,14 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         $quantity = filter_var(Tools::getValue('quantity', 1), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $months = filter_var(Tools::getValue('months'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $filterId = filter_var(Tools::getValue('filter_id', 0), FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
-        $type = (string) Tools::getValue('scheme_type', '');
+        $popupType = (string) Tools::getValue('popup_offer_type', '');
+        $schemeType = (string) Tools::getValue('scheme_type', '');
+        $kopCode = trim((string) Tools::getValue('kop_code', ''));
+        $schemeKey = trim((string) Tools::getValue('scheme_key', ''));
         $firstRaw = Tools::getValue('first_installment', 0);
         if ($productId === false || $attributeId === false || $quantity === false || $months === false || $filterId === false
-            || !in_array($type, ['standard', 'promo'], true) || !is_numeric($firstRaw)
+            || !in_array($popupType, ['standard', 'promo'], true) || !in_array($schemeType, ['standard', 'promo'], true)
+            || $kopCode === '' || $schemeKey === '' || !is_numeric($firstRaw)
         ) {
             return $this->error(400, 'Invalid popup selection.');
         }
@@ -52,9 +56,12 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                 $shop,
                 $product,
                 (string) $this->context->currency->iso_code,
-                $type,
+                $popupType,
+                $schemeType,
+                $kopCode,
                 (int) $months,
                 (int) $filterId,
+                $schemeKey,
                 (float) $firstRaw
             );
 

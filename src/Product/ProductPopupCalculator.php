@@ -26,14 +26,26 @@ final class ProductPopupCalculator
     }
 
     /** @param array<string, mixed> $shop @return array<string, mixed> */
-    public function calculate(array $shop, ProductContext $product, string $currencyIso, string $type, int $months, int $filterId, float $firstInstallment): array
+    public function calculate(
+        array $shop,
+        ProductContext $product,
+        string $currencyIso,
+        string $popupType,
+        string $schemeType,
+        string $kopCode,
+        int $months,
+        int $filterId,
+        string $schemeKey,
+        float $firstInstallment
+    ): array
     {
-        if (!$this->currencyGate->supports($shop, $currencyIso) || !in_array($type, ['standard', 'promo'], true)) {
+        $allowedTypes = $popupType === 'standard' ? ['standard', 'promo'] : ($popupType === 'promo' ? ['promo'] : []);
+        if (!$this->currencyGate->supports($shop, $currencyIso) || !in_array($schemeType, $allowedTypes, true)) {
             throw new UnavailableSchemeException('The selected financing scheme is unavailable.');
         }
 
-        $scheme = $this->findScheme($this->calculator->availableSchemes($shop, $product, $type), $months, $filterId);
-        if ($scheme === null) {
+        $scheme = $this->findScheme($this->calculator->availableSchemes($shop, $product, $schemeType), $kopCode, $months, $filterId);
+        if ($scheme === null || !hash_equals(ProductPopupSchemeList::key($scheme), $schemeKey)) {
             throw new UnavailableSchemeException('The selected financing scheme is unavailable.');
         }
 
@@ -43,10 +55,10 @@ final class ProductPopupCalculator
     }
 
     /** @param AvailableScheme[] $schemes */
-    private function findScheme(array $schemes, int $months, int $filterId): ?AvailableScheme
+    private function findScheme(array $schemes, string $kopCode, int $months, int $filterId): ?AvailableScheme
     {
         foreach ($schemes as $scheme) {
-            if ($scheme->months === $months && $scheme->filterId === $filterId) {
+            if ($scheme->kopCode === $kopCode && $scheme->months === $months && $scheme->filterId === $filterId) {
                 return $scheme;
             }
         }
