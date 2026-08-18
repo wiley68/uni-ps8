@@ -282,7 +282,7 @@
       applyButton.disabled = true;
       secondaryButton.disabled = true;
       window.clearTimeout(calculateTimer);
-      calculateTimer = window.setTimeout(calculateNow, 400);
+      calculateTimer = window.setTimeout(calculateNow, 800);
     });
     first.addEventListener('change', function () {
       if (first.readOnly) return;

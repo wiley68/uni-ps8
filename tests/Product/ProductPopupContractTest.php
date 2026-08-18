@@ -27,7 +27,7 @@ assertProductPopupContract(strpos($template, 'unipayment_popup.banner_url') !== 
 assertProductPopupContract(strpos($template, 'data-unipayment-step="2" hidden') !== false, 'Step 2 placeholder contract missing');
 assertProductPopupContract(strpos($template, 'data-unipayment-popup-badge') === false && strpos($template, 'unipayment_popup_badge_url') !== false, 'official Apply badge asset missing');
 
-assertProductPopupContract(strpos($javascript, "window.setTimeout(calculateNow, 400)") !== false, 'first-installment debounce contract missing');
+assertProductPopupContract(strpos($javascript, "window.setTimeout(calculateNow, 800)") !== false, 'first-installment debounce contract missing');
 assertProductPopupContract(strpos($javascript, 'new AbortController()') !== false && strpos($javascript, 'calculateSequence') !== false, 'abort/stale calculation guards missing');
 assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-close]')") !== false, 'Cancel close behavior missing');
 assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-overlay]')") === false, 'overlay must not close popup');
