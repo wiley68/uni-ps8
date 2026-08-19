@@ -38,9 +38,45 @@
             : "";
     }
 
+    function popupCalculationIdentity(action, selected, lastCalculation) {
+        if (action !== "calculate" && lastCalculation) {
+            return lastCalculation;
+        }
+        return selected || null;
+    }
+
+    function popupCalculationSchemeFields(identity, selected, activeType) {
+        var source = identity || selected || {};
+        var selectedScheme = selected || {};
+        return {
+            scheme_key:
+                source.scheme_key ||
+                source.key ||
+                selectedScheme.key ||
+                "",
+            scheme_type:
+                source.scheme_type ||
+                selectedScheme.scheme_type ||
+                activeType ||
+                "",
+            kop_code: source.kop_code || selectedScheme.kop_code || "",
+            months:
+                source.months != null
+                    ? source.months
+                    : selectedScheme.months || 0,
+            filter_id:
+                source.filter_id != null
+                    ? source.filter_id
+                    : selectedScheme.filter_id || 0,
+        };
+    }
+
     if (typeof module === "object" && module.exports) {
         module.exports.productAttributeId = productAttributeId;
         module.exports.buttonInstallmentLabel = buttonInstallmentLabel;
+        module.exports.popupCalculationIdentity = popupCalculationIdentity;
+        module.exports.popupCalculationSchemeFields =
+            popupCalculationSchemeFields;
         return;
     }
 
@@ -443,7 +479,16 @@
         function calculationPayload(action) {
             var scheme = selectedScheme();
             if (!scheme) return null;
-            var payloadCalculation = lastCalculation || {};
+            var identity = popupCalculationIdentity(
+                action,
+                scheme,
+                lastCalculation,
+            );
+            var fields = popupCalculationSchemeFields(
+                identity,
+                scheme,
+                activeType,
+            );
             var payload = new URLSearchParams();
             payload.set("token", root.getAttribute("data-popup-token") || "");
             payload.set("popup_action", action || "calculate");
@@ -457,33 +502,18 @@
             );
             payload.set("quantity", String(quantity()));
             payload.set("popup_offer_type", activeType);
-            payload.set(
-                "scheme_key",
-                payloadCalculation.scheme_key || scheme.key || "",
-            );
-            payload.set(
-                "scheme_type",
-                payloadCalculation.scheme_type ||
-                    scheme.scheme_type ||
-                    activeType,
-            );
-            payload.set(
-                "kop_code",
-                payloadCalculation.kop_code || scheme.kop_code || "",
-            );
-            payload.set(
-                "months",
-                String(payloadCalculation.months || scheme.months || 0),
-            );
-            payload.set(
-                "filter_id",
-                String(payloadCalculation.filter_id || scheme.filter_id || 0),
-            );
+            payload.set("scheme_key", fields.scheme_key);
+            payload.set("scheme_type", fields.scheme_type);
+            payload.set("kop_code", fields.kop_code);
+            payload.set("months", String(fields.months || 0));
+            payload.set("filter_id", String(fields.filter_id || 0));
             payload.set(
                 "first_installment",
                 String(
-                    payloadCalculation.first_installment != null
-                        ? payloadCalculation.first_installment
+                    action !== "calculate" &&
+                        lastCalculation &&
+                        lastCalculation.first_installment != null
+                        ? lastCalculation.first_installment
                         : first.value || "0",
                 ),
             );
@@ -876,6 +906,13 @@
         select.addEventListener("change", function () {
             first.value = "0";
             first.readOnly = false;
+            lastCalculation = null;
+            applyButton.disabled = true;
+            secondaryButton.disabled = true;
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.setAttribute("aria-disabled", "true");
+            }
             calculateNow();
         });
         first.addEventListener("input", function () {

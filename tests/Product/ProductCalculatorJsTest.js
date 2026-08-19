@@ -38,4 +38,15 @@ assert.strictEqual(buttonInstallmentLabel({
 }), '12 x 97.49 евро');
 assert.strictEqual(buttonInstallmentLabel(null), '');
 
+var popupCalculationIdentity = productCalculator.popupCalculationIdentity;
+var popupCalculationSchemeFields = productCalculator.popupCalculationSchemeFields;
+var previous = { scheme_key: 'standard|STD|12|0', scheme_type: 'standard', kop_code: 'STD', months: 12, filter_id: 0 };
+var selected = { key: 'standard|STD|24|0', scheme_type: 'standard', kop_code: 'STD', months: 24, filter_id: 0 };
+var calculateIdentity = popupCalculationIdentity('calculate', selected, previous);
+var applyIdentity = popupCalculationIdentity('apply', selected, previous);
+assert.strictEqual(popupCalculationSchemeFields(calculateIdentity, selected, 'standard').months, 24);
+assert.strictEqual(popupCalculationSchemeFields(calculateIdentity, selected, 'standard').scheme_key, 'standard|STD|24|0');
+assert.strictEqual(popupCalculationSchemeFields(applyIdentity, selected, 'standard').months, 12);
+assert.strictEqual(popupCalculationSchemeFields(applyIdentity, selected, 'standard').scheme_key, 'standard|STD|12|0');
+
 console.log('OK (Phase 6 product combination DOM source and Woo button label)');
