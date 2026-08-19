@@ -34,6 +34,7 @@ $shop = ['consents' => [['id' => 2, 'name' => 'Optional', 'mandatory' => 0], ['i
 $wooConsents = call_user_func('mtuc_get_shop_consents', $shop);
 $domainConsents = (new ConsentResolver())->normalize($shop);
 assertWooCheckout($wooConsents[0]['id'] === $domainConsents[0]['id'] && $wooConsents[0]['mandatory'] === $domainConsents[0]['mandatory'], 'consent normalization parity differs');
+assertWooCheckout($wooConsents[0]['has_checkbox'] === $domainConsents[0]['has_checkbox'] && $wooConsents[1]['has_checkbox'] === $domainConsents[1]['has_checkbox'], 'consent checkbox parity differs');
 assertWooCheckout(SchemeSelection::key('standard', 12, 7) === '12:7' && SchemeSelection::key('promo', 12, 7) === 'p:12:7', 'Woo scheme key parity differs');
 
 fwrite(STDOUT, "OK (Phase 8 parity with Woo checkout validation helpers)\n");

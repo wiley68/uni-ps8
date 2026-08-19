@@ -6,7 +6,10 @@ namespace PrestaShop\Module\Unipayment\Checkout;
 
 final class ConsentResolver
 {
-    /** @param array<string, mixed> $shop @return array<int, array{id:int,name:string,url:string,mandatory:bool}> */
+    /**
+     * @param array<string, mixed> $shop
+     * @return array<int, array{id:int,name:string,url:string,mandatory:bool,has_checkbox:bool}>
+     */
     public function normalize(array $shop): array
     {
         $raw = $shop['consents'] ?? [];
@@ -23,11 +26,13 @@ final class ConsentResolver
             if ($name === '') {
                 continue;
             }
+            $mandatory = $this->flag($item['mandatory'] ?? 0);
             $result[] = [
                 'id' => max(1, (int) ($item['id'] ?? $index + 1)),
                 'name' => $name,
                 'url' => filter_var((string) ($item['url'] ?? ''), FILTER_VALIDATE_URL) ?: '',
-                'mandatory' => $this->flag($item['mandatory'] ?? 0),
+                'mandatory' => $mandatory,
+                'has_checkbox' => $mandatory,
             ];
         }
         usort($result, static function (array $a, array $b): int { return $a['id'] <=> $b['id']; });

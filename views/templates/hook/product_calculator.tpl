@@ -25,6 +25,7 @@
         data-add-to-cart-failed-message="{l s='Продуктът не може да бъде добавен в количката.' d='Modules.Unipayment.Shop'}"
         data-customer-form-missing-message="{l s='Формата за лични данни не е заредена. Моля, презаредете страницата.' d='Modules.Unipayment.Shop'}"
         data-validation-failed-message="{l s='Данните не могат да бъдат валидирани.' d='Modules.Unipayment.Shop'}"
+        data-consents-required-message="{l s='Моля, приемете всички задължителни съгласия.' d='Modules.Unipayment.Shop'}"
         data-order-number-label="{l s='Номер на поръчка:' d='Modules.Unipayment.Shop'}"
         data-order-confirmation-message="{l s='Очаквайте потвърждение от UniCredit.' d='Modules.Unipayment.Shop'}"
         data-order-success-title="{l s='Заявката е изпратена успешно' d='Modules.Unipayment.Shop'}"
@@ -242,6 +243,40 @@
                                 <span class="unipayment-product-calculator__field-error" data-unipayment-submit-error
                                     role="alert"></span>
                             </div>
+                            {if isset($unipayment_popup.consents) && $unipayment_popup.consents}
+                                <div class="unipayment-product-calculator__consents" data-unipayment-consents
+                                    aria-label="{l s='Съгласия' d='Modules.Unipayment.Shop'}">
+                                    {foreach from=$unipayment_popup.consents item=consent}
+                                        <div
+                                            class="unipayment-product-calculator__consent{if !$consent.has_checkbox} unipayment-product-calculator__consent--info{/if}">
+                                            {if $consent.has_checkbox}
+                                                <input type="checkbox" class="unipayment-product-calculator__consent-checkbox"
+                                                    id="unipayment-popup-consent-{$unipayment_calculator.product_id|intval}-{$consent.id|intval}"
+                                                    name="unipayment_consent[]" value="{$consent.id|intval}"
+                                                    data-unipayment-consent-checkbox data-unipayment-consent-id="{$consent.id|intval}">
+                                                <label class="unipayment-product-calculator__consent-label"
+                                                    for="unipayment-popup-consent-{$unipayment_calculator.product_id|intval}-{$consent.id|intval}">
+                                                    {if $consent.url}
+                                                        <a href="{$consent.url|escape:'htmlall':'UTF-8'}" target="_blank"
+                                                            rel="noopener noreferrer">{$consent.name|escape:'htmlall':'UTF-8'}</a>
+                                                    {else}
+                                                        {$consent.name|escape:'htmlall':'UTF-8'}
+                                                    {/if}
+                                                </label>
+                                            {else}
+                                                <p class="unipayment-product-calculator__consent-text">
+                                                    {if $consent.url}
+                                                        <a href="{$consent.url|escape:'htmlall':'UTF-8'}" target="_blank"
+                                                            rel="noopener noreferrer">{$consent.name|escape:'htmlall':'UTF-8'}</a>
+                                                    {else}
+                                                        {$consent.name|escape:'htmlall':'UTF-8'}
+                                                    {/if}
+                                                </p>
+                                            {/if}
+                                        </div>
+                                    {/foreach}
+                                </div>
+                            {/if}
                             <div
                                 class="unipayment-product-calculator__popup-actions unipayment-product-calculator__popup-actions--step2">
                                 <div class="unipayment-product-calculator__popup-actions-group">

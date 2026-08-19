@@ -167,6 +167,32 @@
             return /^\d{10}$/.test(v);
         }
 
+        function consentCheckboxes() {
+            return root.querySelectorAll("[data-unipayment-consent-checkbox]");
+        }
+
+        function areMandatoryConsentsChecked() {
+            var boxes = consentCheckboxes();
+            if (!boxes.length) return true;
+            for (var i = 0; i < boxes.length; i += 1) {
+                if (!boxes[i].checked) return false;
+            }
+            return true;
+        }
+
+        function resetConsents() {
+            consentCheckboxes().forEach(function (input) {
+                input.checked = false;
+            });
+        }
+
+        function appendAcceptedConsents(payload) {
+            consentCheckboxes().forEach(function (input) {
+                if (input.checked && input.value)
+                    payload.append("unipayment_consent[]", input.value);
+            });
+        }
+
         function customerErrors() {
             var errors = {};
             ["first_name", "last_name", "address"].forEach(function (name) {
@@ -245,7 +271,10 @@
         function updateSubmitState(showErrors) {
             var errors = customerErrors();
             if (showErrors) showCustomerErrors(errors);
-            var valid = Object.keys(errors).length === 0 && !!lastCalculation;
+            var valid =
+                Object.keys(errors).length === 0 &&
+                !!lastCalculation &&
+                areMandatoryConsentsChecked();
             submitButton.disabled = !valid;
             submitButton.setAttribute(
                 "aria-disabled",
@@ -257,8 +286,10 @@
         function resetCustomerForm() {
             if (!customerForm || !submitButton) return;
             customerForm.querySelectorAll("input").forEach(function (input) {
-                input.value = input.defaultValue;
+                if (input.type === "checkbox") input.checked = false;
+                else input.value = input.defaultValue;
             });
+            resetConsents();
             showCustomerErrors({});
             submitError.textContent = "";
             updateSubmitState(false);
@@ -632,6 +663,7 @@
             );
             var egnField = customerField("egn");
             if (egnField) payload.set("egn", egnField.value.trim());
+            appendAcceptedConsents(payload);
             if (submitButton) {
                 submitButton.disabled = true;
                 submitButton.setAttribute("aria-disabled", "true");
@@ -824,6 +856,21 @@
                         customerErrors()[event.target.name] || "",
                     );
                 updateSubmitState(false);
+            });
+        }
+        if (step2) {
+            step2.addEventListener("change", function (event) {
+                if (
+                    event.target &&
+                    event.target.matches("[data-unipayment-consent-checkbox]")
+                )
+                    updateSubmitState(false);
+            });
+            step2.addEventListener("mousedown", function (event) {
+                var consentLink = event.target.closest(
+                    ".unipayment-product-calculator__consent-label a",
+                );
+                if (consentLink) event.stopPropagation();
             });
         }
         select.addEventListener("change", function () {

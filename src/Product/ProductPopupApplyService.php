@@ -11,6 +11,8 @@ use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\CurrencyGate;
 use PrestaShop\Module\Unipayment\Calculator\ProductContext;
 use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
+use PrestaShop\Module\Unipayment\Checkout\CheckoutValidationException;
+use PrestaShop\Module\Unipayment\Checkout\ConsentResolver;
 use PrestaShop\Module\Unipayment\Checkout\ValidatedPaymentRequest;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationResult;
@@ -41,6 +43,8 @@ final class ProductPopupApplyService
     private $cipher;
     /** @var CurrencyGate */
     private $currencyGate;
+    /** @var ConsentResolver */
+    private $consents;
 
     public function __construct(
         Calculator $calculator,
@@ -48,7 +52,8 @@ final class ProductPopupApplyService
         GuestCustomerFactory $guestFactory,
         OrderOrchestrator $orchestrator,
         SensitiveDataCipher $cipher,
-        ?CurrencyGate $currencyGate = null
+        ?CurrencyGate $currencyGate = null,
+        ?ConsentResolver $consents = null
     ) {
         $this->calculator = $calculator;
         $this->customerValidator = $customerValidator;
@@ -56,6 +61,7 @@ final class ProductPopupApplyService
         $this->orchestrator = $orchestrator;
         $this->cipher = $cipher;
         $this->currencyGate = $currencyGate ?? new CurrencyGate();
+        $this->consents = $consents ?? new ConsentResolver();
     }
 
     /**
@@ -96,6 +102,20 @@ final class ProductPopupApplyService
         $requireEgn = ((int) ($shop['uni_proces'] ?? 0)) === 1;
         $customerData = $this->customerValidator->validate($posted, $requireEgn);
 
+        try {
+            $accepted = $this->consents->validate($shop, $posted['consent'] ?? []);
+        } catch (CheckoutValidationException $exception) {
+            throw new ProductPopupValidationException([
+                'consents' => 'Моля, приемете всички задължителни съгласия.',
+            ]);
+        }
+        $acceptedConsents = array_values(array_filter(
+            $this->consents->normalize($shop),
+            static function (array $consent) use ($accepted): bool {
+                return in_array($consent['id'], $accepted, true);
+            }
+        ));
+
         if ($requireEgn && isset($customerData['egn'])) {
             $customerData['egn_encrypted'] = $this->cipher->encrypt(['egn' => $customerData['egn']]);
             unset($customerData['egn']);
@@ -106,7 +126,7 @@ final class ProductPopupApplyService
         $cart = $context->cart;
         $cartFingerprint = md5((int) $cart->id . ':' . $product->price . ':' . $schemeKey);
 
-        $request = new ValidatedPaymentRequest($calcResult, $customerData, [], $cartFingerprint);
+        $request = new ValidatedPaymentRequest($calcResult, $customerData, $accepted, $cartFingerprint, $acceptedConsents);
 
         return $this->orchestrator->orchestrate(
             (int) $context->shop->id,

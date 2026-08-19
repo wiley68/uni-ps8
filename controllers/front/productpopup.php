@@ -162,6 +162,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             'phone' => Tools::getValue('phone', ''),
             'email' => Tools::getValue('email', ''),
             'egn' => Tools::getValue('egn', ''),
+            'consent' => Tools::getValue('unipayment_consent', []),
         ];
 
         /** @var Unipayment $module */
@@ -270,8 +271,13 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             return $response;
         } catch (ProductPopupValidationException $exception) {
             http_response_code(422);
+            $errors = $exception->errors();
 
-            return ['success' => false, 'message' => 'The customer details are invalid.', 'errors' => $exception->errors()];
+            return [
+                'success' => false,
+                'message' => $errors['consents'] ?? 'The customer details are invalid.',
+                'errors' => $errors,
+            ];
         } catch (OrderOrchestrationException $exception) {
             PrestaShopLogger::addLog('UniPayment popup apply orchestration failed: ' . get_class($exception), 2);
             http_response_code(500);

@@ -4,8 +4,18 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\Product;
 
+use PrestaShop\Module\Unipayment\Checkout\ConsentResolver;
+
 final class ProductPopupPresenter
 {
+    /** @var ConsentResolver */
+    private $consents;
+
+    public function __construct(?ConsentResolver $consents = null)
+    {
+        $this->consents = $consents ?? new ConsentResolver();
+    }
+
     /** @param array<string, mixed> $shop @return array<string, mixed> */
     public function present(array $shop, string $buttonAction, array $customer = []): array
     {
@@ -29,6 +39,7 @@ final class ProductPopupPresenter
                 'email' => '',
                 'is_logged' => false,
             ], $customer),
+            'consents' => $this->consents->normalize($shop),
         ];
     }
 

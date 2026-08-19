@@ -85,4 +85,16 @@ assertProductPopup($customerPresentation['customer']['first_name'] === 'Иван
 $fallbackLink = (new ProductPopupPresenter())->present(['reklama_url' => '', 'uni_backurl' => 'https://example.test/fallback'], 'add_to_cart');
 assertProductPopup($fallbackLink['banner_link'] === 'https://example.test/fallback', 'Woo uni_backurl fallback semantics failed');
 
+$consentShop = [
+    'consents' => [
+        ['id' => 2, 'name' => 'Optional info', 'url' => 'https://example.test/info', 'mandatory' => 0],
+        ['id' => 1, 'name' => '<b>Terms</b>', 'url' => 'https://example.test/terms', 'mandatory' => 1],
+        ['name' => ''],
+    ],
+];
+$consentView = (new ProductPopupPresenter())->present($consentShop, 'add_to_cart');
+assertProductPopup(count($consentView['consents']) === 2, 'empty consent names must be skipped');
+assertProductPopup($consentView['consents'][0]['id'] === 1 && $consentView['consents'][0]['has_checkbox'] === true, 'mandatory consents must sort first and render as checkboxes');
+assertProductPopup($consentView['consents'][0]['name'] === 'Terms' && $consentView['consents'][1]['has_checkbox'] === false, 'optional consents must remain informational text without a checkbox');
+
 fwrite(STDOUT, "OK (Product popup authoritative calculation and presentation)\n");
