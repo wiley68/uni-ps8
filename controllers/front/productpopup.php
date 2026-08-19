@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Checkout\CheckoutPreferenceStore;
+use PrestaShop\Module\Unipayment\Order\BankStatus;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderPayloadBuilder;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotFactory;
@@ -200,9 +201,12 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             try {
                 $snapshot = (new FinancingSnapshotRepository())->findByAttempt($result->attemptId);
                 if ($snapshot !== null) {
-                    $snapshot['status_label'] = ((int) ($shop['uni_proces'] ?? 0)) === 1
-                        ? 'Изпратен Банка - Процес 2'
-                        : 'Изпратен Банка - Процес 1';
+                    $process2 = $this->isProcess2($shop);
+                    $sentStatus = BankStatus::successfulSend($process2);
+                    $snapshot['status_label'] = $sentStatus['status_label'];
+                    if ($process2) {
+                        $this->persistBankStatus($result->orderReference, $sentStatus);
+                    }
 
                     try {
                         (new LeasingEmailNotifier())->notify($snapshot, $result->attemptId, $shop);
@@ -215,13 +219,14 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                         $response['email_error'] = 'Leasing email could not be sent.';
                     }
 
-                    if (!$this->isProcess2($shop)) {
+                    if (!$process2) {
                         $shop['_currency_iso'] = (string) $this->context->currency->iso_code;
                         $payloadBuilder = new SmartUcfPayloadBuilder();
                         $smartUcfPayload = $payloadBuilder->build($shop, $snapshot);
                         $smartUcf = new SmartUcfSessionClient($payloadBuilder);
                         try {
                             $session = $smartUcf->createSession($shop, $snapshot);
+                            $this->persistBankStatus($result->orderReference, $sentStatus);
                             $response['redirect_url'] = $session['redirect_url'];
                             $this->logSmartUcf($result->idOrder, $result->orderReference, $session);
                         } catch (SmartUcfSessionException $e) {
@@ -345,23 +350,18 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
     private function markSmartUcfFailure(ControlPanelOrderClientAdapter $cpClient, int $idOrder, string $orderReference): void
     {
         $cpOrderId = substr($orderReference, 0, 13);
-        $statusLabel = 'Неуспешно изпратен Банка - SmartUCF';
-        $statusId = 'bank_send_failed_smartucf';
+        $failedStatus = BankStatus::smartUcfFailure();
         try {
             $cpClient->updateOrderStatus(
                 $cpOrderId,
-                $statusLabel,
-                $statusId
+                $failedStatus['status_label'],
+                $failedStatus['status_id']
             );
         } catch (\Throwable $e) {
             PrestaShopLogger::addLog('UniPayment CP status update failed after SmartUCF error: ' . get_class($e), 2);
         }
 
-        try {
-            (new OrderBankStatusRepository())->updateByOrderIdentifier($orderReference, $statusId, $statusLabel);
-        } catch (\Throwable $e) {
-            PrestaShopLogger::addLog('UniPayment local bank status update failed after SmartUCF error: ' . get_class($e), 2);
-        }
+        $this->persistBankStatus($orderReference, $failedStatus);
 
         try {
             (new NativePrestaShopOrderGateway($this->module, $this->context))->markFailed($idOrder);
@@ -488,6 +488,23 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
     private function isProcess2(array $shop): bool
     {
         return ((int) ($shop['uni_proces'] ?? 0)) === 1;
+    }
+
+    /** @param array{status_id: string, status_label: string} $status */
+    private function persistBankStatus(string $orderReference, array $status): void
+    {
+        try {
+            (new OrderBankStatusRepository())->updateByOrderIdentifier(
+                $orderReference,
+                $status['status_id'],
+                $status['status_label']
+            );
+        } catch (\Throwable $exception) {
+            PrestaShopLogger::addLog(
+                'UniPayment local bank status update failed: ' . get_class($exception),
+                2
+            );
+        }
     }
 
     /** @return array{success:bool,message:string} */

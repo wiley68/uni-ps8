@@ -248,6 +248,10 @@
   display: none;
 }
 
+[data-unipayment-calculator] .unipayment-product-calculator__step--animating {
+  overflow: hidden;
+}
+
 [data-unipayment-calculator] .unipayment-product-calculator__modal *,
 [data-unipayment-calculator] .unipayment-product-calculator__modal *::before,
 [data-unipayment-calculator] .unipayment-product-calculator__modal *::after {

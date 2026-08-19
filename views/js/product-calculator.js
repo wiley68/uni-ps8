@@ -155,7 +155,30 @@
             return root.getAttribute(attribute) || fallback;
         }
 
-        function setStep(number) {
+        var STEP_TRANSITION_MS = 600;
+        var currentStep = 1;
+        var stepTimer = null;
+
+        function prefersReducedMotion() {
+            return (
+                window.matchMedia &&
+                window.matchMedia("(prefers-reduced-motion: reduce)")
+                    .matches
+            );
+        }
+
+        function clearStepStyles(el) {
+            if (!el) return;
+            el.style.height = "";
+            el.style.opacity = "";
+            el.style.overflow = "";
+            el.style.transition = "";
+            el.classList.remove(
+                "unipayment-product-calculator__step--animating",
+            );
+        }
+
+        function applyStepVisibility(number) {
             step1.hidden = number !== 1;
             step1.classList.toggle(
                 "unipayment-product-calculator__step--active",
@@ -173,6 +196,71 @@
                     number === 3,
                 );
             }
+            clearStepStyles(step1);
+            clearStepStyles(step2);
+            clearStepStyles(step3);
+        }
+
+        function animateSteps(leaving, entering, number) {
+            entering.hidden = false;
+            entering.classList.add(
+                "unipayment-product-calculator__step--active",
+            );
+            leaving.classList.add(
+                "unipayment-product-calculator__step--animating",
+            );
+            entering.classList.add(
+                "unipayment-product-calculator__step--animating",
+            );
+            var fromHeight = leaving.scrollHeight;
+            var toHeight = entering.scrollHeight;
+            leaving.style.overflow = "hidden";
+            entering.style.overflow = "hidden";
+            leaving.style.height = fromHeight + "px";
+            leaving.style.opacity = "1";
+            entering.style.height = "0px";
+            entering.style.opacity = "0";
+            void entering.offsetHeight;
+            var transition =
+                "height " +
+                STEP_TRANSITION_MS +
+                "ms ease-in-out, opacity " +
+                STEP_TRANSITION_MS +
+                "ms ease-in-out";
+            leaving.style.transition = transition;
+            entering.style.transition = transition;
+            leaving.style.height = "0px";
+            leaving.style.opacity = "0";
+            entering.style.height = toHeight + "px";
+            entering.style.opacity = "1";
+            stepTimer = window.setTimeout(function () {
+                stepTimer = null;
+                applyStepVisibility(number);
+            }, STEP_TRANSITION_MS);
+        }
+
+        function setStep(number, options) {
+            var animate =
+                !!(options && options.animate) && !prefersReducedMotion();
+            var from = currentStep;
+            var betweenFirstTwo =
+                (from === 1 && number === 2) || (from === 2 && number === 1);
+            if (stepTimer) {
+                window.clearTimeout(stepTimer);
+                stepTimer = null;
+            }
+            if (!animate || !betweenFirstTwo || from === number) {
+                currentStep = number;
+                applyStepVisibility(number);
+                return;
+            }
+            applyStepVisibility(from);
+            currentStep = number;
+            animateSteps(
+                from === 1 ? step1 : step2,
+                number === 1 ? step1 : step2,
+                number,
+            );
         }
 
         function customerField(name) {
@@ -674,7 +762,7 @@
                     detail: state,
                 }),
             );
-            setStep(2);
+            setStep(2, { animate: true });
             showCustomerErrors({});
             submitError.textContent = "";
             updateSubmitState(false);
@@ -860,7 +948,8 @@
                 handleSecondary();
             if (event.target.closest("[data-unipayment-apply]"))
                 transitionToStep2();
-            if (event.target.closest("[data-unipayment-back]")) setStep(1);
+            if (event.target.closest("[data-unipayment-back]"))
+                setStep(1, { animate: true });
             if (event.target.closest("[data-unipayment-submit]"))
                 requestStep2Validation();
         });

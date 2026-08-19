@@ -72,6 +72,25 @@ final class LeasingOrderEmailPresenter
     }
 
     /**
+     * Woo admin meta-box parity: first row follows the live bank status (list column / CP push).
+     *
+     * @param array<string, string> $rows
+     *
+     * @return array<string, string>
+     */
+    public function applyBankStatusLabel(array $rows, string $statusLabel): array
+    {
+        $statusLabel = trim($statusLabel);
+        if ($statusLabel === '' || $rows === []) {
+            return $rows;
+        }
+
+        $rows['Статус към банката'] = $statusLabel;
+
+        return $rows;
+    }
+
+    /**
      * @param array<string, mixed> $shop
      *
      * @return array<string, string>

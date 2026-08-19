@@ -648,9 +648,7 @@ class Unipayment extends PaymentModule
         $idOrder = (int) ($params['id_order'] ?? 0);
         $snapshot = (new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository())
             ->findByOrderId($idOrder);
-        $bankStatus = (new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository())
-            ->findByOrderId($idOrder);
-        if ($snapshot === null && $bankStatus === null) {
+        if ($snapshot === null) {
             return '';
         }
 
@@ -660,31 +658,21 @@ class Unipayment extends PaymentModule
             $shop = (new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache())->getFresh($unicid) ?? [];
         }
 
-        $leasingRows = [];
-        if ($snapshot !== null) {
-            $leasingRows = (new PrestaShop\Module\Unipayment\Order\LeasingOrderEmailPresenter())
-                ->rowsFromSnapshot($snapshot, $shop);
+        $presenter = new PrestaShop\Module\Unipayment\Order\LeasingOrderEmailPresenter();
+        $leasingRows = $presenter->rowsFromSnapshot($snapshot, $shop);
+        if ($leasingRows === []) {
+            return '';
         }
 
-        $metaRows = [];
-        if ($snapshot !== null) {
-            $metaRows = [
-                'CP Order ID' => (string) ($snapshot['control_panel_order_id'] ?? ''),
-                'Lifecycle status' => (string) ($snapshot['lifecycle_status'] ?? ''),
-                'KOP' => (string) ($snapshot['kop_code'] ?? ''),
-                'Scheme key' => (string) ($snapshot['scheme_key'] ?? ''),
-                'Submission source' => (string) ($snapshot['submission_source'] ?? ''),
-            ];
-        }
+        $bankStatus = (new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository())
+            ->findByOrderId($idOrder);
+        $leasingRows = $presenter->applyBankStatusLabel(
+            $leasingRows,
+            (string) ($bankStatus['status_label'] ?? '')
+        );
 
         $this->context->smarty->assign([
-            'unipayment_bank_status_id' => $bankStatus['status_id'] ?? '',
-            'unipayment_bank_status_label' => $bankStatus['status_label'] ?? '',
-            'unipayment_bank_status_updated_at' => isset($bankStatus['updated_at']) ? ((string) $bankStatus['updated_at']) . ' UTC' : '',
             'unipayment_leasing_rows' => $leasingRows,
-            'unipayment_leasing_meta_rows' => array_filter($metaRows, static function ($value) {
-                return trim((string) $value) !== '';
-            }),
         ]);
 
         return $this->display(__FILE__, 'views/templates/hook/admin_order_financing_details.tpl');
@@ -701,7 +689,7 @@ class Unipayment extends PaymentModule
         $columns = $definition->getColumns();
 
         $column = (new PrestaShop\PrestaShop\Core\Grid\Column\Type\DataColumn('unipayment_bank_status'))
-            ->setName('УниКредит статус')
+            ->setName('UniCredit статус')
             ->setOptions([
                 'field' => 'unipayment_bank_status',
             ]);
