@@ -16,11 +16,18 @@ use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderPayloadBuilder;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotFactory;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
+use PrestaShop\Module\Unipayment\Order\LeasingEmailNotifier;
 use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
 use PrestaShop\Module\Unipayment\Order\OrderAttemptRepository;
+use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDiagnosticJournal;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfPayloadBuilder;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionClient;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionException;
 
 final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontController
 {
@@ -28,7 +35,8 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
 
     public function postProcess(): void
     {
-        if (!$this->module->active || !Tools::isSubmit('unipayment_checkout_submit') || !Tools::getIsset('unipayment_checkout_token')
+        if (
+            !$this->module->active || !Tools::isSubmit('unipayment_checkout_submit') || !Tools::getIsset('unipayment_checkout_token')
             || !hash_equals(Tools::getToken(false), (string) Tools::getValue('unipayment_checkout_token'))
         ) {
             $this->showError($this->module->getTranslator()->trans('The checkout request is invalid.', [], 'Modules.Unipayment.Shop'));
@@ -62,15 +70,49 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 $module->getCheckoutCustomerData()
             );
             $shop['_is_mobile'] = $this->context->isMobile();
+            $cpClient = new ControlPanelOrderClientAdapter($module->getControlPanelClient());
             $orchestrator = new OrderOrchestrator(
                 new OrderAttemptRepository(),
                 new FinancingSnapshotRepository(),
                 new NativePrestaShopOrderGateway($module, $this->context),
-                new ControlPanelOrderClientAdapter($module->getControlPanelClient()),
+                $cpClient,
                 new FinancingSnapshotFactory(new SensitiveDataCipher()),
                 new ControlPanelOrderPayloadBuilder()
             );
             $result = $orchestrator->orchestrate((int) $this->context->shop->id, (int) $this->context->cart->id, $request, $shop);
+            $snapshot = (new FinancingSnapshotRepository())->findByAttempt($result->attemptId);
+            if ($snapshot !== null) {
+                $snapshot['status_label'] = ((int) ($shop['uni_proces'] ?? 0)) === 1
+                    ? 'Изпратен Банка - Процес 2'
+                    : 'Изпратен Банка - Процес 1';
+                (new LeasingEmailNotifier())->notify($snapshot, $result->attemptId, $shop);
+            }
+
+            if (!$this->isProcess2($shop)) {
+                if ($snapshot !== null) {
+                    $shop['_currency_iso'] = (string) $this->context->currency->iso_code;
+                    $payloadBuilder = new SmartUcfPayloadBuilder();
+                    $smartUcfPayload = $payloadBuilder->build($shop, $snapshot);
+                    $smartUcf = new SmartUcfSessionClient($payloadBuilder);
+                    try {
+                        $session = $smartUcf->createSession($shop, $snapshot);
+                        $this->logSmartUcfSession($result->idOrder, $result->orderReference, $session);
+                        Tools::redirect($session['redirect_url']);
+
+                        return;
+                    } catch (SmartUcfSessionException $e) {
+                        $this->logSmartUcfError(
+                            $result->idOrder,
+                            $result->orderReference,
+                            $e,
+                            $smartUcfPayload,
+                            $e->rawResponse()
+                        );
+                        $this->markSmartUcfFailure($cpClient, $result->idOrder, $result->orderReference);
+                    }
+                }
+            }
+
             $this->context->smarty->assign(['unipayment_order_result' => [
                 'id_order' => $result->idOrder,
                 'order_reference' => $result->orderReference,
@@ -106,6 +148,75 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
         ];
     }
 
+    /** @param array<string, mixed> $session */
+    private function logSmartUcfSession(int $idOrder, string $orderReference, array $session): void
+    {
+        try {
+            $journal = new SmartUcfDiagnosticJournal(
+                new \PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository(),
+                new SmartUcfDebugLogRepository()
+            );
+            $journal->record(
+                $idOrder,
+                $orderReference,
+                (int) ($session['http_code'] ?? 0),
+                $session['raw_request'] ?? '',
+                $session['raw_response'] ?? ''
+            );
+        } catch (\Throwable $e) {
+            // Logging failure must not break the checkout flow.
+        }
+    }
+
+    private function logSmartUcfError(int $idOrder, string $orderReference, SmartUcfSessionException $exception, $request = '', $response = ''): void
+    {
+        PrestaShopLogger::addLog('UniPayment SmartUCF session failed during checkout: ' . $exception->getMessage(), 2);
+        try {
+            $journal = new SmartUcfDiagnosticJournal(
+                new \PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository(),
+                new SmartUcfDebugLogRepository()
+            );
+            $journal->record(
+                $idOrder,
+                $orderReference,
+                $exception->httpCode(),
+                $request,
+                $response !== '' ? $response : $exception->getMessage(),
+                $exception->getMessage()
+            );
+        } catch (\Throwable $e) {
+            // Logging failure must not break the checkout flow.
+        }
+    }
+
+    private function markSmartUcfFailure(ControlPanelOrderClientAdapter $cpClient, int $idOrder, string $orderReference): void
+    {
+        $cpOrderId = substr($orderReference, 0, 13);
+        $statusLabel = 'Неуспешно изпратен Банка - SmartUCF';
+        $statusId = 'bank_send_failed_smartucf';
+        try {
+            $cpClient->updateOrderStatus(
+                $cpOrderId,
+                $statusLabel,
+                $statusId
+            );
+        } catch (\Throwable $e) {
+            PrestaShopLogger::addLog('UniPayment CP status update failed after SmartUCF error: ' . get_class($e), 2);
+        }
+
+        try {
+            (new OrderBankStatusRepository())->updateByOrderIdentifier($orderReference, $statusId, $statusLabel);
+        } catch (\Throwable $e) {
+            PrestaShopLogger::addLog('UniPayment local bank status update failed after SmartUCF error: ' . get_class($e), 2);
+        }
+
+        try {
+            (new NativePrestaShopOrderGateway($this->module, $this->context))->markFailed($idOrder);
+        } catch (\Throwable $e) {
+            PrestaShopLogger::addLog('UniPayment order mark failed after SmartUCF error failed: ' . get_class($e), 2);
+        }
+    }
+
     private function showError(string $message): void
     {
         $this->context->smarty->assign([
@@ -113,5 +224,14 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             'unipayment_checkout_return_url' => $this->context->link->getPageLink('order', true),
         ]);
         $this->setTemplate('module:unipayment/views/templates/front/checkout_validation_error.tpl');
+    }
+
+    /**
+     * @param array<string, mixed> $shop
+     * @see productpopup.php::isProcess2()
+     */
+    private function isProcess2(array $shop): bool
+    {
+        return ((int) ($shop['uni_proces'] ?? 0)) === 1;
     }
 }

@@ -8,7 +8,10 @@ use PrestaShop\Module\Unipayment\Checkout\ValidatedPaymentRequest;
 
 interface PrestaShopOrderGatewayInterface
 {
-    public function create(ValidatedPaymentRequest $request): CreatedOrder;
+    /**
+     * @param array<string, mixed> $shop Cached shop configuration for order mail extras.
+     */
+    public function create(ValidatedPaymentRequest $request, array $shop = []): CreatedOrder;
 
     public function load(int $idOrder): CreatedOrder;
 

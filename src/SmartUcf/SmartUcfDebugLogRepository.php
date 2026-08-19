@@ -45,9 +45,10 @@ final class SmartUcfDebugLogRepository implements SmartUcfDebugLogStoreInterface
     /** @param array<string, mixed> $entry */
     public function insert(array $entry): bool
     {
+        $this->ensureTable();
         $this->prune();
 
-        return (bool) $this->database->insert($this->tableName(), [
+        return (bool) $this->database->insert(self::TABLE, [
             'id_order' => max(0, (int) ($entry['ps_order_id'] ?? 0)),
             'order_id' => trim((string) ($entry['order_id'] ?? '')),
             'http_status' => max(0, (int) ($entry['http_code'] ?? 0)),
@@ -145,5 +146,14 @@ final class SmartUcfDebugLogRepository implements SmartUcfDebugLogStoreInterface
     private function tableName(): string
     {
         return _DB_PREFIX_ . self::TABLE;
+    }
+
+    private function ensureTable(): void
+    {
+        $table = $this->tableName();
+        $exists = $this->database->executeS('SHOW TABLES LIKE "' . pSQL($table) . '"');
+        if (!is_array($exists) || $exists === []) {
+            $this->install();
+        }
     }
 }

@@ -5,6 +5,7 @@
 /vendor/
 
 *.log
+/keys/
 .DS_Store
 .env
 .env.*

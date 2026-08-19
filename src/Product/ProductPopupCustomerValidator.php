@@ -6,8 +6,14 @@ namespace PrestaShop\Module\Unipayment\Product;
 
 final class ProductPopupCustomerValidator
 {
-    /** @param array<string, mixed> $input @return array<string, string> */
-    public function validate(array $input): array
+    /**
+     * Validates Step 2 customer fields. When $requireEgn is true (Process 2 / direct apply),
+     * EGN is required and validated as a 10-digit Bulgarian personal identifier.
+     *
+     * @param array<string, mixed> $input
+     * @return array<string, string>
+     */
+    public function validate(array $input, bool $requireEgn = false): array
     {
         $customer = [
             'first_name' => $this->text($input['first_name'] ?? ''),
@@ -32,11 +38,44 @@ final class ProductPopupCustomerValidator
         } elseif (!filter_var($customer['email'], FILTER_VALIDATE_EMAIL)) {
             $errors['email'] = 'Въведете валиден e-mail адрес.';
         }
+        if ($requireEgn) {
+            $egn = preg_replace('/\D/', '', (string) ($input['egn'] ?? ''));
+            $egn = is_string($egn) ? $egn : '';
+            if ($egn === '') {
+                $errors['egn'] = 'Полето е задължително.';
+            } elseif (!$this->validEgn($egn)) {
+                $errors['egn'] = 'Въведете валидно ЕГН (10 цифри).';
+            }
+            if (!isset($errors['egn'])) {
+                $customer['egn'] = $egn;
+            }
+        }
         if ($errors !== []) {
             throw new ProductPopupValidationException($errors);
         }
 
         return $customer;
+    }
+
+    public function validEgn(string $egn): bool
+    {
+        if (!preg_match('/^\d{10}$/', $egn)) {
+            return false;
+        }
+        $month = (int) substr($egn, 2, 2);
+        $day = (int) substr($egn, 4, 2);
+        $year = (int) substr($egn, 0, 2);
+        if ($month > 40) {
+            $month -= 40;
+            $year += 2000;
+        } elseif ($month > 20) {
+            $month -= 20;
+            $year += 1800;
+        } else {
+            $year += 1900;
+        }
+
+        return checkdate($month, $day, $year);
     }
 
     public function validPhone(string $phone): bool

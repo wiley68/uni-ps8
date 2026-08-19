@@ -9,12 +9,16 @@ use PrestaShop\Module\Unipayment\Checkout\ValidatedPaymentRequest;
 
 final class FinancingSnapshotFactory
 {
+    /** @var SensitiveDataCipher */
     private $cipher;
 
-    public function __construct(SensitiveDataCipher $cipher) { $this->cipher = $cipher; }
+    public function __construct(SensitiveDataCipher $cipher)
+    {
+        $this->cipher = $cipher;
+    }
 
     /** @return array<string, mixed> */
-    public function create(ValidatedPaymentRequest $request, CreatedOrder $order): array
+    public function create(ValidatedPaymentRequest $request, CreatedOrder $order, string $submissionSource = 'checkout'): array
     {
         $calculation = $request->calculation;
         $customer = $order->customer;
@@ -44,7 +48,7 @@ final class FinancingSnapshotFactory
             'currency_iso' => $order->currencyIso,
             'id_currency' => $order->idCurrency,
             'module_version' => '2.0.0',
-            'submission_source' => 'checkout',
+            'submission_source' => $submissionSource,
             'customer_json' => $customer,
             'address_json' => $order->addresses,
             'lines_json' => $order->lines,

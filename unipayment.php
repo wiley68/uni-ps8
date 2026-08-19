@@ -59,7 +59,8 @@ class Unipayment extends PaymentModule
         $attempts = new PrestaShop\Module\Unipayment\Order\OrderAttemptRepository();
         $snapshots = new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository();
         $orderStates = new PrestaShop\Module\Unipayment\Order\OrderStateInstaller();
-        if ($repository->install()
+        if (
+            $repository->install()
             && $cache->install()
             && $debugLog->install()
             && $bankStatus->install()
@@ -71,6 +72,9 @@ class Unipayment extends PaymentModule
             && $this->registerHook('displayShoppingCart')
             && $this->registerHook('paymentOptions')
             && $this->registerHook('actionFrontControllerSetMedia')
+            && $this->registerHook('sendMailAlterTemplateVars')
+            && $this->registerHook('actionOrderGridDefinitionModifier')
+            && $this->registerHook('actionOrderGridQueryBuilderModifier')
         ) {
             return true;
         }
@@ -286,7 +290,8 @@ class Unipayment extends PaymentModule
     ): string {
         $employee = $this->context->employee;
         $submittedToken = (string) Tools::getValue('token', '');
-        if (!$employee instanceof Employee
+        if (
+            !$employee instanceof Employee
             || !Validate::isLoadedObject($employee)
             || !hash_equals(Tools::getAdminTokenLite('AdminModules'), $submittedToken)
         ) {
@@ -427,6 +432,7 @@ class Unipayment extends PaymentModule
             'unipayment_popup_token' => Tools::getToken(false),
             'unipayment_checkout_url' => $this->context->link->getPageLink('order', true),
             'unipayment_offer_types' => ['standard', 'promo'],
+            'unipayment_require_egn' => ((int) ($shop['uni_proces'] ?? 0)) === 1,
         ]);
 
         return $this->display(__FILE__, 'views/templates/hook/product_calculator.tpl');
@@ -613,21 +619,110 @@ class Unipayment extends PaymentModule
     }
 
     /** @param array<string, mixed> $params */
+    public function hookSendMailAlterTemplateVars(array $params): void
+    {
+        if (($params['template'] ?? '') !== 'order_conf') {
+            return;
+        }
+
+        if (!isset($params['template_vars']) || !is_array($params['template_vars'])) {
+            return;
+        }
+
+        $templateVars = &$params['template_vars'];
+        $leasingHtml = trim((string) ($templateVars['{unipayment_leasing_html}'] ?? ''));
+        $leasingTxt = trim((string) ($templateVars['{unipayment_leasing_txt}'] ?? ''));
+
+        if ($leasingHtml !== '') {
+            $templateVars['{products}'] = (string) ($templateVars['{products}'] ?? '') . $leasingHtml;
+        }
+
+        if ($leasingTxt !== '') {
+            $templateVars['{products_txt}'] = (string) ($templateVars['{products_txt}'] ?? '') . $leasingTxt;
+        }
+    }
+
+    /** @param array<string, mixed> $params */
     public function hookDisplayAdminOrderMainBottom(array $params): string
     {
         $idOrder = (int) ($params['id_order'] ?? 0);
+        $snapshot = (new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository())
+            ->findByOrderId($idOrder);
         $bankStatus = (new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository())
             ->findByOrderId($idOrder);
-        if ($bankStatus === null) {
+        if ($snapshot === null && $bankStatus === null) {
             return '';
         }
 
+        $shop = [];
+        $unicid = (new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository())->getUnicid();
+        if ($unicid !== '') {
+            $shop = (new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache())->getFresh($unicid) ?? [];
+        }
+
+        $leasingRows = [];
+        if ($snapshot !== null) {
+            $leasingRows = (new PrestaShop\Module\Unipayment\Order\LeasingOrderEmailPresenter())
+                ->rowsFromSnapshot($snapshot, $shop);
+        }
+
+        $metaRows = [];
+        if ($snapshot !== null) {
+            $metaRows = [
+                'CP Order ID' => (string) ($snapshot['control_panel_order_id'] ?? ''),
+                'Lifecycle status' => (string) ($snapshot['lifecycle_status'] ?? ''),
+                'KOP' => (string) ($snapshot['kop_code'] ?? ''),
+                'Scheme key' => (string) ($snapshot['scheme_key'] ?? ''),
+                'Submission source' => (string) ($snapshot['submission_source'] ?? ''),
+            ];
+        }
+
         $this->context->smarty->assign([
-            'unipayment_bank_status_id' => $bankStatus['status_id'],
-            'unipayment_bank_status_label' => $bankStatus['status_label'],
-            'unipayment_bank_status_updated_at' => $bankStatus['updated_at'] . ' UTC',
+            'unipayment_bank_status_id' => $bankStatus['status_id'] ?? '',
+            'unipayment_bank_status_label' => $bankStatus['status_label'] ?? '',
+            'unipayment_bank_status_updated_at' => isset($bankStatus['updated_at']) ? ((string) $bankStatus['updated_at']) . ' UTC' : '',
+            'unipayment_leasing_rows' => $leasingRows,
+            'unipayment_leasing_meta_rows' => array_filter($metaRows, static function ($value) {
+                return trim((string) $value) !== '';
+            }),
         ]);
 
-        return $this->display(__FILE__, 'views/templates/hook/admin_order_bank_status.tpl');
+        return $this->display(__FILE__, 'views/templates/hook/admin_order_financing_details.tpl');
+    }
+
+    /** @param array<string, mixed> $params */
+    public function hookActionOrderGridDefinitionModifier(array $params): void
+    {
+        $definition = $params['definition'] ?? null;
+        if (!$definition instanceof PrestaShop\PrestaShop\Core\Grid\Definition\GridDefinitionInterface) {
+            return;
+        }
+
+        $columns = $definition->getColumns();
+
+        $column = (new PrestaShop\PrestaShop\Core\Grid\Column\Type\DataColumn('unipayment_bank_status'))
+            ->setName('УниКредит статус')
+            ->setOptions([
+                'field' => 'unipayment_bank_status',
+            ]);
+
+        try {
+            $columns->addAfter('osname', $column);
+        } catch (Throwable $exception) {
+            $columns->add($column);
+        }
+    }
+
+    /** @param array<string, mixed> $params */
+    public function hookActionOrderGridQueryBuilderModifier(array $params): void
+    {
+        $searchQueryBuilder = $params['search_query_builder'] ?? null;
+        if (!$searchQueryBuilder instanceof Doctrine\DBAL\Query\QueryBuilder) {
+            return;
+        }
+
+        $bankStatusTable = _DB_PREFIX_ . PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository::TABLE;
+        $searchQueryBuilder->leftJoin('o', $bankStatusTable, 'unipayment_bs', 'unipayment_bs.id_order = o.id_order');
+        $searchQueryBuilder->addSelect("COALESCE(unipayment_bs.status_label, '') AS unipayment_bank_status");
     }
 }

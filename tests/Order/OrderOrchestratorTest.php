@@ -2,9 +2,23 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') { exit(1); }
+if (PHP_SAPI !== 'cli') {
+    exit(1);
+}
 define('_NEW_COOKIE_KEY_', 'test-key');
-final class PhpEncryption { public function __construct(string $key) {} public function encrypt(string $value): string { return base64_encode(strrev($value)); } public function decrypt(string $value) { $decoded=base64_decode($value,true); return is_string($decoded)?strrev($decoded):false; } }
+final class PhpEncryption
+{
+    public function __construct(string $key) {}
+    public function encrypt(string $value): string
+    {
+        return base64_encode(strrev($value));
+    }
+    public function decrypt(string $value)
+    {
+        $decoded = base64_decode($value, true);
+        return is_string($decoded) ? strrev($decoded) : false;
+    }
+}
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 require dirname(__DIR__) . '/Calculator/fixtures.php';
 
@@ -27,46 +41,181 @@ use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\PrestaShopOrderGatewayInterface;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 
-function assertOrder(bool $condition, string $message): void { if (!$condition) { fwrite(STDERR,"FAIL: {$message}\n"); exit(1); } }
-final class MemoryAttempts implements OrderAttemptStoreInterface {
-    public $rows=[]; public function reserve(int $shop,int $cart,string $fingerprint): array { $key="$shop:$cart:$fingerprint"; $created=!isset($this->rows[$key]); if($created)$this->rows[$key]=['id_attempt'=>count($this->rows)+1,'id_shop'=>$shop,'id_cart'=>$cart,'cart_fingerprint'=>$fingerprint,'state'=>'reserved','id_order'=>null,'order_reference'=>null,'control_panel_order_id'=>null,'cp_payload'=>null]; return $this->rows[$key]+['_reservation_created'=>$created]; }
-    public function update(int $id,array $changes): array { foreach($this->rows as $key=>$row)if($row['id_attempt']===$id){$this->rows[$key]=array_replace($row,$changes);return $this->rows[$key];}throw new RuntimeException(); }
+function assertOrder(bool $condition, string $message): void
+{
+    if (!$condition) {
+        fwrite(STDERR, "FAIL: {$message}\n");
+        exit(1);
+    }
 }
-final class MemorySnapshots implements FinancingSnapshotStoreInterface { public $rows=[]; public function save(int $id,array $snapshot): void {$this->rows[$id]=$snapshot;} public function findByAttempt(int $id): ?array{return $this->rows[$id]??null;} public function update(int $id,array $changes): void{$this->rows[$id]=array_replace($this->rows[$id],$changes);} }
-final class FakeOrders implements PrestaShopOrderGatewayInterface { public $created=0; public $failed=[]; public $awaiting=[]; public $amounts=[]; public $order; public function __construct(CreatedOrder $order){$this->order=$order;} public function create(ValidatedPaymentRequest $request): CreatedOrder{$this->created++;$this->amounts[]=$request->calculation->price;return $this->order;} public function load(int $id): CreatedOrder{return $this->order;} public function markFailed(int $id): void{$this->failed[]=$id;} public function markAwaiting(int $id): void{$this->awaiting[]=$id;} }
-final class FakeCp implements ControlPanelOrderClientInterface { public $calls=[]; public $queue=[]; public function createOrder(array $payload): array{$this->calls[]=$payload;$next=array_shift($this->queue);if($next instanceof Throwable)throw $next;return $next;} }
+final class MemoryAttempts implements OrderAttemptStoreInterface
+{
+    public $rows = [];
+    public function reserve(int $shop, int $cart, string $fingerprint): array
+    {
+        $key = "$shop:$cart:$fingerprint";
+        $created = !isset($this->rows[$key]);
+        if ($created) $this->rows[$key] = ['id_attempt' => count($this->rows) + 1, 'id_shop' => $shop, 'id_cart' => $cart, 'cart_fingerprint' => $fingerprint, 'state' => 'reserved', 'id_order' => null, 'order_reference' => null, 'control_panel_order_id' => null, 'cp_payload' => null];
+        return $this->rows[$key] + ['_reservation_created' => $created];
+    }
+    public function update(int $id, array $changes): array
+    {
+        foreach ($this->rows as $key => $row) if ($row['id_attempt'] === $id) {
+            $this->rows[$key] = array_replace($row, $changes);
+            return $this->rows[$key];
+        }
+        throw new RuntimeException();
+    }
+}
+final class MemorySnapshots implements FinancingSnapshotStoreInterface
+{
+    public $rows = [];
+    public function save(int $id, array $snapshot): void
+    {
+        $this->rows[$id] = $snapshot;
+    }
+    public function findByAttempt(int $id): ?array
+    {
+        return $this->rows[$id] ?? null;
+    }
+    public function update(int $id, array $changes): void
+    {
+        $this->rows[$id] = array_replace($this->rows[$id], $changes);
+    }
+}
+final class FakeOrders implements PrestaShopOrderGatewayInterface
+{
+    public $created = 0;
+    public $failed = [];
+    public $awaiting = [];
+    public $amounts = [];
+    /** @var CreatedOrder */
+    public $order;
+    public function __construct(CreatedOrder $order)
+    {
+        $this->order = $order;
+    }
+    public function create(ValidatedPaymentRequest $request, array $shop = []): CreatedOrder
+    {
+        $this->created++;
+        $this->amounts[] = $request->calculation->price;
+        return $this->order;
+    }
+    public function load(int $id): CreatedOrder
+    {
+        return $this->order;
+    }
+    public function markFailed(int $id): void
+    {
+        $this->failed[] = $id;
+    }
+    public function markAwaiting(int $id): void
+    {
+        $this->awaiting[] = $id;
+    }
+}
+final class FakeCp implements ControlPanelOrderClientInterface
+{
+    public $calls = [];
+    public $queue = [];
+    public function createOrder(array $payload): array
+    {
+        $this->calls[] = $payload;
+        $next = array_shift($this->queue);
+        if ($next instanceof Throwable) throw $next;
+        return $next;
+    }
 
-$calculator=new Calculator('2026-08-17'); $shop=calculatorFixture(['uni_eur'=>0]); $cart=new CartContext([new CartLine(new ProductContext(42,[7],1050),3,2,1000)],1050,['carrier_id'=>2,'shipping_total'=>'50.00']);
-$scheme=(new CartSchemeResolver($calculator))->resolve($shop,$cart)->standardSchemes[0]; $calculation=$calculator->calculateScheme($shop,1050,$scheme,100);
-$request=new ValidatedPaymentRequest($calculation,['first_name'=>'Ivan','last_name'=>'Ivanov','phone'=>'+359888123','email'=>'ivan@example.com','egn'=>'1990010199','phone2'=>'+3592123'],[7],hash('sha256','cart'),[['id'=>7,'name'=>'Terms','url'=>'https://example.com/terms','mandatory'=>true]]);
-$created=new CreatedOrder(55,'ABCD12345',1050,'BGN',1,['first_name'=>'Ivan','last_name'=>'Ivanov','phone'=>'+359888123','email'=>'ivan@example.com'],['invoice'=>['address1'=>'Sofia 1'],'delivery'=>['address1'=>'Sofia 2']],[['id_product'=>42,'id_product_attribute'=>3,'name'=>'Product_Name','quantity'=>2,'total'=>1000]]);
-$attempts=new MemoryAttempts();$snapshots=new MemorySnapshots();$orders=new FakeOrders($created);$cp=new FakeCp();$cp->queue[]=['data'=>['id'=>901]];
-$orchestrator=new OrderOrchestrator($attempts,$snapshots,$orders,$cp,new FinancingSnapshotFactory(new SensitiveDataCipher()),new ControlPanelOrderPayloadBuilder());
-$result=$orchestrator->orchestrate(1,9,$request,$shop);
-assertOrder($result->state===OrderOrchestrator::CP_CREATED&&$result->controlPanelOrderId===901,'first submit failed');
-assertOrder($orders->created===1&&count($cp->calls)===1,'first submit counts invalid');
-assertOrder($orders->amounts===[1050.0],'validateOrder amount is not the final tax-inclusive checkout total');
-assertOrder($snapshots->rows[1]['control_panel_order_id']===901,'CP ID not snapshotted');
-assertOrder(strpos((string)$snapshots->rows[1]['sensitive_payload'],'1990010199')===false,'EGN stored plaintext');
-assertOrder(!isset($snapshots->rows[1]['customer_json']['egn'])&&!isset($snapshots->rows[1]['customer_json']['phone2']),'sensitive fields leaked into generic JSON');
-assertOrder((new SensitiveDataCipher())->decrypt($snapshots->rows[1]['sensitive_payload'])['egn']==='1990010199','encrypted EGN not recoverable');
-$again=$orchestrator->orchestrate(1,9,$request,array_replace($shop,['uni_shema_current'=>24]));
-assertOrder($again->idOrder===55&&$orders->created===1&&count($cp->calls)===1,'double submit created duplicates');
-assertOrder($snapshots->rows[1]['months']===$calculation->scheme->months&&$snapshots->rows[1]['kop_code']===$calculation->scheme->kopCode,'configuration change altered immutable snapshot');
-assertOrder(array_keys($cp->calls[0])===['order_id','name','phone','email','address','address2','price','vnoska','gpr','vnoski','parva','status','status_id','products_id','products_name','products_q','type_client','currency','version'],'CP contract fields differ');
-assertOrder($cp->calls[0]['products_id']==='3'&&$cp->calls[0]['products_name']==='Product-Name'&&$cp->calls[0]['products_q']==='2','Woo product formatting differs');
+    public function updateOrderStatus(string $orderId, string $status, ?string $statusId = null): array
+    {
+        $this->calls[] = ['orderId' => $orderId, 'status' => $status, 'statusId' => $statusId];
 
-$lockedAttempts=new MemoryAttempts();$lockedAttempts->reserve(1,99,$request->cartFingerprint);$lockedOrders=new FakeOrders($created);$lockedFlow=new OrderOrchestrator($lockedAttempts,new MemorySnapshots(),$lockedOrders,new FakeCp(),new FinancingSnapshotFactory(new SensitiveDataCipher()),new ControlPanelOrderPayloadBuilder());try{$lockedFlow->orchestrate(1,99,$request,$shop);assertOrder(false,'concurrent reservation accepted');}catch(OrderOrchestrationException $e){assertOrder($e->isRetryable(),'concurrent reservation not retryable');}assertOrder($lockedOrders->created===0,'concurrent reservation created a second order');
+        return ['ok' => true];
+    }
+}
 
-$a2=new MemoryAttempts();$s2=new MemorySnapshots();$o2=new FakeOrders($created);$c2=new FakeCp();$c2->queue[] = new ConnectionException('timeout');$c2->queue[]=['data'=>['id'=>902]];
-$flow2=new OrderOrchestrator($a2,$s2,$o2,$c2,new FinancingSnapshotFactory(new SensitiveDataCipher()),new ControlPanelOrderPayloadBuilder());
-try{$flow2->orchestrate(1,10,$request,$shop);assertOrder(false,'timeout accepted');}catch(OrderOrchestrationException $e){assertOrder($e->isRetryable(),'timeout not retryable');}
-$recovered=$flow2->orchestrate(1,10,$request,$shop);
-assertOrder($recovered->controlPanelOrderId===902,'ambiguous retry did not recover CP ID');
-assertOrder($o2->created===1,'ambiguous retry created another PS order');
-assertOrder(json_encode($c2->calls[0])===json_encode($c2->calls[1]),'ambiguous retry changed CP payload');
+$calculator = new Calculator('2026-08-17');
+$shop = calculatorFixture(['uni_eur' => 0]);
+$cart = new CartContext([new CartLine(new ProductContext(42, [7], 1050), 3, 2, 1000)], 1050, ['carrier_id' => 2, 'shipping_total' => '50.00']);
+$scheme = (new CartSchemeResolver($calculator))->resolve($shop, $cart)->standardSchemes[0];
+$calculation = $calculator->calculateScheme($shop, 1050, $scheme, 100);
+$request = new ValidatedPaymentRequest($calculation, ['first_name' => 'Ivan', 'last_name' => 'Ivanov', 'phone' => '+359888123', 'email' => 'ivan@example.com', 'egn' => '1990010199', 'phone2' => '+3592123'], [7], hash('sha256', 'cart'), [['id' => 7, 'name' => 'Terms', 'url' => 'https://example.com/terms', 'mandatory' => true]]);
+$created = new CreatedOrder(55, 'ABCD12345', 1050, 'BGN', 1, ['first_name' => 'Ivan', 'last_name' => 'Ivanov', 'phone' => '+359888123', 'email' => 'ivan@example.com'], ['invoice' => ['address1' => 'Sofia 1'], 'delivery' => ['address1' => 'Sofia 2']], [['id_product' => 42, 'id_product_attribute' => 3, 'name' => 'Product_Name', 'quantity' => 2, 'total' => 1000]]);
+$attempts = new MemoryAttempts();
+$snapshots = new MemorySnapshots();
+$orders = new FakeOrders($created);
+$cp = new FakeCp();
+$cp->queue[] = ['data' => ['id' => 901]];
+$orchestrator = new OrderOrchestrator($attempts, $snapshots, $orders, $cp, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder());
+$result = $orchestrator->orchestrate(1, 9, $request, $shop);
+assertOrder($result->state === OrderOrchestrator::CP_CREATED && $result->controlPanelOrderId === 901, 'first submit failed');
+assertOrder($orders->created === 1 && count($cp->calls) === 1, 'first submit counts invalid');
+assertOrder($orders->amounts === [1050.0], 'validateOrder amount is not the final tax-inclusive checkout total');
+assertOrder($snapshots->rows[1]['control_panel_order_id'] === 901, 'CP ID not snapshotted');
+assertOrder(strpos((string)$snapshots->rows[1]['sensitive_payload'], '1990010199') === false, 'EGN stored plaintext');
+assertOrder(!isset($snapshots->rows[1]['customer_json']['egn']) && !isset($snapshots->rows[1]['customer_json']['phone2']), 'sensitive fields leaked into generic JSON');
+assertOrder((new SensitiveDataCipher())->decrypt($snapshots->rows[1]['sensitive_payload'])['egn'] === '1990010199', 'encrypted EGN not recoverable');
+$again = $orchestrator->orchestrate(1, 9, $request, array_replace($shop, ['uni_shema_current' => 24]));
+assertOrder($again->idOrder === 55 && $orders->created === 1 && count($cp->calls) === 1, 'double submit created duplicates');
+assertOrder($snapshots->rows[1]['months'] === $calculation->scheme->months && $snapshots->rows[1]['kop_code'] === $calculation->scheme->kopCode, 'configuration change altered immutable snapshot');
+assertOrder(array_keys($cp->calls[0]) === ['order_id', 'name', 'phone', 'email', 'address', 'address2', 'price', 'vnoska', 'gpr', 'vnoski', 'parva', 'status', 'status_id', 'products_id', 'products_name', 'products_q', 'type_client', 'currency', 'version'], 'CP contract fields differ');
+assertOrder($cp->calls[0]['products_id'] === '3' && $cp->calls[0]['products_name'] === 'Product-Name' && $cp->calls[0]['products_q'] === '2', 'Woo product formatting differs');
 
-foreach([[409,false],[422,false],[500,true]] as [$status,$retryable]){$a=new MemoryAttempts();$s=new MemorySnapshots();$o=new FakeOrders($created);$c=new FakeCp();$c->queue[]=new HttpException($status,[]);$flow=new OrderOrchestrator($a,$s,$o,$c,new FinancingSnapshotFactory(new SensitiveDataCipher()),new ControlPanelOrderPayloadBuilder());try{$flow->orchestrate(2,$status,$request,$shop);assertOrder(false,"HTTP $status accepted");}catch(OrderOrchestrationException $e){assertOrder($e->isRetryable()===$retryable,"HTTP $status classification differs");}assertOrder($o->created===1, "HTTP $status created duplicate");if(!$retryable)assertOrder($o->failed===[55],"HTTP $status did not mark failed");}
+$lockedAttempts = new MemoryAttempts();
+$lockedAttempts->reserve(1, 99, $request->cartFingerprint);
+$lockedOrders = new FakeOrders($created);
+$lockedFlow = new OrderOrchestrator($lockedAttempts, new MemorySnapshots(), $lockedOrders, new FakeCp(), new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder());
+try {
+    $lockedFlow->orchestrate(1, 99, $request, $shop);
+    assertOrder(false, 'concurrent reservation accepted');
+} catch (OrderOrchestrationException $e) {
+    assertOrder($e->isRetryable(), 'concurrent reservation not retryable');
+}
+assertOrder($lockedOrders->created === 0, 'concurrent reservation created a second order');
 
-$badOrder=new CreatedOrder(56,'BADTOTAL',1049,'BGN',1,$created->customer,$created->addresses,$created->lines);$badOrders=new FakeOrders($badOrder);$badCp=new FakeCp();$badFlow=new OrderOrchestrator(new MemoryAttempts(),new MemorySnapshots(),$badOrders,$badCp,new FinancingSnapshotFactory(new SensitiveDataCipher()),new ControlPanelOrderPayloadBuilder());try{$badFlow->orchestrate(3,11,$request,$shop);assertOrder(false,'total mismatch accepted');}catch(OrderOrchestrationException $e){}assertOrder($badCp->calls===[]&&$badOrders->failed===[56],'total mismatch reached CP');
-fwrite(STDOUT,"OK (Phase 9B order orchestration)\n");
+$a2 = new MemoryAttempts();
+$s2 = new MemorySnapshots();
+$o2 = new FakeOrders($created);
+$c2 = new FakeCp();
+$c2->queue[] = new ConnectionException('timeout');
+$c2->queue[] = ['data' => ['id' => 902]];
+$flow2 = new OrderOrchestrator($a2, $s2, $o2, $c2, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder());
+try {
+    $flow2->orchestrate(1, 10, $request, $shop);
+    assertOrder(false, 'timeout accepted');
+} catch (OrderOrchestrationException $e) {
+    assertOrder($e->isRetryable(), 'timeout not retryable');
+}
+$recovered = $flow2->orchestrate(1, 10, $request, $shop);
+assertOrder($recovered->controlPanelOrderId === 902, 'ambiguous retry did not recover CP ID');
+assertOrder($o2->created === 1, 'ambiguous retry created another PS order');
+assertOrder(json_encode($c2->calls[0]) === json_encode($c2->calls[1]), 'ambiguous retry changed CP payload');
+
+foreach ([[409, false], [422, false], [500, true]] as [$status, $retryable]) {
+    $a = new MemoryAttempts();
+    $s = new MemorySnapshots();
+    $o = new FakeOrders($created);
+    $c = new FakeCp();
+    $c->queue[] = new HttpException($status, []);
+    $flow = new OrderOrchestrator($a, $s, $o, $c, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder());
+    try {
+        $flow->orchestrate(2, $status, $request, $shop);
+        assertOrder(false, "HTTP $status accepted");
+    } catch (OrderOrchestrationException $e) {
+        assertOrder($e->isRetryable() === $retryable, "HTTP $status classification differs");
+    }
+    assertOrder($o->created === 1, "HTTP $status created duplicate");
+    if (!$retryable) assertOrder($o->failed === [55], "HTTP $status did not mark failed");
+}
+
+$badOrder = new CreatedOrder(56, 'BADTOTAL', 1049, 'BGN', 1, $created->customer, $created->addresses, $created->lines);
+$badOrders = new FakeOrders($badOrder);
+$badCp = new FakeCp();
+$badFlow = new OrderOrchestrator(new MemoryAttempts(), new MemorySnapshots(), $badOrders, $badCp, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder());
+try {
+    $badFlow->orchestrate(3, 11, $request, $shop);
+    assertOrder(false, 'total mismatch accepted');
+} catch (OrderOrchestrationException $e) {
+}
+assertOrder($badCp->calls === [] && $badOrders->failed === [56], 'total mismatch reached CP');
+fwrite(STDOUT, "OK (Phase 9B order orchestration)\n");

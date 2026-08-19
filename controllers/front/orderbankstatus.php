@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PrestaShop\Module\Unipayment\Api\Exception\ModuleApiException;
 use PrestaShop\Module\Unipayment\Controller\ModuleApiController;
+use PrestaShop\Module\Unipayment\Order\BankStatusOrderStateMapper;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
 
 final class UnipaymentOrderbankstatusModuleFrontController extends ModuleApiController
@@ -26,6 +27,12 @@ final class UnipaymentOrderbankstatusModuleFrontController extends ModuleApiCont
         if ($result === null) {
             throw new ModuleApiException('The order was not found in the shop.', 404);
         }
+
+        $stateChanged = (new BankStatusOrderStateMapper())->apply(
+            (int) $result['ps_order_id'],
+            trim($status)
+        );
+        $result['ps_order_state_changed'] = $stateChanged;
 
         return [
             'success' => true,

@@ -10,7 +10,6 @@ use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\CurrencyGate;
 use PrestaShop\Module\Unipayment\Calculator\ProductContext;
 use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
-use PrestaShop\Module\Unipayment\Checkout\SchemeSelection;
 
 final class ProductPopupCalculator
 {
@@ -37,8 +36,7 @@ final class ProductPopupCalculator
         int $filterId,
         string $schemeKey,
         float $firstInstallment
-    ): array
-    {
+    ): array {
         $allowedTypes = $popupType === 'standard' ? ['standard', 'promo'] : ($popupType === 'promo' ? ['promo'] : []);
         if (!$this->currencyGate->supports($shop, $currencyIso) || !in_array($schemeType, $allowedTypes, true)) {
             throw new UnavailableSchemeException('The selected financing scheme is unavailable.');
@@ -72,7 +70,7 @@ final class ProductPopupCalculator
         $scheme = $result->scheme;
 
         return [
-            'scheme_key' => SchemeSelection::key($scheme->type, $scheme->months, $scheme->filterId),
+            'scheme_key' => ProductPopupSchemeList::key($scheme),
             'scheme_type' => $scheme->type,
             'kop_code' => $scheme->kopCode,
             'months' => $scheme->months,

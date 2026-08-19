@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') { exit(1); }
+if (PHP_SAPI !== 'cli') {
+    exit(1);
+}
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 require dirname(__DIR__) . '/Calculator/fixtures.php';
@@ -15,7 +17,10 @@ use PrestaShop\Module\Unipayment\Product\ProductPopupPresenter;
 
 function assertProductPopup(bool $condition, string $message): void
 {
-    if (!$condition) { fwrite(STDERR, "FAIL: {$message}\n"); exit(1); }
+    if (!$condition) {
+        fwrite(STDERR, "FAIL: {$message}\n");
+        exit(1);
+    }
 }
 
 $popup = new ProductPopupCalculator(new Calculator('2026-08-17'));
@@ -23,6 +28,7 @@ $product = new ProductContext(42, [7, 9], 1000.0);
 $shop = calculatorFixture(['uni_eur' => 3]);
 $standard = $popup->calculate($shop, $product, 'EUR', 'standard', 'standard', 'STD', 12, 0, 'standard|STD|12|0', 100.0);
 assertProductPopup($standard['scheme_type'] === 'standard' && $standard['months'] === 12, 'Standard popup context was not preserved');
+assertProductPopup($standard['scheme_key'] === 'standard|STD|12|0', 'popup calculation must return the canonical scheme key');
 assertProductPopup($standard['kop_code'] === 'STD' && $standard['glp'] === 18.0, 'Standard 12-month selection must use the Standard KOP');
 assertProductPopup($standard['first_installment'] === 100.0 && !$standard['first_installment_locked'], 'editable first installment was not calculated server-side');
 assertProductPopup($standard['price_display']['primary'] === '1000.00 евро', 'Woo EUR popup formatting changed');
