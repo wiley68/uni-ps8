@@ -9,6 +9,8 @@ use PrestaShop\Module\Unipayment\Cart\CartSchemeResolver;
 use PrestaShop\Module\Unipayment\Checkout\CartSnapshot;
 use PrestaShop\Module\Unipayment\Checkout\CartSnapshotSigner;
 use PrestaShop\Module\Unipayment\Checkout\CheckoutPaymentValidator;
+use PrestaShop\Module\Unipayment\Checkout\CheckoutPreferenceStore;
+use PrestaShop\Module\Unipayment\Checkout\CheckoutSubmitLock;
 use PrestaShop\Module\Unipayment\Checkout\CheckoutValidationException;
 use PrestaShop\Module\Unipayment\Checkout\ConsentResolver;
 use PrestaShop\Module\Unipayment\Checkout\CustomerFieldValidator;
@@ -45,6 +47,20 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
 
             return;
         }
+
+        $idShop = (int) $this->context->shop->id;
+        $idCart = (int) $this->context->cart->id;
+        $lock = new CheckoutSubmitLock();
+        if (!$lock->acquire($idShop, $idCart)) {
+            $this->showError($this->module->getTranslator()->trans(
+                'Заявката вече се обработва. Моля, изчакайте.',
+                [],
+                'Modules.Unipayment.Shop'
+            ));
+
+            return;
+        }
+
         try {
             $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
             if (!$repository->isEnabled()) {
@@ -81,7 +97,8 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 new FinancingSnapshotFactory(new SensitiveDataCipher()),
                 new ControlPanelOrderPayloadBuilder()
             );
-            $result = $orchestrator->orchestrate((int) $this->context->shop->id, (int) $this->context->cart->id, $request, $shop);
+            $result = $orchestrator->orchestrate($idShop, $idCart, $request, $shop, 'checkout');
+            (new CheckoutPreferenceStore())->clear($this->context->cookie);
             $snapshot = (new FinancingSnapshotRepository())->findByAttempt($result->attemptId);
             $process2 = $this->isProcess2($shop);
             $finalStatus = BankStatus::successfulSend($process2);
@@ -138,8 +155,12 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             ]]);
             $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
         } catch (CheckoutValidationException $exception) {
+            $lock->release($idShop, $idCart);
             $this->showError($exception->getMessage());
         } catch (OrderOrchestrationException $exception) {
+            if ($exception->isRetryable()) {
+                $lock->release($idShop, $idCart);
+            }
             PrestaShopLogger::addLog('UniPayment order orchestration failed: ' . get_class($exception) . '; retryable=' . ($exception->isRetryable() ? '1' : '0'), 2);
             $this->showError($this->module->getTranslator()->trans(
                 $exception->isRetryable() ? 'The financing order could not be submitted. You can safely try again.' : 'The financing order could not be completed.',
@@ -147,6 +168,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 'Modules.Unipayment.Shop'
             ));
         } catch (Throwable $exception) {
+            $lock->release($idShop, $idCart);
             PrestaShopLogger::addLog('UniPayment checkout validation failed: ' . get_class($exception), 2);
             $this->showError($this->module->getTranslator()->trans('The financing selection could not be validated.', [], 'Modules.Unipayment.Shop'));
         }

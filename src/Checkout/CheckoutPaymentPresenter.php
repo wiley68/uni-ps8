@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\Checkout;
 
+use PrestaShop\Module\Unipayment\Calculator\AmountDisplayFormatter;
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\CurrencyGate;
 use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
 use PrestaShop\Module\Unipayment\Cart\CartContext;
 use PrestaShop\Module\Unipayment\Cart\CartSchemeResolver;
+use PrestaShop\Module\Unipayment\Product\ProductPopupSchemeList;
 
 final class CheckoutPaymentPresenter
 {
@@ -24,15 +26,25 @@ final class CheckoutPaymentPresenter
     private $signer;
     /** @var ConsentResolver */
     private $consents;
+    /** @var AmountDisplayFormatter */
+    private $amounts;
 
-    public function __construct(Calculator $calculator, CartSchemeResolver $cartResolver, CurrencyGate $currencyGate, CartSnapshot $snapshot, CartSnapshotSigner $signer, ConsentResolver $consents)
-    {
+    public function __construct(
+        Calculator $calculator,
+        CartSchemeResolver $cartResolver,
+        CurrencyGate $currencyGate,
+        CartSnapshot $snapshot,
+        CartSnapshotSigner $signer,
+        ConsentResolver $consents,
+        ?AmountDisplayFormatter $amounts = null
+    ) {
         $this->calculator = $calculator;
         $this->cartResolver = $cartResolver;
         $this->currencyGate = $currencyGate;
         $this->snapshot = $snapshot;
         $this->signer = $signer;
         $this->consents = $consents;
+        $this->amounts = $amounts ?? new AmountDisplayFormatter();
     }
 
     /** @param array<string, mixed> $shop @return array<string, mixed>|null */
@@ -55,13 +67,20 @@ final class CheckoutPaymentPresenter
                 'kop_code' => $scheme->kopCode,
                 'months' => $scheme->months,
                 'filter_id' => $scheme->filterId,
+                'description' => ProductPopupSchemeList::description($shop, $scheme),
                 'first_installment' => $result->firstInstallment->amount,
                 'first_installment_locked' => $result->firstInstallment->locked,
+                'show_first_installment' => $result->firstInstallment->visible,
                 'financed_amount' => $result->financedAmount,
                 'monthly_installment' => $result->monthlyInstallment,
                 'total_payable' => $result->totalPayable,
                 'glp' => $result->glp,
                 'gpr' => $result->gpr,
+                'financed_amount_display' => $this->amounts->format($result->financedAmount, $shop),
+                'monthly_installment_display' => $this->amounts->format($result->monthlyInstallment, $shop),
+                'total_payable_display' => $this->amounts->format($result->totalPayable, $shop),
+                'glp_display' => number_format(abs($result->glp), 2, '.', ''),
+                'gpr_display' => number_format(abs($result->gpr), 2, '.', ''),
             ];
         }
         if ($schemes === []) {
@@ -81,7 +100,8 @@ final class CheckoutPaymentPresenter
         $preferredFirstInstallment = 0.0;
         if ($preference !== null) {
             foreach ($schemes as $scheme) {
-                if ($scheme['scheme_type'] === (string) ($preference['scheme_type'] ?? '')
+                if (
+                    $scheme['scheme_type'] === (string) ($preference['scheme_type'] ?? '')
                     && $scheme['kop_code'] === (string) ($preference['kop_code'] ?? '')
                     && $scheme['months'] === (int) ($preference['months'] ?? 0)
                     && $scheme['filter_id'] === (int) ($preference['filter_id'] ?? -1)
@@ -101,10 +121,14 @@ final class CheckoutPaymentPresenter
             }
         }
         $fingerprint = $this->snapshot->fingerprint($cart, $currencyIso);
+        $currencyMode = (int) ($shop['uni_eur'] ?? 0);
 
         return [
             'cart_total' => $cart->total,
+            'cart_total_display' => $this->amounts->format($cart->total, $shop),
             'currency_iso' => strtoupper($currencyIso),
+            'currency_mode' => $currencyMode,
+            'currency_dual' => in_array($currencyMode, [1, 2], true),
             'schemes' => $schemes,
             'default_scheme_key' => $defaultKey,
             'default_first_installment' => $preferredFirstInstallment,
@@ -113,6 +137,7 @@ final class CheckoutPaymentPresenter
             'show_first_installment' => in_array($shop['uni_first_vnoska'] ?? 0, [1, '1', true, 'yes', 'on'], true),
             'process2' => (int) ($shop['uni_proces'] ?? 0) === 1,
             'consents' => $this->consents->normalize($shop),
+            'has_schemes' => true,
         ];
     }
 }

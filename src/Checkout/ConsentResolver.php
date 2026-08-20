@@ -35,7 +35,9 @@ final class ConsentResolver
                 'has_checkbox' => $mandatory,
             ];
         }
-        usort($result, static function (array $a, array $b): int { return $a['id'] <=> $b['id']; });
+        usort($result, static function (array $a, array $b): int {
+            return $a['id'] <=> $b['id'];
+        });
 
         return $result;
     }
@@ -47,7 +49,7 @@ final class ConsentResolver
         $acceptedIds = array_values(array_unique(array_filter(array_map('intval', $accepted))));
         foreach ($this->normalize($shop) as $consent) {
             if ($consent['mandatory'] && !in_array($consent['id'], $acceptedIds, true)) {
-                throw new CheckoutValidationException('Please accept all mandatory consents.');
+                throw new CheckoutValidationException('Моля, приемете всички задължителни съгласия.');
             }
         }
 
