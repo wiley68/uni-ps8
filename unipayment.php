@@ -78,6 +78,7 @@ class Unipayment extends PaymentModule
             && $this->registerHook('actionOrderGridDefinitionModifier')
             && $this->registerHook('actionOrderGridQueryBuilderModifier')
             && $this->registerHook('displayPaymentReturn')
+            && $this->registerHook('displayFooter')
         ) {
             return true;
         }
@@ -105,7 +106,7 @@ class Unipayment extends PaymentModule
             return;
         }
 
-        foreach (['displayPaymentReturn'] as $hookName) {
+        foreach (['displayPaymentReturn', 'displayFooter'] as $hookName) {
             if (!$this->isRegisteredInHook($hookName)) {
                 $this->registerHook($hookName);
             }
@@ -486,6 +487,24 @@ class Unipayment extends PaymentModule
             return;
         }
 
+        if ($this->context->controller->php_self === 'index') {
+            if ($this->homepageAdvertisingContext() === null) {
+                return;
+            }
+            $this->context->controller->registerStylesheet(
+                'module-unipayment-homepage-advertising',
+                'modules/' . $this->name . '/views/css/homepage-advertising.css',
+                ['media' => 'all', 'priority' => 150]
+            );
+            $this->context->controller->registerJavascript(
+                'module-unipayment-homepage-advertising',
+                'modules/' . $this->name . '/views/js/homepage-advertising.js',
+                ['position' => 'bottom', 'priority' => 150]
+            );
+
+            return;
+        }
+
         if ($this->context->controller->php_self === 'cart') {
             $this->context->controller->registerStylesheet(
                 'module-unipayment-cart-calculator',
@@ -540,6 +559,64 @@ class Unipayment extends PaymentModule
             'modules/' . $this->name . '/views/js/product-calculator.js',
             ['position' => 'bottom', 'priority' => 150]
         );
+    }
+
+    /** @param array<string, mixed> $params */
+    public function hookDisplayFooter(array $params): string
+    {
+        $advertising = $this->homepageAdvertisingContext();
+        if ($advertising === null) {
+            return '';
+        }
+
+        $this->context->smarty->assign([
+            'unipayment_advertising' => $advertising,
+        ]);
+
+        return $this->display(__FILE__, 'views/templates/hook/homepage_advertising.tpl');
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function homepageAdvertisingContext(): ?array
+    {
+        static $resolved = false;
+        static $context = null;
+        if ($resolved) {
+            return $context;
+        }
+        $resolved = true;
+        $context = null;
+
+        $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
+        $gate = new PrestaShop\Module\Unipayment\Advertising\HomepageAdvertisingGate();
+        $phpSelf = (string) ($this->context->controller->php_self ?? '');
+        if (
+            !$gate->allowsAssets(
+                $phpSelf,
+                (bool) $this->active,
+                $repository->isEnabled(),
+                $repository->isAdvertisingEnabled(),
+                $repository->getUnicid()
+            )
+        ) {
+            return null;
+        }
+
+        try {
+            $shop = $this->createShopConfigurationService()->get();
+        } catch (Throwable $exception) {
+            return null;
+        }
+
+        $context = (new PrestaShop\Module\Unipayment\Advertising\HomepageAdvertisingPresenter($gate))->present(
+            $shop,
+            $this->context->isMobile(),
+            $this->_path . 'views/img/product/uni_logo.svg'
+        );
+
+        return $context;
     }
 
     /** @param array<string, mixed> $params */
