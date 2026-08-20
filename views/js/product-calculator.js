@@ -630,7 +630,7 @@
             payload.set("scheme_key", fields.scheme_key);
             payload.set("scheme_type", fields.scheme_type);
             payload.set("kop_code", fields.kop_code);
-            payload.set("месеца", String(fields.months || 0));
+            payload.set("months", String(fields.months || 0));
             payload.set("filter_id", String(fields.filter_id || 0));
             payload.set(
                 "first_installment",
