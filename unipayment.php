@@ -28,7 +28,6 @@ class Unipayment extends PaymentModule
         ];
 
         parent::__construct();
-        $this->ensureRegisteredHooks();
 
         $this->displayName = $this->trans(
             'UniCredit Credit Calculator',
@@ -98,19 +97,6 @@ class Unipayment extends PaymentModule
     public function isUsingNewTranslationSystem(): bool
     {
         return true;
-    }
-
-    private function ensureRegisteredHooks(): void
-    {
-        if ((int) $this->id <= 0) {
-            return;
-        }
-
-        foreach (['displayPaymentReturn', 'displayFooter'] as $hookName) {
-            if (!$this->isRegisteredInHook($hookName)) {
-                $this->registerHook($hookName);
-            }
-        }
     }
 
     /**
@@ -561,9 +547,15 @@ class Unipayment extends PaymentModule
         );
     }
 
-    /** @param array<string, mixed> $params */
-    public function hookDisplayFooter(array $params): string
+    /**
+     * @param array<string, mixed> $params
+     */
+    public function hookDisplayFooter($params = []): string
     {
+        if (!isset($this->context->controller->php_self) || $this->context->controller->php_self !== 'index') {
+            return '';
+        }
+
         $advertising = $this->homepageAdvertisingContext();
         if ($advertising === null) {
             return '';

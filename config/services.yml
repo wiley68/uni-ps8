@@ -8,4 +8,5 @@ services:
     resource: '../src/'
     exclude:
       - '../src/index.php'
+      - '../src/**/index.php'
 
