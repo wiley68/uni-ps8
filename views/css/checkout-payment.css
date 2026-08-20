@@ -78,16 +78,29 @@
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
+  padding: 0;
   color: #000;
+  font-family: inherit;
   font-size: 16px;
   font-weight: 400;
   line-height: 1.45;
   white-space: nowrap;
 }
 
+/* Theme <label> rules often shrink nested labels — keep parity with plain label rows. */
 .unipayment-checkout__label label {
+  display: inline;
   margin: 0;
-  font-weight: 400;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  text-transform: none;
 }
 
 .unipayment-checkout__required {
@@ -122,27 +135,60 @@
   display: inline;
 }
 
+/* Product / cart / Woo popup controls: red text, bottom border only. */
 .unipayment-checkout__select,
 .unipayment-checkout__input {
+  box-sizing: border-box;
   display: block;
   width: 100%;
-  max-width: 220px;
-  margin-left: auto;
-  padding: 6px 10px;
-  border: 1px solid var(--unipayment-checkout-border);
-  border-radius: 6px;
-  background: #fff;
-  color: #000;
-  font: inherit;
-  font-size: 16px;
-  line-height: 1.3;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 0 auto;
+  padding: 0 0 0 16px;
+  border: 0;
+  border-bottom: 1px solid #b0b0b0;
+  border-radius: 0;
+  outline: none;
+  background-color: #fff;
   box-shadow: none;
+  color: var(--unipayment-checkout-red);
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.45;
   text-align: right;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .unipayment-checkout__select {
-  appearance: auto;
+  padding-left: 8px;
   cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23b0b0b0' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0 center;
+  background-size: 10px 6px;
+}
+
+.unipayment-checkout__select option {
+  text-align: right;
+  color: #000;
+}
+
+.unipayment-checkout__select:focus,
+.unipayment-checkout__select:focus-visible,
+.unipayment-checkout__input:focus,
+.unipayment-checkout__input:focus-visible {
+  outline: none;
+  border-color: transparent;
+  border-bottom-color: #b0b0b0;
+  background-color: #fff;
+  box-shadow: none;
+}
+
+.unipayment-checkout__input[readonly] {
+  border-bottom: 0;
+  opacity: 0.85;
 }
 
 .unipayment-checkout__consents {
@@ -226,5 +272,9 @@
     max-width: none;
     margin-left: 0;
     text-align: left;
+  }
+
+  .unipayment-checkout__select {
+    background-position: right 0 center;
   }
 }

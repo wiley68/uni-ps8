@@ -30,6 +30,9 @@ assertCheckoutUi(strpos($template, "s='ЕГН'") !== false && strpos($template, 
 assertCheckoutUi(strpos($template, 'data-unipayment-consent-checkbox') !== false, 'checkout consents must expose checkbox actions');
 assertCheckoutUi(strpos($template, 'unipayment-checkout__consent--info') !== false, 'optional consent info rows must remain');
 assertCheckoutUi(strpos($css, '--unipayment-checkout-red: #ed1c24') !== false, 'checkout CSS must use UniCredit red token');
+assertCheckoutUi(strpos($css, 'border-bottom: 1px solid #b0b0b0') !== false, 'checkout controls must use bottom-only border like product/cart/Woo');
+assertCheckoutUi(strpos($css, 'color: var(--unipayment-checkout-red)') !== false && strpos($css, '.unipayment-checkout__select') !== false, 'checkout select/input must use red text');
+assertCheckoutUi(strpos($css, 'font-size: inherit') !== false, 'nested checkout labels must inherit row label size');
 assertCheckoutUi(strpos($js, 'validateBeforeSubmit') !== false, 'checkout JS must gate submission');
 assertCheckoutUi(strpos($js, 'consentsOk') !== false, 'checkout JS must enforce consents');
 assertCheckoutUi(strpos($js, 'markSubmitting') !== false, 'checkout JS must block double submit');
