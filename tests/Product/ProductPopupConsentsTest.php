@@ -55,7 +55,7 @@ $popup = (new ProductPopupPresenter($resolver))->present($shop, 'buy');
 assertProductPopupConsents($popup['consents'][0]['name'] === 'Terms' && $popup['consents'][1]['name'] === 'Info', 'product popup must expose normalized CP consents');
 
 try {
-    throw new ProductPopupValidationException(['consents' => 'Моля, приемете всички задължителни съгласия.']);
+    throw new ProductPopupValidationException(['consents' => 'Please accept all mandatory consents.']);
 } catch (ProductPopupValidationException $exception) {
     assertProductPopupConsents(isset($exception->errors()['consents']), 'popup apply must surface a consents validation error');
 }

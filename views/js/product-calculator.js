@@ -345,30 +345,30 @@
                 if (!nonEmpty(customerField(name).value))
                     errors[name] = t(
                         "data-required-field-message",
-                        "Полето е задължително.",
+                        "This field is required.",
                     );
             });
             var phone = customerField("phone").value;
             if (!nonEmpty(phone))
                 errors.phone = t(
                     "data-required-field-message",
-                    "Полето е задължително.",
+                    "This field is required.",
                 );
             else if (!validPhone(phone))
                 errors.phone = t(
                     "data-invalid-phone-message",
-                    "Въведете валиден телефонен номер.",
+                    "Enter a valid phone number.",
                 );
             var email = customerField("email").value;
             if (!nonEmpty(email))
                 errors.email = t(
                     "data-required-field-message",
-                    "Полето е задължително.",
+                    "This field is required.",
                 );
             else if (!validEmail(email))
                 errors.email = t(
                     "data-invalid-email-message",
-                    "Въведете валиден e-mail адрес.",
+                    "Enter a valid email address.",
                 );
             var egnField = customerField("egn");
             if (egnField) {
@@ -376,12 +376,12 @@
                 if (!nonEmpty(egn))
                     errors.egn = t(
                         "data-required-field-message",
-                        "Полето е задължително.",
+                        "This field is required.",
                     );
                 else if (!validEgn(egn))
                     errors.egn = t(
                         "data-invalid-egn-message",
-                        "Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).",
+                        "Enter a valid EGN (10 digits; the first 8 must be a YYYYMMDD date).",
                     );
             }
             var phone2Field = customerField("phone2");
@@ -390,12 +390,12 @@
                 if (!nonEmpty(phone2))
                     errors.phone2 = t(
                         "data-required-field-message",
-                        "Полето е задължително.",
+                        "This field is required.",
                     );
                 else if (!validPhone(phone2))
                     errors.phone2 = t(
                         "data-invalid-phone2-message",
-                        "Въведете валиден втори телефонен номер.",
+                        "Enter a valid secondary phone number.",
                     );
             }
             return errors;
@@ -513,7 +513,7 @@
 
         function optionText(scheme) {
             var text = (
-                root.getAttribute("data-months-label") || "%d месеца"
+                root.getAttribute("data-months-label") || "%d months"
             ).replace("%d", scheme.months);
             return (
                 text + (scheme.description ? " - " + scheme.description : "")
@@ -692,7 +692,7 @@
                     )
                         errorBox.textContent = t(
                             "data-calculate-failed-message",
-                            "Неуспешно изчисление. Моля, опитайте отново.",
+                            "Calculation failed. Please try again.",
                         );
                     throw error;
                 });
@@ -729,7 +729,7 @@
             ) {
                 errorBox.textContent = t(
                     "data-add-to-cart-failed-message",
-                    "Продуктът не може да бъде добавен в количката.",
+                    "The product could not be added to the cart.",
                 );
                 redirectPending = false;
                 return;
@@ -775,7 +775,7 @@
             if (!customerForm || !submitButton || !step3) {
                 errorBox.textContent = t(
                     "data-customer-form-missing-message",
-                    "Формата за лични данни не е заредена. Моля, презаредете страницата.",
+                    "The personal details form failed to load. Please reload the page.",
                 );
                 return;
             }
@@ -849,7 +849,7 @@
                                 body.message ||
                                 t(
                                     "data-validation-failed-message",
-                                    "Данните не могат да бъдат валидирани.",
+                                    "The details could not be validated.",
                                 );
                             redirectPending = false;
                             setProcessingState(false);
@@ -885,11 +885,11 @@
             if (!step3) return;
             var processingTitle = t(
                 "data-processing-title",
-                "Обработване на заявката",
+                "Processing the request",
             );
             var processingMessage = t(
                 "data-processing-message",
-                "Моля, изчакайте...",
+                "Please wait...",
             );
             step3.innerHTML =
                 '<div class="unipayment-product-calculator__confirmation">' +
@@ -906,13 +906,13 @@
             if (!processing) return;
             var errorDefaultMessage = t(
                 "data-smartucf-error-default",
-                "Възникна грешка при обработка на заявката.",
+                "An error occurred while processing the request.",
             );
             var errorRetryMessage = t(
                 "data-smartucf-error-retry",
-                "Моля опитайте по-късно отново.",
+                "Please try again later.",
             );
-            var closeLabel = t("data-close-label", "Затвори");
+            var closeLabel = t("data-close-label", "Close");
             root.classList.remove("unipayment-product-calculator--processing");
             root.classList.add("unipayment-product-calculator--error");
             modal.setAttribute("aria-busy", "false");
@@ -935,18 +935,18 @@
 
         function showOrderConfirmation(order, smartucfError) {
             if (!step3) return;
-            var closeLabel = t("data-close-label", "Затвори");
+            var closeLabel = t("data-close-label", "Close");
             var orderSuccessTitle = t(
                 "data-order-success-title",
-                "Заявката е изпратена успешно",
+                "The application was submitted successfully",
             );
             var orderNumberLabel = t(
                 "data-order-number-label",
-                "Номер на поръчка:",
+                "Order number:",
             );
             var orderConfirmationMessage = t(
                 "data-order-confirmation-message",
-                "Очаквайте потвърждение от UniCredit.",
+                "Expect confirmation from UniCredit.",
             );
             var warning = smartucfError
                 ? '<p class="unipayment-product-calculator__popup-row--note">' +

@@ -45,7 +45,7 @@ final class LeasingEmailNotifier
             return;
         }
 
-        $subject = 'УниКредит лизинг - поръчка ' . (string) ($snapshot['order_reference'] ?? '');
+        $subject = 'UniCredit leasing - order ' . (string) ($snapshot['order_reference'] ?? '');
         $textBody = $this->presenter->renderText($rows);
         $htmlBody = $this->presenter->renderHtml($rows);
 

@@ -24,9 +24,9 @@ $apply = (string) file_get_contents($root . '/src/Cart/CartPopupApplyService.php
 
 assertCartPopupContract(strpos($template, 'data-unipayment-source="cart"') !== false, 'cart root must declare source=cart');
 assertCartPopupContract(strpos($template, 'data-unipayment-calculator') !== false, 'cart must reuse product popup JS root');
-assertCartPopupContract(strpos($template, "s='Цена на количката'") !== false, 'cart popup must label cart total');
-assertCartPopupContract(strpos($template, 'data-unipayment-apply') !== false, 'cart Step 1 must expose Кандидатствай');
-assertCartPopupContract(strpos($template, 'data-unipayment-submit') !== false, 'cart Step 2 must expose Изпрати');
+assertCartPopupContract(strpos($template, "s='Cart total'") !== false, 'cart popup must label cart total');
+assertCartPopupContract(strpos($template, 'data-unipayment-apply') !== false, 'cart Step 1 must expose Apply');
+assertCartPopupContract(strpos($template, 'data-unipayment-submit') !== false, 'cart Step 2 must expose Submit');
 assertCartPopupContract(strpos($template, 'data-unipayment-customer-form') !== false, 'cart popup must include customer Step 2');
 assertCartPopupContract(substr_count($template, 'data-unipayment-secondary') === 1, 'cart must keep a hidden secondary stub only');
 assertCartPopupContract(strpos($template, 'data-hide-secondary="1"') !== false, 'cart must hide add-to-cart secondary action');

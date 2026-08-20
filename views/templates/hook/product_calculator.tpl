@@ -4,7 +4,7 @@
         data-unipayment-calculator data-product-id="{$unipayment_calculator.product_id|intval}"
         data-endpoint="{$unipayment_calculator_url|escape:'htmlall':'UTF-8'}"
         data-calculator="{$unipayment_calculator_json|escape:'htmlall':'UTF-8'}"
-        data-months-label="{l s='%d месеца' d='Modules.Unipayment.Shop'}"
+        data-months-label="{l s='%d months' d='Modules.Unipayment.Shop'}"
         data-month-label="{l s='month' d='Modules.Unipayment.Shop'}"
         data-logo-standard="{$unipayment_logo_url|escape:'htmlall':'UTF-8'}"
         data-logo-alternative="{$unipayment_logo_alternative_url|escape:'htmlall':'UTF-8'}"
@@ -12,24 +12,24 @@
         data-popup-token="{$unipayment_popup_token|escape:'htmlall':'UTF-8'}"
         data-button-action="{$unipayment_popup.button_action|escape:'htmlall':'UTF-8'}"
         data-checkout-url="{$unipayment_checkout_url|escape:'htmlall':'UTF-8'}"
-        data-processing-title="{l s='Обработване на заявката' d='Modules.Unipayment.Shop'}"
-        data-processing-message="{l s='Моля, изчакайте...' d='Modules.Unipayment.Shop'}"
-        data-smartucf-error-default="{l s='Възникна грешка при обработка на заявката.' d='Modules.Unipayment.Shop'}"
-        data-smartucf-error-retry="{l s='Моля опитайте по-късно отново.' d='Modules.Unipayment.Shop'}"
-        data-close-label="{l s='Затвори' d='Modules.Unipayment.Shop'}"
-        data-required-field-message="{l s='Полето е задължително.' d='Modules.Unipayment.Shop'}"
-        data-invalid-phone-message="{l s='Въведете валиден телефонен номер.' d='Modules.Unipayment.Shop'}"
-        data-invalid-email-message="{l s='Въведете валиден e-mail адрес.' d='Modules.Unipayment.Shop'}"
-        data-invalid-egn-message="{l s='Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).' d='Modules.Unipayment.Shop'}"
-        data-invalid-phone2-message="{l s='Въведете валиден втори телефонен номер.' d='Modules.Unipayment.Shop'}"
-        data-calculate-failed-message="{l s='Неуспешно изчисление. Моля, опитайте отново.' d='Modules.Unipayment.Shop'}"
-        data-add-to-cart-failed-message="{l s='Продуктът не може да бъде добавен в количката.' d='Modules.Unipayment.Shop'}"
-        data-customer-form-missing-message="{l s='Формата за лични данни не е заредена. Моля, презаредете страницата.' d='Modules.Unipayment.Shop'}"
-        data-validation-failed-message="{l s='Данните не могат да бъдат валидирани.' d='Modules.Unipayment.Shop'}"
-        data-consents-required-message="{l s='Моля, приемете всички задължителни съгласия.' d='Modules.Unipayment.Shop'}"
-        data-order-number-label="{l s='Номер на поръчка:' d='Modules.Unipayment.Shop'}"
-        data-order-confirmation-message="{l s='Очаквайте потвърждение от UniCredit.' d='Modules.Unipayment.Shop'}"
-        data-order-success-title="{l s='Заявката е изпратена успешно' d='Modules.Unipayment.Shop'}"
+        data-processing-title="{l s='Processing the request' d='Modules.Unipayment.Shop'}"
+        data-processing-message="{l s='Please wait...' d='Modules.Unipayment.Shop'}"
+        data-smartucf-error-default="{l s='An error occurred while processing the request.' d='Modules.Unipayment.Shop'}"
+        data-smartucf-error-retry="{l s='Please try again later.' d='Modules.Unipayment.Shop'}"
+        data-close-label="{l s='Close' d='Modules.Unipayment.Shop'}"
+        data-required-field-message="{l s='This field is required.' d='Modules.Unipayment.Shop'}"
+        data-invalid-phone-message="{l s='Enter a valid phone number.' d='Modules.Unipayment.Shop'}"
+        data-invalid-email-message="{l s='Enter a valid email address.' d='Modules.Unipayment.Shop'}"
+        data-invalid-egn-message="{l s='Enter a valid EGN (10 digits; the first 8 must be a YYYYMMDD date).' d='Modules.Unipayment.Shop'}"
+        data-invalid-phone2-message="{l s='Enter a valid secondary phone number.' d='Modules.Unipayment.Shop'}"
+        data-calculate-failed-message="{l s='Calculation failed. Please try again.' d='Modules.Unipayment.Shop'}"
+        data-add-to-cart-failed-message="{l s='The product could not be added to the cart.' d='Modules.Unipayment.Shop'}"
+        data-customer-form-missing-message="{l s='The personal details form failed to load. Please reload the page.' d='Modules.Unipayment.Shop'}"
+        data-validation-failed-message="{l s='The details could not be validated.' d='Modules.Unipayment.Shop'}"
+        data-consents-required-message="{l s='Please accept all mandatory consents.' d='Modules.Unipayment.Shop'}"
+        data-order-number-label="{l s='Order number:' d='Modules.Unipayment.Shop'}"
+        data-order-confirmation-message="{l s='Expect confirmation from UniCredit.' d='Modules.Unipayment.Shop'}"
+        data-order-success-title="{l s='The application was submitted successfully' d='Modules.Unipayment.Shop'}"
         style="margin-top: {$unipayment_button_top_spacing|intval}px; --unipayment-button-width: {$unipayment_calculator.button_width|intval}px; --unipayment-button-height: {$unipayment_calculator.button_height|intval}px;">
         {if $unipayment_calculator.heading !== ''}<p class="unipayment-product-calculator__heading">
             {$unipayment_calculator.heading|escape:'htmlall':'UTF-8'}</p>{/if}
@@ -41,7 +41,7 @@
                     {if !isset($unipayment_calculator.offers[$offer_type])} hidden{/if}>
                     <span class="unipayment-product-calculator__button-content">
                         <span
-                            class="unipayment-product-calculator__button-title">{l s='Купи на изплащане' d='Modules.Unipayment.Shop'}</span>
+                            class="unipayment-product-calculator__button-title">{l s='Buy on installment' d='Modules.Unipayment.Shop'}</span>
                         <span class="unipayment-product-calculator__button-price"
                             data-unipayment-preferred-price>{if isset($unipayment_calculator.offers[$offer_type])}{$unipayment_calculator.offers[$offer_type].installment_label|escape:'htmlall':'UTF-8'}{/if}</span>
                     </span>
@@ -83,19 +83,19 @@
                             data-unipayment-step="1">
                             <h2 id="unipayment-calculator-title-{$unipayment_calculator.product_id|intval}"
                                 class="unipayment-product-calculator__popup-title">
-                                {l s='Избор на схема за лизинг' d='Modules.Unipayment.Shop'}</h2>
+                                {l s='Choose a leasing scheme' d='Modules.Unipayment.Shop'}</h2>
                             <div class="unipayment-product-calculator__popup-calc">
                                 <div class="unipayment-product-calculator__popup-row">
                                     <div class="unipayment-product-calculator__popup-label">
-                                        {l s='Цена на артикула' d='Modules.Unipayment.Shop'}</div>
+                                        {l s='Item price' d='Modules.Unipayment.Shop'}</div>
                                     <div class="unipayment-product-calculator__popup-value" data-unipayment-display="price">
                                     </div>
                                 </div>
                                 <div class="unipayment-product-calculator__popup-row">
                                     <label class="unipayment-product-calculator__popup-label"
                                         for="unipayment-months-{$unipayment_calculator.product_id|intval}"><span
-                                            class="unipayment-product-calculator__label-desktop">{l s='Брой месеци за погасяване' d='Modules.Unipayment.Shop'}</span><span
-                                            class="unipayment-product-calculator__label-mobile">{l s='Брой месеци' d='Modules.Unipayment.Shop'}</span></label>
+                                            class="unipayment-product-calculator__label-desktop">{l s='Number of repayment months' d='Modules.Unipayment.Shop'}</span><span
+                                            class="unipayment-product-calculator__label-mobile">{l s='Number of months' d='Modules.Unipayment.Shop'}</span></label>
                                     <div class="unipayment-product-calculator__popup-value"><select
                                             id="unipayment-months-{$unipayment_calculator.product_id|intval}"
                                             class="unipayment-product-calculator__popup-select"
@@ -103,7 +103,7 @@
                                 </div>
                                 <div class="unipayment-product-calculator__popup-row" data-unipayment-first-row>
                                     <label class="unipayment-product-calculator__popup-label"
-                                        for="unipayment-first-{$unipayment_calculator.product_id|intval}">{l s='Първоначална вноска /евро/' d='Modules.Unipayment.Shop'}</label>
+                                        for="unipayment-first-{$unipayment_calculator.product_id|intval}">{l s='Down payment /EUR/' d='Modules.Unipayment.Shop'}</label>
                                     <div class="unipayment-product-calculator__popup-value"><input
                                             id="unipayment-first-{$unipayment_calculator.product_id|intval}"
                                             class="unipayment-product-calculator__popup-input" data-unipayment-first
@@ -111,33 +111,33 @@
                                 </div>
                                 <div class="unipayment-product-calculator__popup-row">
                                     <div class="unipayment-product-calculator__popup-label">
-                                        {l s='Обща сума на заема' d='Modules.Unipayment.Shop'}</div>
+                                        {l s='Total loan amount' d='Modules.Unipayment.Shop'}</div>
                                     <div class="unipayment-product-calculator__popup-value"
                                         data-unipayment-display="financed_amount"></div>
                                 </div>
                                 <div class="unipayment-product-calculator__popup-row">
                                     <div class="unipayment-product-calculator__popup-label"><span
-                                            class="unipayment-product-calculator__label-desktop">{l s='Размер на погасителна вноска' d='Modules.Unipayment.Shop'}</span><span
-                                            class="unipayment-product-calculator__label-mobile">{l s='Погасителна вноска' d='Modules.Unipayment.Shop'}</span>
+                                            class="unipayment-product-calculator__label-desktop">{l s='Installment amount' d='Modules.Unipayment.Shop'}</span><span
+                                            class="unipayment-product-calculator__label-mobile">{l s='Installment' d='Modules.Unipayment.Shop'}</span>
                                     </div>
                                     <div class="unipayment-product-calculator__popup-value"
                                         data-unipayment-display="monthly_installment"></div>
                                 </div>
                                 <div class="unipayment-product-calculator__popup-row">
                                     <div class="unipayment-product-calculator__popup-label">
-                                        {l s='Обща дължима сума' d='Modules.Unipayment.Shop'}</div>
+                                        {l s='Total amount due' d='Modules.Unipayment.Shop'}</div>
                                     <div class="unipayment-product-calculator__popup-value"
                                         data-unipayment-display="total_payable"></div>
                                 </div>
                                 <div class="unipayment-product-calculator__popup-row">
                                     <div class="unipayment-product-calculator__popup-label">
-                                        {l s='ГЛП' d='Modules.Unipayment.Shop'}</div>
+                                        {l s='AIR' d='Modules.Unipayment.Shop'}</div>
                                     <div class="unipayment-product-calculator__popup-value unipayment-product-calculator__popup-value--red"
                                         data-unipayment-display="glp"></div>
                                 </div>
                                 <div class="unipayment-product-calculator__popup-row">
                                     <div class="unipayment-product-calculator__popup-label">
-                                        {l s='ГПР' d='Modules.Unipayment.Shop'}</div>
+                                        {l s='APR' d='Modules.Unipayment.Shop'}</div>
                                     <div class="unipayment-product-calculator__popup-value unipayment-product-calculator__popup-value--red"
                                         data-unipayment-display="gpr"></div>
                                 </div>
@@ -148,14 +148,14 @@
                             <div class="unipayment-product-calculator__popup-actions">
                                 <button type="button"
                                     class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--secondary"
-                                    data-unipayment-close><span><b>{l s='Отказ' d='Modules.Unipayment.Shop'}</b></span></button>
+                                    data-unipayment-close><span><b>{l s='Cancel' d='Modules.Unipayment.Shop'}</b></span></button>
                                 <button type="button"
                                     class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--secondary"
-                                    data-unipayment-secondary><span><b>{$unipayment_popup.secondary_label|escape:'htmlall':'UTF-8'}</b></span></button>
+                                    data-unipayment-secondary><span><b>{if $unipayment_popup.button_action == 'buy'}{l s='Buy' d='Modules.Unipayment.Shop'}{else}{l s='Add to cart' d='Modules.Unipayment.Shop'}{/if}</b></span></button>
                                 <button type="button"
                                     class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--primary"
                                     data-unipayment-apply
-                                    disabled><span><b>{l s='Кандидатствай' d='Modules.Unipayment.Shop'}</b></span><i
+                                    disabled><span><b>{l s='Apply' d='Modules.Unipayment.Shop'}</b></span><i
                                         style="background-image:url('{$unipayment_popup_badge_url|escape:'htmlall':'UTF-8'}')"
                                         aria-hidden="true"></i></button>
                             </div>
@@ -163,11 +163,11 @@
 
                         <div class="unipayment-product-calculator__step" data-unipayment-step="2" hidden>
                             <h2 class="unipayment-product-calculator__popup-title">
-                                {l s='Попълване на лични данни' d='Modules.Unipayment.Shop'}</h2>
+                                {l s='Enter personal details' d='Modules.Unipayment.Shop'}</h2>
                             <div class="unipayment-product-calculator__customer-form" data-unipayment-customer-form>
                                 <div class="unipayment-product-calculator__customer-field">
                                     <label class="unipayment-product-calculator__customer-label"
-                                        for="unipayment-first-name-{$unipayment_calculator.product_id|intval}">{l s='Име' d='Modules.Unipayment.Shop'}
+                                        for="unipayment-first-name-{$unipayment_calculator.product_id|intval}">{l s='First name' d='Modules.Unipayment.Shop'}
                                         <span class="unipayment-product-calculator__required"
                                             aria-hidden="true">*</span></label>
                                     <input class="unipayment-product-calculator__customer-input"
@@ -180,7 +180,7 @@
                                 </div>
                                 <div class="unipayment-product-calculator__customer-field">
                                     <label class="unipayment-product-calculator__customer-label"
-                                        for="unipayment-last-name-{$unipayment_calculator.product_id|intval}">{l s='Фамилия' d='Modules.Unipayment.Shop'}
+                                        for="unipayment-last-name-{$unipayment_calculator.product_id|intval}">{l s='Last name' d='Modules.Unipayment.Shop'}
                                         <span class="unipayment-product-calculator__required"
                                             aria-hidden="true">*</span></label>
                                     <input class="unipayment-product-calculator__customer-input"
@@ -193,7 +193,7 @@
                                 </div>
                                 <div class="unipayment-product-calculator__customer-field">
                                     <label class="unipayment-product-calculator__customer-label"
-                                        for="unipayment-address-{$unipayment_calculator.product_id|intval}">{l s='Адрес' d='Modules.Unipayment.Shop'}
+                                        for="unipayment-address-{$unipayment_calculator.product_id|intval}">{l s='Address' d='Modules.Unipayment.Shop'}
                                         <span class="unipayment-product-calculator__required"
                                             aria-hidden="true">*</span></label>
                                     <input class="unipayment-product-calculator__customer-input"
@@ -205,7 +205,7 @@
                                 </div>
                                 <div class="unipayment-product-calculator__customer-field">
                                     <label class="unipayment-product-calculator__customer-label"
-                                        for="unipayment-phone-{$unipayment_calculator.product_id|intval}">{l s='Мобилен телефон' d='Modules.Unipayment.Shop'}
+                                        for="unipayment-phone-{$unipayment_calculator.product_id|intval}">{l s='Mobile phone' d='Modules.Unipayment.Shop'}
                                         <span class="unipayment-product-calculator__required"
                                             aria-hidden="true">*</span></label>
                                     <input class="unipayment-product-calculator__customer-input"
@@ -230,7 +230,7 @@
                                 {if $unipayment_require_egn}
                                     <div class="unipayment-product-calculator__customer-field">
                                         <label class="unipayment-product-calculator__customer-label"
-                                            for="unipayment-egn-{$unipayment_calculator.product_id|intval}">{l s='ЕГН' d='Modules.Unipayment.Shop'}
+                                            for="unipayment-egn-{$unipayment_calculator.product_id|intval}">{l s='EGN' d='Modules.Unipayment.Shop'}
                                             <span class="unipayment-product-calculator__required"
                                                 aria-hidden="true">*</span></label>
                                         <input class="unipayment-product-calculator__customer-input"
@@ -242,7 +242,7 @@
                                     </div>
                                     <div class="unipayment-product-calculator__customer-field">
                                         <label class="unipayment-product-calculator__customer-label"
-                                            for="unipayment-phone2-{$unipayment_calculator.product_id|intval}">{l s='Втори телефон' d='Modules.Unipayment.Shop'}
+                                            for="unipayment-phone2-{$unipayment_calculator.product_id|intval}">{l s='Secondary phone' d='Modules.Unipayment.Shop'}
                                             <span class="unipayment-product-calculator__required"
                                                 aria-hidden="true">*</span></label>
                                         <input class="unipayment-product-calculator__customer-input"
@@ -258,7 +258,7 @@
                             </div>
                             {if isset($unipayment_popup.consents) && $unipayment_popup.consents}
                                 <div class="unipayment-product-calculator__consents" data-unipayment-consents
-                                    aria-label="{l s='Съгласия' d='Modules.Unipayment.Shop'}">
+                                    aria-label="{l s='Consents' d='Modules.Unipayment.Shop'}">
                                     {foreach from=$unipayment_popup.consents item=consent}
                                         <div
                                             class="unipayment-product-calculator__consent{if !$consent.has_checkbox} unipayment-product-calculator__consent--info{/if}">
@@ -295,15 +295,15 @@
                                 <div class="unipayment-product-calculator__popup-actions-group">
                                     <button type="button"
                                         class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--secondary"
-                                        data-unipayment-back><span><b>{l s='Назад' d='Modules.Unipayment.Shop'}</b></span></button>
+                                        data-unipayment-back><span><b>{l s='Back' d='Modules.Unipayment.Shop'}</b></span></button>
                                     <button type="button"
                                         class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--secondary"
-                                        data-unipayment-close><span><b>{l s='Отказ' d='Modules.Unipayment.Shop'}</b></span></button>
+                                        data-unipayment-close><span><b>{l s='Cancel' d='Modules.Unipayment.Shop'}</b></span></button>
                                 </div>
                                 <button type="button"
                                     class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--primary"
                                     data-unipayment-submit disabled
-                                    aria-disabled="true"><span><b>{l s='Изпрати' d='Modules.Unipayment.Shop'}</b></span><i
+                                    aria-disabled="true"><span><b>{l s='Submit' d='Modules.Unipayment.Shop'}</b></span><i
                                         style="background-image:url('{$unipayment_popup_badge_url|escape:'htmlall':'UTF-8'}')"
                                         aria-hidden="true"></i></button>
                             </div>
@@ -318,7 +318,7 @@
                     aria-busy="true">
                     <span class="unipayment-product-calculator__processing-spinner" aria-hidden="true"></span>
                     <p class="unipayment-product-calculator__processing-text">
-                        {l s='Обработване на заявката. Моля, изчакайте...' d='Modules.Unipayment.Shop'}
+                        {l s='Processing the request. Please wait...' d='Modules.Unipayment.Shop'}
                     </p>
                 </div>
             </div>

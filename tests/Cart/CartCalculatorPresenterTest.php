@@ -31,13 +31,13 @@ assertCartPresenter($view['line_count'] === 1 && $view['cart_total'] === 1000.0,
 assertCartPresenter(isset($view['offers']['standard']['installment_label']), 'cart offers must expose installment_label');
 assertCartPresenter(isset($view['offers']['standard']['preferred_scheme_key']), 'cart offers must expose preferred_scheme_key');
 assertCartPresenter(isset($view['offers']['standard']['schemes'][0]['key']), 'cart scheme rows must expose popup scheme key');
-assertCartPresenter((bool) preg_match('/^\d+ x \d+\.\d{2} лв\.$/u', $view['offers']['standard']['installment_label']), 'BGN cart button label must match Woo format');
+assertCartPresenter((bool) preg_match('/^\d+ x \d+\.\d{2} BGN$/u', $view['offers']['standard']['installment_label']), 'BGN cart button label must match English source format');
 assertCartPresenter(array_key_exists('heading', $view), 'cart presentation must expose CP heading');
 assertCartPresenter($presenter->present(calculatorFixture(['uni_eur' => 0]), $cart, 'EUR') === null, 'cart currency gate mismatch');
 assertCartPresenter($presenter->present(calculatorFixture(['uni_eur' => 3]), $cart, 'EUR') !== null, 'EUR cart was rejected');
 
 $eurView = $presenter->present(calculatorFixture(['uni_eur' => 3, 'uni_zaglavie' => 'Финансиране от УниКредит']), $cart, 'EUR');
 assertCartPresenter(is_array($eurView) && $eurView['heading'] === 'Финансиране от УниКредит', 'CP heading must reach the cart presenter');
-assertCartPresenter((bool) preg_match('/^\d+ x \d+\.\d{2} евро$/', $eurView['offers']['standard']['installment_label']), 'EUR cart button label must match Woo format');
+assertCartPresenter((bool) preg_match('/^\d+ x \d+\.\d{2} EUR$/', $eurView['offers']['standard']['installment_label']), 'EUR cart button label must match Woo format');
 
 fwrite(STDOUT, "OK (Phase 7 cart calculator presenter)\n");

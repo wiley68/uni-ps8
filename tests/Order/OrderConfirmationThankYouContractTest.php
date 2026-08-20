@@ -33,7 +33,7 @@ assertThankYou(strpos($javascript, 'body.redirect_url') !== false && strpos($jav
 assertThankYou(strpos($module, 'hookDisplayPaymentReturn') !== false, 'native payment return hook missing');
 assertThankYou(strpos($module, "'displayPaymentReturn'") !== false, 'displayPaymentReturn must be registered');
 assertThankYou(strpos($module, 'php_self === \'order-confirmation\'') !== false, 'thank-you CSS must load on order-confirmation');
-assertThankYou(strpos($template, "s='УниКредит лизинг'") !== false, 'thank-you heading must match Woo УниКредит лизинг');
+assertThankYou(strpos($template, "s='UniCredit leasing'") !== false, 'thank-you heading must match Woo UniCredit leasing');
 assertThankYou(strpos($template, 'unipayment_leasing_rows') !== false, 'thank-you must render leasing rows');
 assertThankYou(strpos($css, 'unipayment-thankyou-credit-details') !== false, 'thank-you CSS class missing');
 assertThankYou(strpos($presenter, 'SENT_PROCESS2') !== false, 'thank-you must be limited to Process 2 orders');

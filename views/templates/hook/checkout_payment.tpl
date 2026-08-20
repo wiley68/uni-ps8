@@ -3,14 +3,14 @@
         data-config="{$unipayment_checkout_json|escape:'htmlall':'UTF-8'}"
         data-calculate-endpoint="{$unipayment_checkout_calculate_url|escape:'htmlall':'UTF-8'}"
         data-popup-token="{$unipayment_checkout_token|escape:'htmlall':'UTF-8'}"
-        data-consents-required-message="{l s='Моля, приемете всички задължителни съгласия.' d='Modules.Unipayment.Shop'}"
-        data-consents-tooltip="{l s='Моля, първо приемете общите условия, за да продължите с поръчката.' d='Modules.Unipayment.Shop'}"
-        data-egn-required-message="{l s='Полето „ЕГН“ е задължително.' d='Modules.Unipayment.Shop'}"
-        data-egn-invalid-message="{l s='Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).' d='Modules.Unipayment.Shop'}"
-        data-phone2-required-message="{l s='Полето „Втори телефон“ е задължително.' d='Modules.Unipayment.Shop'}"
-        data-phone2-invalid-message="{l s='Въведете валиден втори телефонен номер.' d='Modules.Unipayment.Shop'}"
-        data-calculate-failed-message="{l s='Неуспешно изчисление. Моля, опитайте отново.' d='Modules.Unipayment.Shop'}"
-        data-submitting-message="{l s='Заявката вече се обработва. Моля, изчакайте.' d='Modules.Unipayment.Shop'}">
+        data-consents-required-message="{l s='Please accept all mandatory consents.' d='Modules.Unipayment.Shop'}"
+        data-consents-tooltip="{l s='Please accept the terms and conditions first to continue with your order.' d='Modules.Unipayment.Shop'}"
+        data-egn-required-message="{l s='The "EGN" field is required.' d='Modules.Unipayment.Shop'}"
+        data-egn-invalid-message="{l s='Enter a valid EGN (10 digits; the first 8 must be a YYYYMMDD date).' d='Modules.Unipayment.Shop'}"
+        data-phone2-required-message="{l s='The "Secondary phone" field is required.' d='Modules.Unipayment.Shop'}"
+        data-phone2-invalid-message="{l s='Enter a valid secondary phone number.' d='Modules.Unipayment.Shop'}"
+        data-calculate-failed-message="{l s='Calculation failed. Please try again.' d='Modules.Unipayment.Shop'}"
+        data-submitting-message="{l s='The request is already being processed. Please wait.' d='Modules.Unipayment.Shop'}">
         <input type="hidden" name="unipayment_checkout_submit" value="1">
         <input type="hidden" name="unipayment_checkout_token"
             value="{$unipayment_checkout_token|escape:'htmlall':'UTF-8'}">
@@ -22,17 +22,17 @@
 
         <div class="unipayment-checkout__panel">
             <p class="unipayment-checkout__intro">
-                {l s='Можете да изберете \'Срок за кредита\', предпочитаната от Вас \'Месечна вноска\', както и при желание \'Първоначална вноска\'. След което да потвърдите избора си. Ще бъдете прехвърлени към страницата на UniCredit за довършване на покупката си на кредит.' d='Modules.Unipayment.Shop'}
+                {l s='You can choose the credit term, your preferred monthly installment, and optionally a down payment. After you confirm your selection, you will be redirected to the UniCredit page to complete your credit purchase.' d='Modules.Unipayment.Shop'}
             </p>
 
             {if !$unipayment_checkout.has_schemes}
                 <p class="unipayment-checkout__notice">
-                    {l s='Няма налични схеми за текущата поръчка.' d='Modules.Unipayment.Shop'}</p>
+                    {l s='No financing schemes are available for the current order.' d='Modules.Unipayment.Shop'}</p>
             {else}
                 <div class="unipayment-checkout__calc">
                     <div class="unipayment-checkout__calc-fields">
                         <div class="unipayment-checkout__row">
-                            <div class="unipayment-checkout__label">{l s='Цена на поръчката' d='Modules.Unipayment.Shop'}
+                            <div class="unipayment-checkout__label">{l s='Order total' d='Modules.Unipayment.Shop'}
                             </div>
                             <div
                                 class="unipayment-checkout__value{if $unipayment_checkout.currency_dual} unipayment-checkout__value--dual{/if}">
@@ -46,7 +46,7 @@
                         <div class="unipayment-checkout__row">
                             <div class="unipayment-checkout__label">
                                 <label
-                                    for="unipayment-checkout-months">{l s='Брой месеци за погасяване' d='Modules.Unipayment.Shop'}</label>
+                                    for="unipayment-checkout-months">{l s='Number of repayment months' d='Modules.Unipayment.Shop'}</label>
                             </div>
                             <div class="unipayment-checkout__value">
                                 <select id="unipayment-checkout-months" class="unipayment-checkout__select"
@@ -56,7 +56,7 @@
                                             data-kop="{$scheme.kop_code|escape:'htmlall':'UTF-8'}"
                                             {if $scheme.key === $unipayment_checkout.default_scheme_key} selected{/if}>
                                             {$scheme.months|intval}
-                                            {l s='месеца' d='Modules.Unipayment.Shop'}{if $scheme.description} -
+                                            {l s='months' d='Modules.Unipayment.Shop'}{if $scheme.description} -
                                             {$scheme.description|escape:'htmlall':'UTF-8'}{/if}&nbsp;&nbsp;&nbsp;</option>
                                     {/foreach}
                                 </select>
@@ -67,7 +67,7 @@
                             data-unipayment-first-row>
                             <div class="unipayment-checkout__label">
                                 <label
-                                    for="unipayment-checkout-first">{l s='Първоначална вноска /евро/' d='Modules.Unipayment.Shop'}</label>
+                                    for="unipayment-checkout-first">{l s='Down payment /EUR/' d='Modules.Unipayment.Shop'}</label>
                             </div>
                             <div class="unipayment-checkout__value">
                                 <input id="unipayment-checkout-first" class="unipayment-checkout__input" type="text"
@@ -78,7 +78,7 @@
                         </div>
 
                         <div class="unipayment-checkout__row">
-                            <div class="unipayment-checkout__label">{l s='Обща сума на заема' d='Modules.Unipayment.Shop'}
+                            <div class="unipayment-checkout__label">{l s='Total loan amount' d='Modules.Unipayment.Shop'}
                             </div>
                             <div
                                 class="unipayment-checkout__value{if $unipayment_checkout.currency_dual} unipayment-checkout__value--dual{/if}">
@@ -91,7 +91,7 @@
 
                         <div class="unipayment-checkout__row">
                             <div class="unipayment-checkout__label">
-                                {l s='Размер на погасителна вноска' d='Modules.Unipayment.Shop'}</div>
+                                {l s='Installment amount' d='Modules.Unipayment.Shop'}</div>
                             <div
                                 class="unipayment-checkout__value{if $unipayment_checkout.currency_dual} unipayment-checkout__value--dual{/if}">
                                 <span class="unipayment-checkout__amount-primary"
@@ -102,7 +102,7 @@
                         </div>
 
                         <div class="unipayment-checkout__row">
-                            <div class="unipayment-checkout__label">{l s='Обща дължима сума' d='Modules.Unipayment.Shop'}
+                            <div class="unipayment-checkout__label">{l s='Total amount due' d='Modules.Unipayment.Shop'}
                             </div>
                             <div
                                 class="unipayment-checkout__value{if $unipayment_checkout.currency_dual} unipayment-checkout__value--dual{/if}">
@@ -114,14 +114,14 @@
                         </div>
 
                         <div class="unipayment-checkout__row">
-                            <div class="unipayment-checkout__label">{l s='ГЛП' d='Modules.Unipayment.Shop'}</div>
+                            <div class="unipayment-checkout__label">{l s='AIR' d='Modules.Unipayment.Shop'}</div>
                             <div class="unipayment-checkout__value">
                                 <span class="unipayment-checkout__percent" data-unipayment-display="glp"></span>
                             </div>
                         </div>
 
                         <div class="unipayment-checkout__row">
-                            <div class="unipayment-checkout__label">{l s='ГПР' d='Modules.Unipayment.Shop'}</div>
+                            <div class="unipayment-checkout__label">{l s='APR' d='Modules.Unipayment.Shop'}</div>
                             <div class="unipayment-checkout__value">
                                 <span class="unipayment-checkout__percent" data-unipayment-display="gpr"></span>
                             </div>
@@ -130,7 +130,7 @@
                         {if $unipayment_checkout.process2}
                             <div class="unipayment-checkout__row">
                                 <div class="unipayment-checkout__label">
-                                    <label for="unipayment-checkout-egn">{l s='ЕГН' d='Modules.Unipayment.Shop'} <span
+                                    <label for="unipayment-checkout-egn">{l s='EGN' d='Modules.Unipayment.Shop'} <span
                                             class="unipayment-checkout__required" aria-hidden="true">*</span></label>
                                 </div>
                                 <div class="unipayment-checkout__value">
@@ -141,7 +141,7 @@
                             </div>
                             <div class="unipayment-checkout__row">
                                 <div class="unipayment-checkout__label">
-                                    <label for="unipayment-checkout-phone2">{l s='Втори телефон' d='Modules.Unipayment.Shop'}
+                                    <label for="unipayment-checkout-phone2">{l s='Secondary phone' d='Modules.Unipayment.Shop'}
                                         <span class="unipayment-checkout__required" aria-hidden="true">*</span></label>
                                 </div>
                                 <div class="unipayment-checkout__value">
@@ -160,7 +160,7 @@
 
             {if $unipayment_checkout.consents}
                 <div class="unipayment-checkout__consents" data-unipayment-consents
-                    aria-label="{l s='Съгласия' d='Modules.Unipayment.Shop'}">
+                    aria-label="{l s='Consents' d='Modules.Unipayment.Shop'}">
                     {foreach from=$unipayment_checkout.consents item=consent}
                         <div
                             class="unipayment-checkout__consent{if !$consent.has_checkbox} unipayment-checkout__consent--info{/if}">

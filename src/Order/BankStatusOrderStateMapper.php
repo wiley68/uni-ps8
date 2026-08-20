@@ -14,14 +14,14 @@ namespace PrestaShop\Module\Unipayment\Order;
 final class BankStatusOrderStateMapper
 {
     private const REJECTION_LABELS = [
-        'Отказана',
-        'Отказана от клиент',
-        'Отказана от клиент при контакт',
+        'Declined',
+        'Declined by customer',
+        'Declined by customer on contact',
     ];
 
     private const ACCEPTANCE_LABELS = [
-        'Сключен договор',
-        'Активиран договор',
+        'Signed contract',
+        'Activated contract',
     ];
 
     /**

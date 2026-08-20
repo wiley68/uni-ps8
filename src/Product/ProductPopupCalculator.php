@@ -97,7 +97,7 @@ final class ProductPopupCalculator
     private function amountDisplay(float $amount, array $shop): array
     {
         $mode = (int) ($shop['uni_eur'] ?? 0);
-        $primaryCurrency = in_array($mode, [2, 3], true) ? 'евро' : 'лв.';
+        $primaryCurrency = in_array($mode, [2, 3], true) ? 'EUR' : 'BGN';
         $primary = number_format(abs($amount), 2, '.', '') . ' ' . $primaryCurrency;
         if (!in_array($mode, [1, 2], true)) {
             return ['primary' => $primary, 'secondary' => '', 'dual' => false];
@@ -106,7 +106,7 @@ final class ProductPopupCalculator
 
         return [
             'primary' => $primary,
-            'secondary' => number_format(abs($secondary), 2, '.', '') . ' ' . ($mode === 1 ? 'евро' : 'лв.'),
+            'secondary' => number_format(abs($secondary), 2, '.', '') . ' ' . ($mode === 1 ? 'EUR' : 'BGN'),
             'dual' => true,
         ];
     }

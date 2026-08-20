@@ -30,7 +30,7 @@ final class ProductPopupPresenter
             'banner_link' => $bannerLink,
             'currency_mode' => (int) ($shop['uni_eur'] ?? 0),
             'button_action' => $buttonAction === 'buy' ? 'buy' : 'add_to_cart',
-            'secondary_label' => $buttonAction === 'buy' ? 'Купи' : 'Добави в количката',
+            'secondary_label' => $buttonAction === 'buy' ? 'Buy' : 'Add to cart',
             'customer' => array_replace([
                 'first_name' => '',
                 'last_name' => '',

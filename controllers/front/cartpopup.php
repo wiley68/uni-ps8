@@ -205,7 +205,7 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
                             );
                             $this->markSmartUcfFailure($cpClient, $result->idOrder, $result->orderReference);
                             $finalStatus = BankStatus::smartUcfFailure();
-                            $response['smartucf_error'] = 'Има временен проблем с услугата за изпращане на поръчки към Банката.';
+                            $response['smartucf_error'] = 'There is a temporary problem with the bank order submission service.';
                         }
                     }
 
@@ -227,7 +227,7 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
                     'UniPayment cart popup post-order step failed: ' . get_class($postOrderException) . ' ' . $postOrderException->getMessage(),
                     2
                 );
-                $response['post_order_error'] = 'Поръчката е създадена, но допълнителната обработка не беше завършена.';
+                $response['post_order_error'] = 'The order was created, but additional processing was not completed.';
             }
 
             if ($this->isProcess2($shop)) {
@@ -252,7 +252,7 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
             PrestaShopLogger::addLog('UniPayment cart popup apply orchestration failed: ' . get_class($exception), 2);
             http_response_code(500);
 
-            return ['success' => false, 'message' => 'Заявката за финансиране не може да бъде обработена. Моля, опитайте отново.'];
+            return ['success' => false, 'message' => 'The financing request could not be processed. Please try again.'];
         } catch (Throwable $exception) {
             PrestaShopLogger::addLog('UniPayment cart popup apply failed: ' . get_class($exception) . ' ' . $exception->getMessage(), 2);
             http_response_code(422);
@@ -332,7 +332,7 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
             }
         }
 
-        return 'Има временен проблем с услугата за изпращане на поръчки към Банката.';
+        return 'There is a temporary problem with the bank order submission service.';
     }
 
     /** @param array<string, mixed> $shop */

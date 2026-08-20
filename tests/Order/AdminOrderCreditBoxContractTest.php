@@ -22,8 +22,8 @@ $root = dirname(__DIR__, 2);
 $template = (string) file_get_contents($root . '/views/templates/hook/admin_order_financing_details.tpl');
 
 assertAdminOrderCreditBox(
-    strpos($template, "{l s='УниКредит — кредитна заявка' d='Modules.Unipayment.Admin'}") !== false,
-    'admin order box title must match Woo УниКредит — кредитна заявка'
+    strpos($template, "{l s='UniCredit — credit application' d='Modules.Unipayment.Admin'}") !== false,
+    'admin order box title must match Woo UniCredit — credit application'
 );
 assertAdminOrderCreditBox(strpos($template, 'Bank status') === false, 'admin order box must not have a separate Bank status section');
 assertAdminOrderCreditBox(strpos($template, 'Leasing terms') === false, 'admin order box must not use a Leasing terms heading');
@@ -32,15 +32,15 @@ assertAdminOrderCreditBox(strpos($template, 'unipayment_leasing_rows') !== false
 $presenter = (new \ReflectionClass(LeasingOrderEmailPresenter::class))->newInstanceWithoutConstructor();
 $rows = $presenter->applyBankStatusLabel(
     [
-        'Статус към банката' => 'Изпратен Банка - Процес 1',
-        'КОП' => 'ABC',
+        'Bank status' => 'Sent to bank - Process 1',
+        'KOP' => 'ABC',
     ],
     'Одобрен'
 );
 $labels = array_keys($rows);
 
-assertAdminOrderCreditBox($labels[0] === 'Статус към банката', 'bank status must remain the first leasing row');
-assertAdminOrderCreditBox($rows['Статус към банката'] === 'Одобрен', 'live bank status must replace the snapshot fallback');
-assertAdminOrderCreditBox($rows['КОП'] === 'ABC', 'leasing terms must stay after the bank status row');
+assertAdminOrderCreditBox($labels[0] === 'Bank status', 'bank status must remain the first leasing row');
+assertAdminOrderCreditBox($rows['Bank status'] === 'Одобрен', 'live bank status must replace the snapshot fallback');
+assertAdminOrderCreditBox($rows['KOP'] === 'ABC', 'leasing terms must stay after the bank status row');
 
 fwrite(STDOUT, "OK (Admin order credit box Woo parity)\n");

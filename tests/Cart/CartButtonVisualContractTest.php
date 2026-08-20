@@ -22,7 +22,7 @@ $javascript = (string) file_get_contents($root . '/views/js/cart-calculator.js')
 $module = (string) file_get_contents($root . '/unipayment.php');
 
 assertCartVisualContract(strpos($template, 'unipayment-product-calculator__button') !== false, 'cart must reuse product button classes');
-assertCartVisualContract(strpos($template, "s='Купи на изплащане'") !== false, 'cart buttons must use the same title as product');
+assertCartVisualContract(strpos($template, "s='Buy on installment'") !== false, 'cart buttons must use the same title as product');
 assertCartVisualContract(strpos($template, 'data-unipayment-logo') !== false, 'standard cart button must render the official logo');
 assertCartVisualContract(strpos($template, '>0%</span>') !== false, 'promo cart button must retain the textual 0% distinction');
 assertCartVisualContract(strpos($template, '.installment_label|escape') !== false, 'initial cart button label must use the server-side Woo format');

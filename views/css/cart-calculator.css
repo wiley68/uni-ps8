@@ -17,7 +17,7 @@
   align-items: center;
 }
 
-/* Woo hide_add_to_cart: Step 1 shows only Отказ + Кандидатствай */
+/* Woo hide_add_to_cart: Step 1 shows only Cancel + Apply */
 [data-unipayment-source="cart"] [data-unipayment-secondary] {
   display: none !important;
 }

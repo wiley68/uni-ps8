@@ -21,12 +21,12 @@ $js = (string) file_get_contents($root . '/views/js/checkout-payment.js');
 $validate = (string) file_get_contents($root . '/controllers/front/validatecheckout.php');
 $module = (string) file_get_contents($root . '/unipayment.php');
 
-assertCheckoutUi(strpos($template, "s='Цена на поръчката'") !== false, 'checkout must use Woo cart/order price label');
-assertCheckoutUi(strpos($template, "Срок за кредита") !== false, 'checkout intro must match Woo copy');
-assertCheckoutUi(strpos($template, "s='Брой месеци за погасяване'") !== false, 'months label must match Woo');
-assertCheckoutUi(strpos($template, "s='Първоначална вноска /евро/'") !== false, 'first installment label must match Woo');
-assertCheckoutUi(strpos($template, "s='Обща сума на заема'") !== false, 'loan amount label must match Woo');
-assertCheckoutUi(strpos($template, "s='ЕГН'") !== false && strpos($template, "s='Втори телефон'") !== false, 'Process 2 fields must be present');
+assertCheckoutUi(strpos($template, "s='Order total'") !== false, 'checkout must use order total label');
+assertCheckoutUi(strpos($template, 'redirected to the UniCredit page') !== false, 'checkout intro must describe UniCredit redirect');
+assertCheckoutUi(strpos($template, "s='Number of repayment months'") !== false, 'months label must be present');
+assertCheckoutUi(strpos($template, "s='Down payment /EUR/'") !== false, 'first installment label must be present');
+assertCheckoutUi(strpos($template, "s='Total loan amount'") !== false, 'loan amount label must be present');
+assertCheckoutUi(strpos($template, "s='EGN'") !== false && strpos($template, "s='Secondary phone'") !== false, 'Process 2 fields must be present');
 assertCheckoutUi(strpos($template, 'data-unipayment-consent-checkbox') !== false, 'checkout consents must expose checkbox actions');
 assertCheckoutUi(strpos($template, 'unipayment-checkout__consent--info') !== false, 'optional consent info rows must remain');
 assertCheckoutUi(strpos($css, '--unipayment-checkout-red: #ed1c24') !== false, 'checkout CSS must use UniCredit red token');

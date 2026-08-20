@@ -104,7 +104,7 @@ final class CartPopupApplyService
             $accepted = $this->consents->validate($shop, $posted['consent'] ?? []);
         } catch (CheckoutValidationException $exception) {
             throw new ProductPopupValidationException([
-                'consents' => 'Моля, приемете всички задължителни съгласия.',
+                'consents' => 'Please accept all mandatory consents.',
             ]);
         }
         $acceptedConsents = array_values(array_filter(

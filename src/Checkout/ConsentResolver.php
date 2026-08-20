@@ -49,7 +49,7 @@ final class ConsentResolver
         $acceptedIds = array_values(array_unique(array_filter(array_map('intval', $accepted))));
         foreach ($this->normalize($shop) as $consent) {
             if ($consent['mandatory'] && !in_array($consent['id'], $acceptedIds, true)) {
-                throw new CheckoutValidationException('Моля, приемете всички задължителни съгласия.');
+                throw new CheckoutValidationException('Please accept all mandatory consents.');
             }
         }
 

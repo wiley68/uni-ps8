@@ -22,15 +22,15 @@ $controller = (string) file_get_contents($root . '/controllers/front/productpopu
 $preferenceStore = (string) file_get_contents($root . '/src/Checkout/CheckoutPreferenceStore.php');
 $checkoutJs = (string) file_get_contents($root . '/views/js/checkout-payment.js');
 
-assertProductPopupContract(strpos($template, "s='Избор на схема за лизинг'") !== false, 'Woo Step 1 heading missing');
-foreach (['Цена на артикула', 'Брой месеци за погасяване', 'Първоначална вноска /евро/', 'Обща сума на заема', 'Размер на погасителна вноска', 'Обща дължима сума', 'ГЛП', 'ГПР'] as $label) {
+assertProductPopupContract(strpos($template, "s='Choose a leasing scheme'") !== false, 'Woo Step 1 heading missing');
+foreach (['Item price', 'Number of repayment months', 'Down payment /EUR/', 'Total loan amount', 'Installment amount', 'Total amount due', 'AIR', 'APR'] as $label) {
     assertProductPopupContract(strpos($template, $label) !== false, "missing popup field {$label}");
 }
-assertProductPopupContract(strpos($template, 'data-unipayment-close') !== false && strpos($template, "s='Отказ'") !== false, 'explicit Cancel control missing');
+assertProductPopupContract(strpos($template, 'data-unipayment-close') !== false && strpos($template, "s='Cancel'") !== false, 'explicit Cancel control missing');
 assertProductPopupContract(strpos($template, 'class="unipayment-product-calculator__overlay" aria-hidden="true"') !== false, 'overlay must be presentation-only');
 assertProductPopupContract(strpos($template, 'unipayment_popup.banner_url') !== false && strpos($template, 'unipayment_popup.banner_url_mobile') !== false, 'CP responsive banner sources missing');
 assertProductPopupContract(strpos($template, 'data-unipayment-step="2" hidden') !== false, 'Step 2 placeholder contract missing');
-assertProductPopupContract(strpos($template, "s='Попълване на лични данни'") !== false, 'Woo Step 2 heading missing');
+assertProductPopupContract(strpos($template, "s='Enter personal details'") !== false, 'Woo Step 2 heading missing');
 $step2Fields = ['first_name', 'last_name', 'address', 'phone', 'email'];
 foreach ($step2Fields as $field) {
     assertProductPopupContract(substr_count($template, 'name="' . $field . '"') === 1, "Step 2 field {$field} must occur exactly once");
@@ -38,41 +38,48 @@ foreach ($step2Fields as $field) {
 assertProductPopupContract(strpos($template, '{if $unipayment_require_egn}') !== false, 'Process 2 extra fields must be gated');
 assertProductPopupContract(substr_count($template, 'name="egn"') === 1 && substr_count($template, 'name="phone2"') === 1, 'Process 2 Step 2 fields EGN and secondary phone must occur once');
 assertProductPopupContract(substr_count($template, 'aria-required="true"') === 7, 'all five base Step 2 fields plus Process 2 EGN and secondary phone must be required');
-foreach (['Име', 'Фамилия', 'Адрес', 'Мобилен телефон', 'E-Mail', 'ЕГН', 'Втори телефон', 'Назад', 'Изпрати'] as $step2Label) {
+foreach (['First name', 'Last name', 'Address', 'Mobile phone', 'E-Mail', 'EGN', 'Secondary phone', 'Back', 'Submit'] as $step2Label) {
     assertProductPopupContract(strpos($template, $step2Label) !== false, "missing Step 2 label {$step2Label}");
 }
 assertProductPopupContract(strpos($template, 'data-unipayment-step="3" hidden') !== false, 'final informational placeholder missing');
 assertProductPopupContract(strpos($template, 'data-unipayment-popup-badge') === false && strpos($template, 'unipayment_popup_badge_url') !== false, 'official Apply badge asset missing');
-assertProductPopupContract(strpos($template, 'data-unipayment-first type="text" inputmode="numeric" pattern="[0-9]*"') !== false, 'editable first installment must use an integer-only input contract');
+assertProductPopupContract(
+    strpos($template, 'data-unipayment-first') !== false
+        && strpos($template, 'inputmode="numeric"') !== false
+        && strpos($template, 'pattern="[0-9]*"') !== false
+        && (bool) preg_match('/data-unipayment-first[\s\S]{0,200}type="text"[\s\S]{0,120}inputmode="numeric"[\s\S]{0,80}pattern="\[0-9\]\*"/', $template),
+    'editable first installment must use an integer-only input contract'
+);
 
-assertProductPopupContract(strpos($javascript, "window.setTimeout(calculateNow, 800)") !== false, 'first-installment debounce contract missing');
-assertProductPopupContract(strpos($javascript, "first.value = first.value.replace(/\\D/g, '')") !== false, 'first-installment non-digit filtering missing');
-assertProductPopupContract(strpos($javascript, "payload.set('popup_offer_type', activeType)") !== false, 'popup context must be sent for authoritative mixed-scheme validation');
-assertProductPopupContract(strpos($javascript, "payload.set('scheme_key', scheme.key || '')") !== false && strpos($javascript, "payload.set('kop_code', scheme.kop_code || '')") !== false, 'full Product Popup scheme identity must be sent for server-side validation');
+assertProductPopupContract(strpos($javascript, 'window.setTimeout(calculateNow, 800)') !== false, 'first-installment debounce contract missing');
+assertProductPopupContract(
+    (bool) preg_match("/first\\.value = first\\.value\\.replace\\(\\/\\\\D\\/g, ['\\\"]{2}\\)/", $javascript),
+    'first-installment non-digit filtering missing'
+);
+assertProductPopupContract(strpos($javascript, 'payload.set("popup_offer_type", activeType)') !== false, 'popup context must be sent for authoritative mixed-scheme validation');
+assertProductPopupContract(strpos($javascript, 'payload.set("scheme_key", fields.scheme_key)') !== false && strpos($javascript, 'payload.set("kop_code", fields.kop_code)') !== false, 'full Product Popup scheme identity must be sent for server-side validation');
 assertProductPopupContract(strpos($javascript, 'calculationPayload("apply")') !== false, 'Step 2 submit must send the Step 1 identity for authoritative apply');
 assertProductPopupContract(strpos($javascript, 'payload.set("phone2"') !== false, 'Process 2 secondary phone must be sent with apply');
-assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-back]')") !== false && strpos($javascript, 'setStep(1)') !== false, 'Step 2 Back navigation missing');
+assertProductPopupContract(strpos($javascript, 'event.target.closest("[data-unipayment-back]")') !== false && strpos($javascript, 'setStep(1)') !== false, 'Step 2 Back navigation missing');
 assertProductPopupContract(strpos($javascript, 'input.value = input.defaultValue') !== false, 'Cancel/new popup flow must reset transient Step 2 values');
 assertProductPopupContract(strpos($template, '<form class="unipayment-product-calculator__customer-form"') === false, 'Step 2 must not create an invalid form nested inside the Product add-to-cart form');
 assertProductPopupContract(strpos($javascript, 'setStep(3)') !== false, 'successful validation must transition only to the final placeholder');
 assertProductPopupContract(strpos($javascript, 'new AbortController()') !== false && strpos($javascript, 'calculateSequence') !== false, 'abort/stale calculation guards missing');
-assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-close]')") !== false, 'Cancel close behavior missing');
-assertProductPopupContract(strpos($javascript, "event.target.closest('[data-unipayment-overlay]')") === false, 'overlay must not close popup');
-assertProductPopupContract(strpos($javascript, "event.key === 'Escape'") !== false, 'Woo Escape close parity missing');
+assertProductPopupContract(strpos($javascript, 'event.target.closest("[data-unipayment-close]")') !== false, 'Cancel close behavior missing');
+assertProductPopupContract(strpos($javascript, 'event.target.closest("[data-unipayment-overlay]")') === false, 'overlay must not close popup');
+assertProductPopupContract(strpos($javascript, 'event.key === "Escape"') !== false, 'Woo Escape close parity missing');
 assertProductPopupContract(strpos($javascript, '.product-add-to-cart button[data-button-action="add-to-cart"]') !== false, 'native PrestaShop add-to-cart integration missing');
 assertProductPopupContract(strpos($javascript, 'button.click()') !== false, 'native Product Page add-to-cart control must perform the mutation');
-assertProductPopupContract(strpos($javascript, "requestCalculation('preselect')") !== false && strpos($javascript, "window.prestashop.on('updatedCart'") !== false, 'Buy preselection/native-cart redirect flow missing');
-assertProductPopupContract(strpos($javascript, "setStep(2)") !== false && strpos($javascript, 'unipaymentSelectedFinancing') !== false, 'Apply Step 1 transition state missing');
+assertProductPopupContract(strpos($javascript, 'requestCalculation("preselect")') !== false && strpos($javascript, 'window.prestashop.on("updatedCart"') !== false, 'Buy preselection/native-cart redirect flow missing');
+assertProductPopupContract(strpos($javascript, 'setStep(2)') !== false && strpos($javascript, 'unipaymentSelectedFinancing') !== false, 'Apply Step 1 transition state missing');
 assertProductPopupContract(strpos($javascript, 'productAttributeId(document)') !== false && strpos($javascript, 'quantity()') !== false, 'dynamic Product context integration missing');
 assertProductPopupContract(strpos($javascript, 'unipaymentInvalidatePopup') !== false, 'dynamic Product changes must invalidate stale open-popup state immediately');
 
 assertProductPopupContract(strpos($controller, 'ProductContextFactory())->create') !== false, 'server-authoritative product price reconstruction missing');
 assertProductPopupContract(strpos($controller, 'ProductPopupCalculator(new Calculator())') !== false, 'Phase 5 calculator integration missing');
 assertProductPopupContract(strpos($controller, "if (\$action === 'validate_step2')") !== false && strpos($controller, 'ProductPopupCustomerValidator') !== false, 'Step 2 server validation contract missing');
-foreach (['validateOrder', 'OrderOrchestrator', 'ControlPanel', 'SmartUcf'] as $forbidden) {
-    assertProductPopupContract(strpos($controller, $forbidden) === false, "popup must not invoke {$forbidden}");
-}
-assertProductPopupContract(strpos($controller, "Tools::getValue('monthly_installment'") === false && strpos($controller, "Tools::getValue('total_payable'") === false, 'browser financial values must not be trusted during Step 2 validation');
+assertProductPopupContract(strpos($controller, 'OrderOrchestrator') !== false, 'Apply must orchestrate order creation after Step 2');
+assertProductPopupContract(strpos($controller, 'Tools::getValue(\'monthly_installment\'') === false && strpos($controller, 'Tools::getValue(\'total_payable\'') === false, 'browser financial values must not be trusted during Step 2 validation');
 foreach (['delete', 'deleteProduct', 'updateQty'] as $forbiddenCartMutation) {
     assertProductPopupContract(strpos($controller, $forbiddenCartMutation) === false, 'shortcut controller must not remove or independently mutate existing cart products');
 }

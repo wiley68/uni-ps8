@@ -19,7 +19,7 @@ use PrestaShop\Module\Unipayment\Order\OrderOrchestrationResult;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 
 /**
- * Coordinates the direct order flow from the product popup Step 2 "Изпрати".
+ * Coordinates the direct order flow from the product popup Step 2 "Submit".
  *
  * Flow:
  *  1. Re-validate financing scheme availability and recalculate
@@ -106,7 +106,7 @@ final class ProductPopupApplyService
             $accepted = $this->consents->validate($shop, $posted['consent'] ?? []);
         } catch (CheckoutValidationException $exception) {
             throw new ProductPopupValidationException([
-                'consents' => 'Моля, приемете всички задължителни съгласия.',
+                'consents' => 'Please accept all mandatory consents.',
             ]);
         }
         $acceptedConsents = array_values(array_filter(

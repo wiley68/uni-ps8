@@ -53,7 +53,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
         $lock = new CheckoutSubmitLock();
         if (!$lock->acquire($idShop, $idCart)) {
             $this->showError($this->module->getTranslator()->trans(
-                'Заявката вече се обработва. Моля, изчакайте.',
+                'The request is already being processed. Please wait.',
                 [],
                 'Modules.Unipayment.Shop'
             ));
