@@ -19,7 +19,7 @@ class Unipayment extends PaymentModule
         $this->name = 'unipayment';
         $this->tab = 'payments_gateways';
         $this->version = '2.0.0';
-        $this->author = 'wiley68';
+        $this->author = 'Avalon Ltd';
         $this->need_instance = 0;
         $this->bootstrap = true;
         $this->ps_versions_compliancy = [
@@ -30,12 +30,12 @@ class Unipayment extends PaymentModule
         parent::__construct();
 
         $this->displayName = $this->trans(
-            'UniCredit Credit Calculator',
+            'UniCredit Credit purchases',
             [],
             'Modules.Unipayment.Admin'
         );
         $this->description = $this->trans(
-            'Allows your customers to purchase goods in installments with UniCredit.',
+            'UniCredit Credit Purchases — PrestaShop module for installment purchases.',
             [],
             'Modules.Unipayment.Admin'
         );
