@@ -26,7 +26,27 @@ final class LeasingOrderEmailPresenter
      */
     public function mailExtraVarsFromRequest(ValidatedPaymentRequest $request, array $shop): array
     {
-        $rows = $this->rowsFromRequest($request, $shop);
+        return $this->mailExtraVarsFromRows($this->rowsFromRequest($request, $shop));
+    }
+
+    /**
+     * @param array<string, mixed> $snapshot
+     * @param array<string, mixed> $shop
+     *
+     * @return array<string, string>
+     */
+    public function mailExtraVarsFromSnapshot(array $snapshot, array $shop): array
+    {
+        return $this->mailExtraVarsFromRows($this->rowsFromSnapshot($snapshot, $shop));
+    }
+
+    /**
+     * @param array<string, string> $rows
+     *
+     * @return array<string, string>
+     */
+    private function mailExtraVarsFromRows(array $rows): array
+    {
         if ($rows === []) {
             return [];
         }

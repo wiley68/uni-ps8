@@ -15,9 +15,9 @@ use PrestaShop\Module\Unipayment\Checkout\CustomerFieldValidator;
 use PrestaShop\Module\Unipayment\Order\BankStatus;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderPayloadBuilder;
+use PrestaShop\Module\Unipayment\Order\FinancingOrderMailDispatcher;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotFactory;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
-use PrestaShop\Module\Unipayment\Order\LeasingEmailNotifier;
 use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
 use PrestaShop\Module\Unipayment\Order\OrderAttemptRepository;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
@@ -83,13 +83,9 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             $result = $orchestrator->orchestrate((int) $this->context->shop->id, (int) $this->context->cart->id, $request, $shop);
             $snapshot = (new FinancingSnapshotRepository())->findByAttempt($result->attemptId);
             $process2 = $this->isProcess2($shop);
-            $sentStatus = BankStatus::successfulSend($process2);
-            if ($snapshot !== null) {
-                $snapshot['status_label'] = $sentStatus['status_label'];
-                if ($process2) {
-                    $this->persistBankStatus($result->orderReference, $sentStatus);
-                }
-                (new LeasingEmailNotifier())->notify($snapshot, $result->attemptId, $shop);
+            $finalStatus = BankStatus::successfulSend($process2);
+            if ($snapshot !== null && $process2) {
+                $this->persistBankStatus($result->orderReference, $finalStatus);
             }
 
             if (!$process2) {
@@ -100,8 +96,9 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                     $smartUcf = new SmartUcfSessionClient($payloadBuilder);
                     try {
                         $session = $smartUcf->createSession($shop, $snapshot);
-                        $this->persistBankStatus($result->orderReference, $sentStatus);
+                        $this->persistBankStatus($result->orderReference, $finalStatus);
                         $this->logSmartUcfSession($result->idOrder, $result->orderReference, $session);
+                        (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
                         Tools::redirect($session['redirect_url']);
 
                         return;
@@ -114,8 +111,15 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                             $e->rawResponse()
                         );
                         $this->markSmartUcfFailure($cpClient, $result->idOrder, $result->orderReference);
+                        $finalStatus = BankStatus::smartUcfFailure();
                     }
                 }
+            }
+
+            if ($snapshot !== null) {
+                (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
+            } else {
+                \PrestaShop\Module\Unipayment\Order\DeferredOrderMailQueue::flush();
             }
 
             $this->context->smarty->assign(['unipayment_order_result' => [

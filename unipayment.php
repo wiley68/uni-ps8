@@ -73,6 +73,7 @@ class Unipayment extends PaymentModule
             && $this->registerHook('paymentOptions')
             && $this->registerHook('actionFrontControllerSetMedia')
             && $this->registerHook('sendMailAlterTemplateVars')
+            && $this->registerHook('actionEmailSendBefore')
             && $this->registerHook('actionOrderGridDefinitionModifier')
             && $this->registerHook('actionOrderGridQueryBuilderModifier')
         ) {
@@ -616,6 +617,13 @@ class Unipayment extends PaymentModule
         }
 
         return max(0, (int) Tools::getValue('id_product', 0));
+    }
+
+    /** @param array<string, mixed> $params */
+    /** @param array<string, mixed> $params */
+    public function hookActionEmailSendBefore(array $params): bool
+    {
+        return PrestaShop\Module\Unipayment\Order\DeferredOrderMailQueue::intercept($params);
     }
 
     /** @param array<string, mixed> $params */

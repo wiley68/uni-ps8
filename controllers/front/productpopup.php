@@ -7,9 +7,9 @@ use PrestaShop\Module\Unipayment\Checkout\CheckoutPreferenceStore;
 use PrestaShop\Module\Unipayment\Order\BankStatus;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderPayloadBuilder;
+use PrestaShop\Module\Unipayment\Order\FinancingOrderMailDispatcher;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotFactory;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
-use PrestaShop\Module\Unipayment\Order\LeasingEmailNotifier;
 use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
 use PrestaShop\Module\Unipayment\Order\OrderAttemptRepository;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
@@ -202,21 +202,9 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                 $snapshot = (new FinancingSnapshotRepository())->findByAttempt($result->attemptId);
                 if ($snapshot !== null) {
                     $process2 = $this->isProcess2($shop);
-                    $sentStatus = BankStatus::successfulSend($process2);
-                    $snapshot['status_label'] = $sentStatus['status_label'];
+                    $finalStatus = BankStatus::successfulSend($process2);
                     if ($process2) {
-                        $this->persistBankStatus($result->orderReference, $sentStatus);
-                    }
-
-                    try {
-                        (new LeasingEmailNotifier())->notify($snapshot, $result->attemptId, $shop);
-                    } catch (\Throwable $emailException) {
-                        PrestaShopLogger::addLog(
-                            'UniPayment popup leasing email failed: ' . get_class($emailException) . ' ' . $emailException->getMessage(),
-                            2
-                        );
-                        $this->logPopupPostOrderFailure($result->idOrder, $result->orderReference, $emailException, 'leasing-email');
-                        $response['email_error'] = 'Leasing email could not be sent.';
+                        $this->persistBankStatus($result->orderReference, $finalStatus);
                     }
 
                     if (!$process2) {
@@ -226,7 +214,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                         $smartUcf = new SmartUcfSessionClient($payloadBuilder);
                         try {
                             $session = $smartUcf->createSession($shop, $snapshot);
-                            $this->persistBankStatus($result->orderReference, $sentStatus);
+                            $this->persistBankStatus($result->orderReference, $finalStatus);
                             $response['redirect_url'] = $session['redirect_url'];
                             $this->logSmartUcf($result->idOrder, $result->orderReference, $session);
                         } catch (SmartUcfSessionException $e) {
@@ -238,6 +226,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                                 $e->rawResponse()
                             );
                             $this->markSmartUcfFailure($cpClient, $result->idOrder, $result->orderReference);
+                            $finalStatus = BankStatus::smartUcfFailure();
                             $response['smartucf_error'] = $this->smartUcfErrorMessage($e);
                         } catch (\Throwable $smartUcfException) {
                             PrestaShopLogger::addLog(
@@ -251,11 +240,27 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                                 'smartucf-unexpected',
                                 $smartUcfPayload
                             );
+                            $this->markSmartUcfFailure($cpClient, $result->idOrder, $result->orderReference);
+                            $finalStatus = BankStatus::smartUcfFailure();
                             $response['smartucf_error'] = 'Има временен проблем с услугата за изпращане на поръчки към Банката.';
                         }
                     }
+
+                    try {
+                        (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
+                    } catch (\Throwable $emailException) {
+                        PrestaShopLogger::addLog(
+                            'UniPayment popup leasing email failed: ' . get_class($emailException) . ' ' . $emailException->getMessage(),
+                            2
+                        );
+                        $this->logPopupPostOrderFailure($result->idOrder, $result->orderReference, $emailException, 'leasing-email');
+                        $response['email_error'] = 'Leasing email could not be sent.';
+                    }
+                } else {
+                    \PrestaShop\Module\Unipayment\Order\DeferredOrderMailQueue::flush();
                 }
             } catch (\Throwable $postOrderException) {
+                \PrestaShop\Module\Unipayment\Order\DeferredOrderMailQueue::flush();
                 PrestaShopLogger::addLog(
                     'UniPayment popup post-order step failed: ' . get_class($postOrderException) . ' ' . $postOrderException->getMessage(),
                     2

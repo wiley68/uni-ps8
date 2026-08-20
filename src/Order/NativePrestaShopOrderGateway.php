@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PrestaShop\Module\Unipayment\Order;
 
 use PrestaShop\Module\Unipayment\Checkout\ValidatedPaymentRequest;
+use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
 
 final class NativePrestaShopOrderGateway implements PrestaShopOrderGatewayInterface
 {
@@ -27,12 +28,19 @@ final class NativePrestaShopOrderGateway implements PrestaShopOrderGatewayInterf
         }
 
         $extraVars = $shop !== [] ? (new LeasingOrderEmailPresenter())->mailExtraVarsFromRequest($request, $shop) : [];
+        $deferProcess1Mail = $shop !== [] && !ShopConfigurationFlags::isProcess2($shop);
+        if ($deferProcess1Mail) {
+            DeferredOrderMailQueue::start();
+        }
 
         try {
             $this->module->validateOrder((int)$cart->id, (int)\Configuration::get(OrderStateInstaller::AWAITING), (float)$request->calculation->price, $this->module->displayName, null, $extraVars, (int)$cart->id_currency, false, (string)$customer->secure_key);
         } catch (\Throwable $exception) {
             $existingOrderId = (int) \Order::getIdByCartId((int) $cart->id);
             if ($existingOrderId <= 0) {
+                if ($deferProcess1Mail) {
+                    DeferredOrderMailQueue::discard();
+                }
                 throw $exception;
             }
             $this->markAwaiting($existingOrderId);
