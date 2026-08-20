@@ -30,11 +30,11 @@ assertCartVisualContract(strpos($template, 'unipayment-product-calculator__headi
 assertCartVisualContract(strpos($template, 'data-logo-standard') !== false && strpos($template, 'data-logo-alternative') !== false, 'cart must expose logo URLs for dark/light swap');
 assertCartVisualContract(strpos($cssProduct, '[data-unipayment-cart-calculator] button.unipayment-product-calculator__button') !== false, 'product button CSS must also target the cart root');
 assertCartVisualContract(strpos($cssProduct, 'RobotoCondensed-Regular-Cyrillic.woff2') !== false, 'cart button typography depends on local Cyrillic WOFF2');
-assertCartVisualContract(strpos($cssCart, 'unipayment-product-calculator__button') === false, 'cart CSS must not redefine product button visuals');
+assertCartVisualContract(strpos($cssCart, 'button.unipayment-product-calculator__button') === false, 'cart CSS must not redefine product button visuals');
+assertCartVisualContract(strpos($cssCart, 'unipayment-product-calculator__button-title') === false, 'cart CSS must not redefine product button typography');
 assertCartVisualContract(strpos($module, 'product-calculator.css') !== false && strpos($module, "php_self === 'cart'") !== false, 'cart page must enqueue product button CSS');
-assertCartVisualContract(strpos($javascript, 'applyVisualConfig(root, next)') !== false, 'AJAX refresh must reapply cart visual configuration');
-assertCartVisualContract(strpos($javascript, 'buttonInstallmentLabel(offer)') !== false, 'AJAX refresh must reuse the presenter-derived Woo label');
-assertCartVisualContract(strpos($javascript, 'formatAmount(offer.monthly_installment') === false, 'AJAX cart button label must not use locale currency formatting');
+assertCartVisualContract(strpos($javascript, 'unipaymentUpdate') !== false, 'AJAX refresh must delegate to product popup updater');
+assertCartVisualContract(strpos($javascript, 'updatedCart') !== false, 'cart AJAX refresh must listen for updatedCart');
 assertCartVisualContract(strpos($javascript, "money(offer.monthly_installment") === false, 'AJAX cart button price must not use Intl money formatting');
 
 fwrite(STDOUT, "OK (Cart button visual contract)\n");

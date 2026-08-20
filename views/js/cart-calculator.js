@@ -1,175 +1,19 @@
 (function () {
     "use strict";
+
+    /** Cart page refresh helper — popup UI/flow is handled by product-calculator.js. */
     var selector = "[data-unipayment-cart-calculator]";
 
-    function money(value, currency) {
-        try {
-            return new Intl.NumberFormat(
-                document.documentElement.lang || "bg-BG",
-                {
-                    style: "currency",
-                    currency: currency,
-                },
-            ).format(Number(value) || 0);
-        } catch (error) {
-            return (Number(value) || 0).toFixed(2) + " " + currency;
-        }
-    }
-
-    function buttonInstallmentLabel(offer) {
-        return offer && typeof offer.installment_label === "string"
-            ? offer.installment_label
-            : "";
-    }
-
-    function applyVisualConfig(root, next) {
-        if (!next) {
-            return;
-        }
-        root.classList.toggle(
-            "unipayment-product-calculator--dark",
-            !!next.dark_button,
-        );
-        root.classList.toggle(
-            "unipayment-product-calculator--no-installment",
-            !next.show_installment,
-        );
-        root.classList.toggle(
-            "unipayment-product-calculator--stacked",
-            !next.buttons_in_row,
-        );
-        root.style.setProperty(
-            "--unipayment-button-width",
-            (next.button_width || 290) + "px",
-        );
-        root.style.setProperty(
-            "--unipayment-button-height",
-            (next.button_height || 56) + "px",
-        );
-
-        var heading = root.querySelector(
-            ".unipayment-product-calculator__heading",
-        );
-        if (heading) {
-            var text = typeof next.heading === "string" ? next.heading : "";
-            heading.textContent = text;
-            heading.hidden = text === "";
-        }
-
-        var logo = root.querySelector("[data-unipayment-logo]");
-        if (logo) {
-            var standard = root.getAttribute("data-logo-standard") || "";
-            var alternative = root.getAttribute("data-logo-alternative") || "";
-            logo.src = next.dark_button ? alternative : standard;
-        }
-    }
-
-    function setup(root) {
-        if (root.dataset.unipaymentReady === "1") {
-            return;
-        }
-        root.dataset.unipaymentReady = "1";
-        var config;
-        try {
-            config = JSON.parse(root.getAttribute("data-calculator") || "{}");
-        } catch (error) {
-            return;
-        }
-        var modal = root.querySelector("[data-unipayment-cart-modal]");
-        var select = root.querySelector("[data-unipayment-cart-schemes]");
-        var active = "";
-
-        root.unipaymentCartUpdate = function (next) {
-            config = next;
-            root.setAttribute("data-calculator", JSON.stringify(next || {}));
-            root.hidden = !next;
-            applyVisualConfig(root, next);
-            root.querySelectorAll("[data-unipayment-cart-offer]").forEach(
-                function (button) {
-                    var type = button.getAttribute(
-                        "data-unipayment-cart-offer",
-                    );
-                    var offer = next && next.offers ? next.offers[type] : null;
-                    button.hidden = !offer;
-                    var price = button.querySelector(
-                        "[data-unipayment-cart-price]",
-                    );
-                    if (price) {
-                        price.textContent = offer
-                            ? buttonInstallmentLabel(offer)
-                            : "";
-                    }
-                },
-            );
-            modal.hidden = true;
-            modal.setAttribute("aria-hidden", "true");
-            document.body.classList.remove("unipayment-modal-open");
-        };
-
-        function render() {
-            var scheme = config.offers[active].schemes[select.selectedIndex];
-            [
-                "first_installment",
-                "financed_amount",
-                "monthly_installment",
-                "total_due",
-            ].forEach(function (key) {
-                root.querySelector(
-                    '[data-unipayment-cart-value="' + key + '"]',
-                ).textContent = money(scheme[key], config.currency_iso);
-            });
-            root.querySelector(
-                '[data-unipayment-cart-value="price"]',
-            ).textContent = money(config.cart_total, config.currency_iso);
-            ["glp", "gpr"].forEach(function (key) {
-                root.querySelector(
-                    '[data-unipayment-cart-value="' + key + '"]',
-                ).textContent = Number(scheme[key]).toFixed(2) + "%";
-            });
-            root.querySelector("[data-unipayment-cart-first]").hidden =
-                !config.show_first_installment &&
-                !scheme.first_installment_locked;
-        }
-
-        root.addEventListener("click", function (event) {
-            var button = event.target.closest("[data-unipayment-cart-offer]");
-            if (button) {
-                active = button.getAttribute("data-unipayment-cart-offer");
-                select.textContent = "";
-                config.offers[active].schemes.forEach(function (scheme) {
-                    var option = document.createElement("option");
-                    option.textContent = (
-                        root.getAttribute("data-months-label") || "%d months"
-                    ).replace("%d", scheme.months);
-                    option.selected =
-                        scheme.months === config.offers[active].months;
-                    select.appendChild(option);
-                });
-                render();
-                modal.hidden = false;
-                modal.setAttribute("aria-hidden", "false");
-                document.body.classList.add("unipayment-modal-open");
-            }
-            if (event.target.closest("[data-unipayment-cart-close]")) {
-                modal.hidden = true;
-                modal.setAttribute("aria-hidden", "true");
-                document.body.classList.remove("unipayment-modal-open");
-            }
-        });
-        select.addEventListener("change", render);
-    }
-
-    function initialize() {
-        document.querySelectorAll(selector).forEach(setup);
-    }
-
     function refresh() {
-        initialize();
         var root = document.querySelector(selector);
         if (!root) {
             return;
         }
-        fetch(root.getAttribute("data-endpoint"), {
+        var endpoint = root.getAttribute("data-endpoint");
+        if (!endpoint) {
+            return;
+        }
+        fetch(endpoint, {
             credentials: "same-origin",
             headers: { "X-Requested-With": "XMLHttpRequest" },
         })
@@ -177,20 +21,22 @@
                 return response.json();
             })
             .then(function (payload) {
-                root.unipaymentCartUpdate(
-                    payload.success ? payload.calculator : null,
-                );
+                var next = payload.success ? payload.calculator : null;
+                if (typeof root.unipaymentUpdate === "function") {
+                    root.unipaymentUpdate(next);
+                    return;
+                }
+                root.hidden = !next;
             })
             .catch(function () {
-                root.unipaymentCartUpdate(null);
+                if (typeof root.unipaymentUpdate === "function") {
+                    root.unipaymentUpdate(null);
+                } else {
+                    root.hidden = true;
+                }
             });
     }
 
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", initialize);
-    } else {
-        initialize();
-    }
     if (window.prestashop && typeof window.prestashop.on === "function") {
         window.prestashop.on("updatedCart", refresh);
     }

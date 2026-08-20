@@ -106,6 +106,13 @@
             "--unipayment-button-height",
             (parseInt(available.button_height, 10) || 56) + "px",
         );
+        var heading = root.querySelector(
+            ".unipayment-product-calculator__heading",
+        );
+        if (heading && typeof available.heading === "string") {
+            heading.textContent = available.heading;
+            heading.hidden = available.heading === "";
+        }
         var logo = root.querySelector("[data-unipayment-logo]");
         if (logo)
             logo.src =
@@ -136,7 +143,14 @@
         var secondaryButton = root.querySelector("[data-unipayment-secondary]");
         var submitButton = root.querySelector("[data-unipayment-submit]");
         var errorBox = root.querySelector("[data-unipayment-popup-error]");
+        var isCartSource =
+            root.getAttribute("data-unipayment-source") === "cart" ||
+            root.getAttribute("data-hide-secondary") === "1";
         var activeType = "";
+
+        function setSecondaryDisabled(disabled) {
+            if (secondaryButton) secondaryButton.disabled = !!disabled;
+        }
         var lastCalculation = null;
         var lastOpenTrigger = null;
         var calculateTimer = null;
@@ -462,7 +476,7 @@
             select.textContent = "";
             errorBox.textContent = "";
             applyButton.disabled = true;
-            secondaryButton.disabled = true;
+            setSecondaryDisabled(true);
             resetCustomerForm();
             setStep(1);
         }
@@ -584,7 +598,7 @@
                 !calculation.first_installment_locked;
             errorBox.textContent = "";
             applyButton.disabled = false;
-            secondaryButton.disabled = false;
+            setSecondaryDisabled(false);
         }
 
         function calculationPayload(action) {
@@ -647,7 +661,7 @@
                     : null;
             var sequence = ++calculateSequence;
             applyButton.disabled = true;
-            secondaryButton.disabled = true;
+            setSecondaryDisabled(true);
             var options = {
                 method: "POST",
                 credentials: "same-origin",
@@ -736,7 +750,7 @@
         }
 
         function handleSecondary() {
-            if (!lastCalculation || redirectPending) return;
+            if (isCartSource || !lastCalculation || redirectPending) return;
             if (root.getAttribute("data-button-action") !== "buy") {
                 addToCart("");
                 return;
@@ -745,7 +759,7 @@
             requestCalculation("preselect")
                 .then(function (body) {
                     applyButton.disabled = true;
-                    secondaryButton.disabled = true;
+                    setSecondaryDisabled(true);
                     addToCart(
                         body.checkout_url ||
                             root.getAttribute("data-checkout-url"),
@@ -1026,7 +1040,7 @@
             first.readOnly = false;
             lastCalculation = null;
             applyButton.disabled = true;
-            secondaryButton.disabled = true;
+            setSecondaryDisabled(true);
             if (submitButton) {
                 submitButton.disabled = true;
                 submitButton.setAttribute("aria-disabled", "true");
@@ -1038,7 +1052,7 @@
             first.value = first.value.replace(/\D/g, "");
             lastCalculation = null;
             applyButton.disabled = true;
-            secondaryButton.disabled = true;
+            setSecondaryDisabled(true);
             if (submitButton) {
                 submitButton.disabled = true;
                 submitButton.setAttribute("aria-disabled", "true");
@@ -1088,7 +1102,7 @@
             if (modal.hidden) return;
             lastCalculation = null;
             applyButton.disabled = true;
-            secondaryButton.disabled = true;
+            setSecondaryDisabled(true);
             if (submitButton) {
                 submitButton.disabled = true;
                 submitButton.setAttribute("aria-disabled", "true");

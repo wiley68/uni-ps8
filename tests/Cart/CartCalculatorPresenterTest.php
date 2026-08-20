@@ -29,6 +29,8 @@ $view = $presenter->present(calculatorFixture(['uni_eur' => 0]), $cart, 'BGN');
 assertCartPresenter(is_array($view) && isset($view['offers']['standard'], $view['offers']['promo']), 'cart presentation offers missing');
 assertCartPresenter($view['line_count'] === 1 && $view['cart_total'] === 1000.0, 'cart presentation context differs');
 assertCartPresenter(isset($view['offers']['standard']['installment_label']), 'cart offers must expose installment_label');
+assertCartPresenter(isset($view['offers']['standard']['preferred_scheme_key']), 'cart offers must expose preferred_scheme_key');
+assertCartPresenter(isset($view['offers']['standard']['schemes'][0]['key']), 'cart scheme rows must expose popup scheme key');
 assertCartPresenter((bool) preg_match('/^\d+ x \d+\.\d{2} лв\.$/u', $view['offers']['standard']['installment_label']), 'BGN cart button label must match Woo format');
 assertCartPresenter(array_key_exists('heading', $view), 'cart presentation must expose CP heading');
 assertCartPresenter($presenter->present(calculatorFixture(['uni_eur' => 0]), $cart, 'EUR') === null, 'cart currency gate mismatch');

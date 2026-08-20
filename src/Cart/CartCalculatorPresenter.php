@@ -8,6 +8,7 @@ use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\CurrencyGate;
 use PrestaShop\Module\Unipayment\Calculator\InstallmentLabelFormatter;
 use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
+use PrestaShop\Module\Unipayment\Product\ProductPopupSchemeList;
 
 final class CartCalculatorPresenter
 {
@@ -48,10 +49,13 @@ final class CartCalculatorPresenter
                     continue;
                 }
                 $rows[] = [
+                    'key' => ProductPopupSchemeList::key($scheme),
+                    'scheme_key' => ProductPopupSchemeList::key($scheme),
                     'months' => $scheme->months,
                     'filter_id' => $scheme->filterId,
                     'kop_code' => $scheme->kopCode,
                     'scheme_type' => $scheme->type,
+                    'description' => ProductPopupSchemeList::description($shop, $scheme),
                     'first_installment' => $result->firstInstallment->amount,
                     'first_installment_locked' => $result->firstInstallment->locked,
                     'financed_amount' => $result->financedAmount,
@@ -65,6 +69,12 @@ final class CartCalculatorPresenter
                 $offers[$buttonType] = [
                     'type' => $buttonType,
                     'months' => $preferred->months,
+                    'preferred_scheme_key' => ProductPopupSchemeList::keyFromParts(
+                        $preferred->type,
+                        $preferred->kopCode,
+                        $preferred->months,
+                        $preferred->filterId
+                    ),
                     'monthly_installment' => $preferred->monthlyInstallment,
                     'installment_label' => (new InstallmentLabelFormatter())->format(
                         $preferred->months,

@@ -503,9 +503,14 @@ class Unipayment extends PaymentModule
                 ['media' => 'all', 'priority' => 151]
             );
             $this->context->controller->registerJavascript(
+                'module-unipayment-product-calculator',
+                'modules/' . $this->name . '/views/js/product-calculator.js',
+                ['position' => 'bottom', 'priority' => 150]
+            );
+            $this->context->controller->registerJavascript(
                 'module-unipayment-cart-calculator',
                 'modules/' . $this->name . '/views/js/cart-calculator.js',
-                ['position' => 'bottom', 'priority' => 150]
+                ['position' => 'bottom', 'priority' => 151]
             );
 
             return;
@@ -642,13 +647,39 @@ class Unipayment extends PaymentModule
         if ($view === null) {
             return '';
         }
+
+        $contextCustomer = $this->context->customer;
+        $isLogged = $contextCustomer instanceof Customer && $contextCustomer->isLogged();
+        $addresses = $isLogged ? $contextCustomer->getAddresses((int) $this->context->language->id) : [];
+        $cart = $this->context->cart;
+        $customerPrefill = (new PrestaShop\Module\Unipayment\Product\ProductPopupCustomerPrefill())->present(
+            $isLogged,
+            $isLogged ? [
+                'firstname' => (string) $contextCustomer->firstname,
+                'lastname' => (string) $contextCustomer->lastname,
+                'email' => (string) $contextCustomer->email,
+            ] : [],
+            is_array($addresses) ? $addresses : [],
+            $cart instanceof Cart ? (int) $cart->id_address_delivery : 0,
+            $cart instanceof Cart ? (int) $cart->id_address_invoice : 0
+        );
+
         $this->context->smarty->assign([
             'unipayment_cart_calculator' => $view,
             'unipayment_cart_calculator_json' => json_encode($view, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'unipayment_cart_calculator_url' => $this->context->link->getModuleLink($this->name, 'cartcalculator', ['ajax' => 1], true),
+            'unipayment_cart_popup_url' => $this->context->link->getModuleLink($this->name, 'cartpopup', ['ajax' => 1], true),
+            'unipayment_popup_token' => Tools::getToken(false),
+            'unipayment_popup' => (new PrestaShop\Module\Unipayment\Product\ProductPopupPresenter())->present(
+                $shop,
+                'add_to_cart',
+                $customerPrefill
+            ),
+            'unipayment_popup_badge_url' => $this->_path . 'views/img/product/uni_mini_logo.png',
             'unipayment_logo_url' => $this->_path . 'views/img/product/uni_logo.svg',
             'unipayment_logo_alternative_url' => $this->_path . 'views/img/product/uni_logo_red.svg',
             'unipayment_offer_types' => ['standard', 'promo'],
+            'unipayment_require_egn' => ((int) ($shop['uni_proces'] ?? 0)) === 1,
         ]);
 
         return $this->display(__FILE__, 'views/templates/hook/cart_calculator.tpl');
