@@ -50,10 +50,7 @@
         var selectedScheme = selected || {};
         return {
             scheme_key:
-                source.scheme_key ||
-                source.key ||
-                selectedScheme.key ||
-                "",
+                source.scheme_key || source.key || selectedScheme.key || "",
             scheme_type:
                 source.scheme_type ||
                 selectedScheme.scheme_type ||
@@ -162,8 +159,7 @@
         function prefersReducedMotion() {
             return (
                 window.matchMedia &&
-                window.matchMedia("(prefers-reduced-motion: reduce)")
-                    .matches
+                window.matchMedia("(prefers-reduced-motion: reduce)").matches
             );
         }
 
@@ -287,8 +283,20 @@
         }
 
         function validEgn(value) {
-            var v = String(value || "").replace(/\D/g, "");
-            return /^\d{10}$/.test(v);
+            var egn = String(value || "").replace(/\D/g, "");
+            if (!/^\d{10}$/.test(egn)) {
+                return false;
+            }
+            var year = parseInt(egn.slice(0, 4), 10);
+            var month = parseInt(egn.slice(4, 6), 10);
+            var day = parseInt(egn.slice(6, 8), 10);
+            var date = new Date(year, month - 1, day);
+
+            return (
+                date.getFullYear() === year &&
+                date.getMonth() === month - 1 &&
+                date.getDate() === day
+            );
         }
 
         function consentCheckboxes() {
@@ -359,7 +367,21 @@
                 else if (!validEgn(egn))
                     errors.egn = t(
                         "data-invalid-egn-message",
-                        "Въведете валидно ЕГН (10 цифри).",
+                        "Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).",
+                    );
+            }
+            var phone2Field = customerField("phone2");
+            if (phone2Field) {
+                var phone2 = phone2Field.value.trim();
+                if (!nonEmpty(phone2))
+                    errors.phone2 = t(
+                        "data-required-field-message",
+                        "Полето е задължително.",
+                    );
+                else if (!validPhone(phone2))
+                    errors.phone2 = t(
+                        "data-invalid-phone2-message",
+                        "Въведете валиден втори телефонен номер.",
                     );
             }
             return errors;
@@ -374,6 +396,7 @@
                 "email",
             ];
             if (customerField("egn")) fields.push("egn");
+            if (customerField("phone2")) fields.push("phone2");
             fields.forEach(function (name) {
                 var el = fieldError(name);
                 var field = customerField(name);
@@ -781,6 +804,8 @@
             );
             var egnField = customerField("egn");
             if (egnField) payload.set("egn", egnField.value.trim());
+            var phone2Field = customerField("phone2");
+            if (phone2Field) payload.set("phone2", phone2Field.value.trim());
             appendAcceptedConsents(payload);
             if (submitButton) {
                 submitButton.disabled = true;
@@ -955,7 +980,11 @@
         });
         if (customerForm) {
             customerForm.addEventListener("input", function (event) {
-                if (event.target && event.target.name === "phone")
+                if (
+                    event.target &&
+                    (event.target.name === "phone" ||
+                        event.target.name === "phone2")
+                )
                     event.target.value = event.target.value.replace(
                         /[^0-9+() -]/g,
                         "",

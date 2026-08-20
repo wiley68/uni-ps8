@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') { exit(1); }
+if (PHP_SAPI !== 'cli') {
+    exit(1);
+}
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
@@ -12,7 +14,10 @@ use PrestaShop\Module\Unipayment\Product\ProductPopupValidationException;
 
 function assertProductCustomer(bool $condition, string $message): void
 {
-    if (!$condition) { fwrite(STDERR, "FAIL: {$message}\n"); exit(1); }
+    if (!$condition) {
+        fwrite(STDERR, "FAIL: {$message}\n");
+        exit(1);
+    }
 }
 
 $prefill = new ProductPopupCustomerPrefill();
@@ -52,5 +57,30 @@ foreach (
         assertProductCustomer(isset($exception->errors()[$case['field']]), 'expected field validation error is missing');
     }
 }
+
+$process2Base = [
+    'first_name' => 'Иван',
+    'last_name' => 'Иванов',
+    'address' => 'София',
+    'phone' => '+359888123456',
+    'email' => 'ivan@example.test',
+];
+try {
+    $validator->validate($process2Base, true);
+    assertProductCustomer(false, 'Process 2 payload without EGN and phone2 was accepted');
+} catch (ProductPopupValidationException $exception) {
+    assertProductCustomer(isset($exception->errors()['egn']) && isset($exception->errors()['phone2']), 'Process 2 must require EGN and secondary phone');
+}
+
+try {
+    $validator->validate($process2Base + ['egn' => '1990010199', 'phone2' => '---'], true);
+    assertProductCustomer(false, 'invalid Process 2 secondary phone was accepted');
+} catch (ProductPopupValidationException $exception) {
+    assertProductCustomer(isset($exception->errors()['phone2']), 'invalid phone2 error missing');
+}
+
+$process2 = $validator->validate($process2Base + ['egn' => '1990010199', 'phone2' => '+359 2 123 456'], true);
+assertProductCustomer($process2['egn'] === '1990010199' && $process2['phone2'] === '+359 2 123 456', 'valid Process 2 EGN and secondary phone were not kept');
+assertProductCustomer(!isset($valid['egn']) && !isset($valid['phone2']), 'Process 1 must not require EGN or secondary phone');
 
 fwrite(STDOUT, "OK (Product popup Step 2 customer prefill and validation)\n");

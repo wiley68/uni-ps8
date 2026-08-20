@@ -116,11 +116,6 @@ final class ProductPopupApplyService
             }
         ));
 
-        if ($requireEgn && isset($customerData['egn'])) {
-            $customerData['egn_encrypted'] = $this->cipher->encrypt(['egn' => $customerData['egn']]);
-            unset($customerData['egn']);
-        }
-
         $this->ensureCustomerAndCart($customerData, $productId, $attributeId, $quantity, $context);
 
         $cart = $context->cart;

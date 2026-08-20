@@ -20,7 +20,8 @@
         data-required-field-message="{l s='Полето е задължително.' d='Modules.Unipayment.Shop'}"
         data-invalid-phone-message="{l s='Въведете валиден телефонен номер.' d='Modules.Unipayment.Shop'}"
         data-invalid-email-message="{l s='Въведете валиден e-mail адрес.' d='Modules.Unipayment.Shop'}"
-        data-invalid-egn-message="{l s='Въведете валидно ЕГН (10 цифри).' d='Modules.Unipayment.Shop'}"
+        data-invalid-egn-message="{l s='Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).' d='Modules.Unipayment.Shop'}"
+        data-invalid-phone2-message="{l s='Въведете валиден втори телефонен номер.' d='Modules.Unipayment.Shop'}"
         data-calculate-failed-message="{l s='Неуспешно изчисление. Моля, опитайте отново.' d='Modules.Unipayment.Shop'}"
         data-add-to-cart-failed-message="{l s='Продуктът не може да бъде добавен в количката.' d='Modules.Unipayment.Shop'}"
         data-customer-form-missing-message="{l s='Формата за лични данни не е заредена. Моля, презаредете страницата.' d='Modules.Unipayment.Shop'}"
@@ -238,6 +239,18 @@
                                             aria-required="true">
                                         <span class="unipayment-product-calculator__field-error"
                                             data-unipayment-field-error="egn" role="alert"></span>
+                                    </div>
+                                    <div class="unipayment-product-calculator__customer-field">
+                                        <label class="unipayment-product-calculator__customer-label"
+                                            for="unipayment-phone2-{$unipayment_calculator.product_id|intval}">{l s='Втори телефон' d='Modules.Unipayment.Shop'}
+                                            <span class="unipayment-product-calculator__required"
+                                                aria-hidden="true">*</span></label>
+                                        <input class="unipayment-product-calculator__customer-input"
+                                            id="unipayment-phone2-{$unipayment_calculator.product_id|intval}" name="phone2"
+                                            type="tel" value="" required aria-required="true" autocomplete="tel"
+                                            inputmode="tel">
+                                        <span class="unipayment-product-calculator__field-error"
+                                            data-unipayment-field-error="phone2" role="alert"></span>
                                     </div>
                                 {/if}
                                 <span class="unipayment-product-calculator__field-error" data-unipayment-submit-error

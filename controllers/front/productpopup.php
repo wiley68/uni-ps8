@@ -92,13 +92,16 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             }
 
             if ($action === 'validate_step2') {
+                $requireEgn = ((int) ($shop['uni_proces'] ?? 0)) === 1;
                 $customer = (new ProductPopupCustomerValidator())->validate([
                     'first_name' => Tools::getValue('first_name', ''),
                     'last_name' => Tools::getValue('last_name', ''),
                     'address' => Tools::getValue('address', ''),
                     'phone' => Tools::getValue('phone', ''),
                     'email' => Tools::getValue('email', ''),
-                ]);
+                    'egn' => Tools::getValue('egn', ''),
+                    'phone2' => Tools::getValue('phone2', ''),
+                ], $requireEgn);
 
                 return [
                     'success' => true,
@@ -163,6 +166,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             'phone' => Tools::getValue('phone', ''),
             'email' => Tools::getValue('email', ''),
             'egn' => Tools::getValue('egn', ''),
+            'phone2' => Tools::getValue('phone2', ''),
             'consent' => Tools::getValue('unipayment_consent', []),
         ];
 

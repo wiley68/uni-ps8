@@ -7,8 +7,8 @@ namespace PrestaShop\Module\Unipayment\Product;
 final class ProductPopupCustomerValidator
 {
     /**
-     * Validates Step 2 customer fields. When $requireEgn is true (Process 2 / direct apply),
-     * EGN is required and validated as a 10-digit Bulgarian personal identifier.
+     * Validates Step 2 customer fields. When $requireEgn is true (Process 2),
+     * EGN and secondary phone are required, matching Woo Process 2.
      *
      * @param array<string, mixed> $input
      * @return array<string, string>
@@ -41,13 +41,22 @@ final class ProductPopupCustomerValidator
         if ($requireEgn) {
             $egn = preg_replace('/\D/', '', (string) ($input['egn'] ?? ''));
             $egn = is_string($egn) ? $egn : '';
+            $phone2 = $this->phone($input['phone2'] ?? '');
             if ($egn === '') {
                 $errors['egn'] = 'Полето е задължително.';
             } elseif (!$this->validEgn($egn)) {
-                $errors['egn'] = 'Въведете валидно ЕГН (10 цифри).';
+                $errors['egn'] = 'Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).';
+            }
+            if ($phone2 === '') {
+                $errors['phone2'] = 'Полето е задължително.';
+            } elseif (!$this->validPhone($phone2)) {
+                $errors['phone2'] = 'Въведете валиден втори телефонен номер.';
             }
             if (!isset($errors['egn'])) {
                 $customer['egn'] = $egn;
+            }
+            if (!isset($errors['phone2'])) {
+                $customer['phone2'] = $phone2;
             }
         }
         if ($errors !== []) {
@@ -62,20 +71,8 @@ final class ProductPopupCustomerValidator
         if (!preg_match('/^\d{10}$/', $egn)) {
             return false;
         }
-        $month = (int) substr($egn, 2, 2);
-        $day = (int) substr($egn, 4, 2);
-        $year = (int) substr($egn, 0, 2);
-        if ($month > 40) {
-            $month -= 40;
-            $year += 2000;
-        } elseif ($month > 20) {
-            $month -= 20;
-            $year += 1800;
-        } else {
-            $year += 1900;
-        }
 
-        return checkdate($month, $day, $year);
+        return checkdate((int) substr($egn, 4, 2), (int) substr($egn, 6, 2), (int) substr($egn, 0, 4));
     }
 
     public function validPhone(string $phone): bool
