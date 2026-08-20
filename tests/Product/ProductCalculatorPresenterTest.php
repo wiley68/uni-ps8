@@ -71,14 +71,14 @@ $eurLabelView = $presenter->present(
     'EUR'
 );
 assertProductPresenter(is_array($eurLabelView), 'EUR label fixture must be available');
-assertProductPresenter($eurLabelView['offers']['standard']['installment_label'] === '12 x 97.49 EUR', 'EUR button label must use English EUR suffix');
+assertProductPresenter($eurLabelView['offers']['standard']['installment_label'] === '12 x 97.49 евро', 'EUR button label must use Woo евро suffix');
 assertProductPresenter(strpos($eurLabelView['offers']['standard']['installment_label'], '€') === false, 'EUR button label must not contain a currency symbol');
-assertProductPresenter(strpos($eurLabelView['offers']['standard']['installment_label'], 'EUR') !== false, 'EUR button label must contain the EUR text suffix');
-assertProductPresenter((bool) preg_match('/^12 x \d+\.\d{2} EUR$/', $eurLabelView['offers']['standard']['installment_label']), 'button label must contain months, dot separator and exactly two decimals');
-assertProductPresenter((bool) preg_match('/^12 x \d+\.\d{2} EUR$/', $eurLabelView['offers']['promo']['installment_label']), 'promo label must use the same English EUR contract');
+assertProductPresenter(strpos($eurLabelView['offers']['standard']['installment_label'], 'евро') !== false, 'EUR button label must contain the EUR text suffix');
+assertProductPresenter((bool) preg_match('/^12 x \d+\.\d{2} евро$/', $eurLabelView['offers']['standard']['installment_label']), 'button label must contain months, dot separator and exactly two decimals');
+assertProductPresenter((bool) preg_match('/^12 x \d+\.\d{2} евро$/', $eurLabelView['offers']['promo']['installment_label']), 'promo label must use the same English EUR contract');
 
 $bgnLabelView = $presenter->present(calculatorFixture(['uni_eur' => 0]), $product, 'BGN');
-assertProductPresenter(is_array($bgnLabelView) && (bool) preg_match('/ BGN$/u', $bgnLabelView['offers']['standard']['installment_label']), 'BGN-only button label must use the English BGN suffix');
+assertProductPresenter(is_array($bgnLabelView) && (bool) preg_match('/ лв\.$/u', $bgnLabelView['offers']['standard']['installment_label']), 'BGN-only button label must use the Woo лв. suffix');
 
 $visualView = $presenter->present(calculatorFixture([
     'uni_vnoska' => 1,

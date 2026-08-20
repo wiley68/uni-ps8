@@ -25,32 +25,32 @@ final class ProductPopupCustomerValidator
         $errors = [];
         foreach (['first_name', 'last_name', 'address'] as $field) {
             if ($customer[$field] === '') {
-                $errors[$field] = 'This field is required.';
+                $errors[$field] = 'Полето е задължително.';
             }
         }
         if ($customer['phone'] === '') {
-            $errors['phone'] = 'This field is required.';
+            $errors['phone'] = 'Полето е задължително.';
         } elseif (!$this->validPhone($customer['phone'])) {
-            $errors['phone'] = 'Enter a valid phone number.';
+            $errors['phone'] = 'Въведете валиден телефонен номер.';
         }
         if ($customer['email'] === '') {
-            $errors['email'] = 'This field is required.';
+            $errors['email'] = 'Полето е задължително.';
         } elseif (!filter_var($customer['email'], FILTER_VALIDATE_EMAIL)) {
-            $errors['email'] = 'Enter a valid email address.';
+            $errors['email'] = 'Въведете валиден e-mail адрес.';
         }
         if ($requireEgn) {
             $egn = preg_replace('/\D/', '', (string) ($input['egn'] ?? ''));
             $egn = is_string($egn) ? $egn : '';
             $phone2 = $this->phone($input['phone2'] ?? '');
             if ($egn === '') {
-                $errors['egn'] = 'This field is required.';
+                $errors['egn'] = 'Полето е задължително.';
             } elseif (!$this->validEgn($egn)) {
-                $errors['egn'] = 'Enter a valid EGN (10 digits; the first 8 must be a YYYYMMDD date).';
+                $errors['egn'] = 'Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).';
             }
             if ($phone2 === '') {
-                $errors['phone2'] = 'This field is required.';
+                $errors['phone2'] = 'Полето е задължително.';
             } elseif (!$this->validPhone($phone2)) {
-                $errors['phone2'] = 'Enter a valid secondary phone number.';
+                $errors['phone2'] = 'Въведете валиден втори телефонен номер.';
             }
             if (!isset($errors['egn'])) {
                 $customer['egn'] = $egn;

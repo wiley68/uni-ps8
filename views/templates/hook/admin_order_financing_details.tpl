@@ -1,6 +1,6 @@
 <div class="card mt-2">
     <div class="card-header">
-        <h3 class="card-header-title">{l s='UniCredit — credit application' d='Modules.Unipayment.Admin'}</h3>
+        <h3 class="card-header-title">{l s='УниКредит — кредитна заявка' d='Modules.Unipayment.Admin'}</h3>
     </div>
     <div class="card-body">
         {if isset($unipayment_leasing_rows) && $unipayment_leasing_rows|@count > 0}

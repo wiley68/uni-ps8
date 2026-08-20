@@ -30,37 +30,42 @@ class Unipayment extends PaymentModule
         parent::__construct();
 
         $this->displayName = $this->trans(
-            'UniCredit Credit purchases',
+            'УниКредит покупки на Кредит',
             [],
             'Modules.Unipayment.Admin'
         );
         $this->description = $this->trans(
-            'UniCredit Credit Purchases — PrestaShop module for installment purchases.',
+            'Дава възможност на Вашите клиенти да закупуват стока на изплащане с УниКредит.',
             [],
             'Modules.Unipayment.Admin'
         );
         $this->confirmUninstall = $this->trans(
-            'Are you sure you want to uninstall the module?',
+            'Сигурни ли сте, че искате да деинсталирате модула?',
             [],
             'Modules.Unipayment.Admin'
         );
     }
 
     /**
-     * Display-only currency suffix for UI amounts (installment labels, dual amounts).
-     * Source strings EUR / BGN are registered in Modules.Unipayment.Shop for localization.
+     * Display-only currency suffix for UI amounts (Woo: евро / лв. / лева).
      */
     public function getDisplayCurrencyLabel(string $iso): string
     {
         $iso = strtoupper(trim($iso));
         if ($iso === 'EUR') {
-            return $this->trans('EUR', [], 'Modules.Unipayment.Shop');
+            return $this->trans('евро', [], 'Modules.Unipayment.Shop');
         }
         if ($iso === 'BGN') {
-            return $this->trans('BGN', [], 'Modules.Unipayment.Shop');
+            return $this->trans('лв.', [], 'Modules.Unipayment.Shop');
         }
 
         return $iso;
+    }
+
+    /** Dual-button BGN suffix used by installment labels (Woo: лева). */
+    public function getDisplayCurrencyLabelDualBgn(): string
+    {
+        return $this->trans('лева', [], 'Modules.Unipayment.Shop');
     }
 
     public function install(): bool
@@ -244,26 +249,26 @@ class Unipayment extends PaymentModule
         if ($errors !== []) {
             return $this->displayError(array_map(function (string $error): string {
                 if ($error === PrestaShop\Module\Unipayment\Configuration\ConfigurationValidator::ERROR_UNICID_REQUIRED) {
-                    return $this->trans('The "Unique shop identifier" field is required.', [], 'Modules.Unipayment.Admin');
+                    return $this->trans('Полето „Уникален идентификационен код на магазина Ви“ е задължително.', [], 'Modules.Unipayment.Admin');
                 }
 
                 if ($error === PrestaShop\Module\Unipayment\Configuration\ConfigurationValidator::ERROR_UNICID_INVALID) {
-                    return $this->trans('The identifier must be a valid UUID and cannot exceed 36 characters.', [], 'Modules.Unipayment.Admin');
+                    return $this->trans('Идентификационният код трябва да е валиден UUID и не може да надвишава 36 символа.', [], 'Modules.Unipayment.Admin');
                 }
 
                 if ($error === PrestaShop\Module\Unipayment\Configuration\ConfigurationValidator::ERROR_SECRET_REQUIRED) {
-                    return $this->trans('The "Shop secret" field is required.', [], 'Modules.Unipayment.Admin');
+                    return $this->trans('Полето „Секретен код на магазина Ви“ е задължително.', [], 'Modules.Unipayment.Admin');
                 }
 
                 if ($error === PrestaShop\Module\Unipayment\Configuration\ConfigurationValidator::ERROR_BUTTON_ACTION_INVALID) {
-                    return $this->trans('Please select a valid Buy button action.', [], 'Modules.Unipayment.Admin');
+                    return $this->trans('Моля, изберете валидно действие за бутона Купи.', [], 'Modules.Unipayment.Admin');
                 }
 
                 if ($error === PrestaShop\Module\Unipayment\Configuration\ConfigurationValidator::ERROR_BUTTON_TOP_SPACING_INVALID) {
-                    return $this->trans('The spacing above the button must be an integer between 0 and 200 px.', [], 'Modules.Unipayment.Admin');
+                    return $this->trans('Свободното място над бутона трябва да е цяло число между 0 и 200 px.', [], 'Modules.Unipayment.Admin');
                 }
 
-                return $this->trans('The secret cannot exceed 64 characters.', [], 'Modules.Unipayment.Admin');
+                return $this->trans('Секретният код не може да надвишава 64 символа.', [], 'Modules.Unipayment.Admin');
             }, $errors));
         }
 
@@ -280,7 +285,7 @@ class Unipayment extends PaymentModule
 
         if (!$saved) {
             return $this->displayError(
-                $this->trans('The module settings could not be saved.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Настройките на модула не могат да бъдат записани.', [], 'Modules.Unipayment.Admin')
             );
         }
 
@@ -290,7 +295,7 @@ class Unipayment extends PaymentModule
         }
 
         return $this->displayConfirmation(
-            $this->trans('Settings saved successfully.', [], 'Modules.Unipayment.Admin')
+            $this->trans('Настройките са записани успешно.', [], 'Modules.Unipayment.Admin')
         );
     }
 
@@ -302,31 +307,31 @@ class Unipayment extends PaymentModule
             $this->createShopConfigurationService($client)->get(true);
 
             return $this->displayConfirmation(
-                $this->trans('Data refreshed successfully.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Данните от банката са обновени успешно.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\TimeoutException $exception) {
             return $this->displayError(
-                $this->trans('The connection to the bank timed out. Please try again.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Връзката с банката изтече. Моля, опитайте отново.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\ConnectionException $exception) {
             return $this->displayError(
-                $this->trans('Failed to connect to the bank. Please try again.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Неуспешна връзка с банката. Моля, опитайте отново.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\AuthenticationException $exception) {
             return $this->displayError(
-                $this->trans('The bank credentials were rejected.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Удостоверенията към банката бяха отхвърлени.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\MalformedJsonException $exception) {
             return $this->displayError(
-                $this->trans('The bank returned an unreadable response.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Банката върна нечетим отговор.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\InvalidPayloadException $exception) {
             return $this->displayError(
-                $this->trans('The bank returned an invalid response.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Банката върна невалиден отговор.', [], 'Modules.Unipayment.Admin')
             );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\HttpException $exception) {
             return $this->displayError(
-                $this->trans('The data could not be refreshed. Check the settings and try again.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Данните не могат да бъдат обновени. Проверете настройките и опитайте отново.', [], 'Modules.Unipayment.Admin')
             );
         }
     }
@@ -342,7 +347,7 @@ class Unipayment extends PaymentModule
             || !hash_equals(Tools::getAdminTokenLite('AdminModules'), $submittedToken)
         ) {
             return $this->displayError(
-                $this->trans('You are not allowed to download the operations journal.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Нямате право да изтеглите журнала с операции.', [], 'Modules.Unipayment.Admin')
             );
         }
 
@@ -357,7 +362,7 @@ class Unipayment extends PaymentModule
             );
         } catch (JsonException $exception) {
             return $this->displayError(
-                $this->trans('The operations journal could not be downloaded.', [], 'Modules.Unipayment.Admin')
+                $this->trans('Журналът с операции не може да бъде изтеглен.', [], 'Modules.Unipayment.Admin')
             );
         }
 
@@ -758,7 +763,7 @@ class Unipayment extends PaymentModule
         ]);
         $option = new PrestaShop\PrestaShop\Core\Payment\PaymentOption();
         $option->setModuleName($this->name)
-            ->setCallToActionText($this->trans('Buy on installment with UniCredit', [], 'Modules.Unipayment.Shop'))
+            ->setCallToActionText($this->trans('Купи на изплащане с УниКредит', [], 'Modules.Unipayment.Shop'))
             ->setAction($this->context->link->getModuleLink($this->name, 'validatecheckout', [], true))
             ->setForm($this->fetch('module:unipayment/views/templates/hook/checkout_payment.tpl'));
 
@@ -854,7 +859,7 @@ class Unipayment extends PaymentModule
         $columns = $definition->getColumns();
 
         $column = (new PrestaShop\PrestaShop\Core\Grid\Column\Type\DataColumn('unipayment_bank_status'))
-            ->setName('UniCredit status')
+            ->setName('UniCredit статус')
             ->setOptions([
                 'field' => 'unipayment_bank_status',
             ]);

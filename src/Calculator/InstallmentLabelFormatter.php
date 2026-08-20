@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace PrestaShop\Module\Unipayment\Calculator;
 
 /**
- * Woo-compatible installment button label (e.g. "12 x 97.49 EUR").
+ * Woo-compatible installment button label (e.g. "12 x 97.49 евро").
  */
 final class InstallmentLabelFormatter
 {
@@ -30,9 +30,9 @@ final class InstallmentLabelFormatter
                 '%d x %s %s (%s %s)',
                 $months,
                 number_format($monthlyInstallment, 2, '.', ''),
-                $this->labels->forIso($primaryIso),
+                $this->labels->forButton($primaryIso, true),
                 number_format($secondary, 2, '.', ''),
-                $this->labels->forIso($secondaryIso)
+                $this->labels->forButton($secondaryIso, true)
             );
         }
 
@@ -40,7 +40,7 @@ final class InstallmentLabelFormatter
             '%d x %s %s',
             $months,
             number_format($monthlyInstallment, 2, '.', ''),
-            $this->labels->forIso($currencyMode === 3 ? 'EUR' : 'BGN')
+            $this->labels->forAmount($currencyMode === 3 ? 'EUR' : 'BGN')
         );
     }
 }

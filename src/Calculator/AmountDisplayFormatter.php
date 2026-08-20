@@ -22,7 +22,7 @@ final class AmountDisplayFormatter
     {
         $mode = (int) ($shop['uni_eur'] ?? 0);
         $primaryCurrency = in_array($mode, [2, 3], true) ? 'EUR' : 'BGN';
-        $primary = number_format(abs($amount), 2, '.', '') . ' ' . $this->labels->forIso($primaryCurrency);
+        $primary = number_format(abs($amount), 2, '.', '') . ' ' . $this->labels->forAmount($primaryCurrency);
         if (!in_array($mode, [1, 2], true)) {
             return ['primary' => $primary, 'secondary' => '', 'dual' => false];
         }
@@ -31,7 +31,7 @@ final class AmountDisplayFormatter
 
         return [
             'primary' => $primary,
-            'secondary' => number_format(abs($secondary), 2, '.', '') . ' ' . $this->labels->forIso($secondaryCurrency),
+            'secondary' => number_format(abs($secondary), 2, '.', '') . ' ' . $this->labels->forAmount($secondaryCurrency),
             'dual' => true,
         ];
     }

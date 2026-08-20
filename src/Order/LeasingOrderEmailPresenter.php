@@ -68,7 +68,7 @@ final class LeasingOrderEmailPresenter
         $process2 = ShopConfigurationFlags::isProcess2($shop);
         $statusLabel = trim((string) ($snapshot['status_label'] ?? ''));
         if ($statusLabel === '') {
-            $statusLabel = $process2 ? 'Sent to bank - Process 2' : 'Sent to bank - Process 1';
+            $statusLabel = $process2 ? 'Изпратен Банка - Процес 2' : 'Изпратен Банка - Процес 1';
         }
 
         $customerExtras = [];
@@ -105,7 +105,7 @@ final class LeasingOrderEmailPresenter
             return $rows;
         }
 
-        $rows['Bank status'] = $statusLabel;
+        $rows['Статус към банката'] = $statusLabel;
 
         return $rows;
     }
@@ -118,7 +118,7 @@ final class LeasingOrderEmailPresenter
     public function rowsFromRequest(ValidatedPaymentRequest $request, array $shop): array
     {
         $process2 = ShopConfigurationFlags::isProcess2($shop);
-        $statusLabel = $process2 ? 'Sent to bank - Process 2' : 'Sent to bank - Process 1';
+        $statusLabel = $process2 ? 'Изпратен Банка - Процес 2' : 'Изпратен Банка - Процес 1';
         $calculation = $request->calculation;
 
         return $this->buildRows(
@@ -148,7 +148,7 @@ final class LeasingOrderEmailPresenter
             return '';
         }
 
-        $html = '<h2>UniCredit leasing</h2>';
+        $html = '<h2>УниКредит лизинг</h2>';
         $html .= '<div style="margin-bottom: 40px;">';
         $html .= '<table class="td" cellspacing="0" cellpadding="6" style="width: 100%; font-family: \'Helvetica Neue\', Helvetica, Roboto, Arial, sans-serif;" border="1">';
         $html .= '<tbody>';
@@ -176,7 +176,7 @@ final class LeasingOrderEmailPresenter
             return '';
         }
 
-        $text = "\nUniCredit leasing\n\n";
+        $text = "\nУниКредит лизинг\n\n";
         foreach ($rows as $label => $value) {
             $text .= $label . ': ' . $value . "\n";
         }
@@ -208,35 +208,35 @@ final class LeasingOrderEmailPresenter
         }
 
         $rows = [
-            'Bank status' => $statusLabel,
+            'Статус към банката' => $statusLabel,
         ];
 
         if ($months > 0) {
-            $rows['Term (months)'] = (string) $months;
+            $rows['Срок (месеци)'] = (string) $months;
         }
 
         if ($kopCode !== '') {
-            $rows['KOP'] = $kopCode;
+            $rows['КОП'] = $kopCode;
         }
 
-        $rows['Down payment'] = number_format($firstInstallment, 2, '.', '');
-        $rows['Loan amount'] = number_format($financedAmount, 2, '.', '');
-        $rows['Monthly installment'] = number_format($monthlyInstallment, 2, '.', '');
-        $rows['Total amount due'] = number_format($totalPayable, 2, '.', '');
-        $rows['AIR / APR'] = number_format($glp, 2, '.', '') . '% / ' . number_format($gpr, 2, '.', '') . '%';
+        $rows['Първоначална вноска'] = number_format($firstInstallment, 2, '.', '');
+        $rows['Сума на заема'] = number_format($financedAmount, 2, '.', '');
+        $rows['Месечна вноска'] = number_format($monthlyInstallment, 2, '.', '');
+        $rows['Обща дължима сума'] = number_format($totalPayable, 2, '.', '');
+        $rows['ГЛП / ГПР'] = number_format($glp, 2, '.', '') . '% / ' . number_format($gpr, 2, '.', '') . '%';
 
         if ($process2) {
             $egn = trim((string) ($customerExtras['egn'] ?? ''));
             if ($egn !== '') {
-                $rows['EGN'] = $egn;
+                $rows['ЕГН'] = $egn;
             }
 
             $phone2 = trim((string) ($customerExtras['phone2'] ?? ''));
             if ($phone2 !== '') {
-                $rows['Secondary phone'] = $phone2;
+                $rows['Втори телефон'] = $phone2;
             }
 
-            $rows['Message'] = self::process2ConfirmationMessage();
+            $rows['Съобщение'] = self::process2ConfirmationMessage();
         }
 
         return $rows;
@@ -272,6 +272,6 @@ final class LeasingOrderEmailPresenter
 
     public static function process2ConfirmationMessage(): string
     {
-        return 'Expect a contact to confirm the application you submitted.';
+        return 'Очаквайте контакт за потвърждаване на направената от Вас заявка.';
     }
 }

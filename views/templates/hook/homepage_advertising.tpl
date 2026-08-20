@@ -4,7 +4,7 @@
             data-unipayment-advertising-open="{$unipayment_advertising.backurl|escape:'htmlall':'UTF-8'}" {/if}>
             <span class="unipayment-advertising__logo">
                 <img src="{$unipayment_advertising.float_image_url|escape:'htmlall':'UTF-8'}"
-                    alt="{l s='UniCredit purchases on credit' d='Modules.Unipayment.Shop'}">
+                    alt="{l s='УниКредит покупки на Кредит' d='Modules.Unipayment.Shop'}">
             </span>
         </button>
     {else}
@@ -12,11 +12,11 @@
             aria-controls="unipayment-advertising-panel" aria-expanded="false">
             <span class="unipayment-advertising__logo">
                 <img src="{$unipayment_advertising.float_image_url|escape:'htmlall':'UTF-8'}"
-                    alt="{l s='UniCredit purchases on credit' d='Modules.Unipayment.Shop'}">
+                    alt="{l s='УниКредит покупки на Кредит' d='Modules.Unipayment.Shop'}">
             </span>
         </button>
         <div id="unipayment-advertising-panel" class="unipayment-advertising__panel" role="dialog"
-            aria-label="{l s='Information about online credit shopping' d='Modules.Unipayment.Shop'}">
+            aria-label="{l s='Информация за онлайн пазаруване на кредит' d='Modules.Unipayment.Shop'}">
             <div class="unipayment-advertising__arrow" aria-hidden="true"></div>
             <div class="unipayment-advertising__body">
                 <div class="unipayment-advertising__spacer"></div>
@@ -34,9 +34,9 @@
                 {/if}
                 <div class="unipayment-advertising__link">
                     {if $unipayment_advertising.backurl}
-                        <a href="{$unipayment_advertising.backurl|escape:'htmlall':'UTF-8'}" target="_blank" rel="noopener noreferrer">{l s='INFORMATION ABOUT ONLINE CREDIT SHOPPING' d='Modules.Unipayment.Shop'}!</a>
+                        <a href="{$unipayment_advertising.backurl|escape:'htmlall':'UTF-8'}" target="_blank" rel="noopener noreferrer">{l s='ИНФОРМАЦИЯ ЗА ОНЛАЙН ПАЗАРУВАНЕ НА КРЕДИТ' d='Modules.Unipayment.Shop'}!</a>
                     {else}
-                        {l s='INFORMATION ABOUT ONLINE CREDIT SHOPPING' d='Modules.Unipayment.Shop'}!
+                        {l s='ИНФОРМАЦИЯ ЗА ОНЛАЙН ПАЗАРУВАНЕ НА КРЕДИТ' d='Modules.Unipayment.Shop'}!
                     {/if}
                 </div>
             </div>

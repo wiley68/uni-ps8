@@ -34,8 +34,8 @@ assert.strictEqual(productAttributeId(productDocument('{malformed', '9')), 9);
 assert.strictEqual(buttonInstallmentLabel({
   months: 12,
   monthly_installment: 97.49,
-  installment_label: '12 x 97.49 EUR'
-}), '12 x 97.49 EUR');
+  installment_label: '12 x 97.49 евро'
+}), '12 x 97.49 евро');
 assert.strictEqual(buttonInstallmentLabel(null), '');
 
 var popupCalculationIdentity = productCalculator.popupCalculationIdentity;

@@ -22,15 +22,15 @@ $controller = (string) file_get_contents($root . '/controllers/front/productpopu
 $preferenceStore = (string) file_get_contents($root . '/src/Checkout/CheckoutPreferenceStore.php');
 $checkoutJs = (string) file_get_contents($root . '/views/js/checkout-payment.js');
 
-assertProductPopupContract(strpos($template, "s='Choose a leasing scheme'") !== false, 'Woo Step 1 heading missing');
-foreach (['Item price', 'Number of repayment months', 'Down payment /EUR/', 'Total loan amount', 'Installment amount', 'Total amount due', 'AIR', 'APR'] as $label) {
+assertProductPopupContract(strpos($template, "s='Избор на схема за лизинг'") !== false, 'Woo Step 1 heading missing');
+foreach (['Цена на артикула', 'Брой месеци за погасяване', 'Първоначална вноска /евро/', 'Обща сума на заема', 'Размер на погасителна вноска', 'Обща дължима сума', 'ГЛП', 'ГПР'] as $label) {
     assertProductPopupContract(strpos($template, $label) !== false, "missing popup field {$label}");
 }
-assertProductPopupContract(strpos($template, 'data-unipayment-close') !== false && strpos($template, "s='Cancel'") !== false, 'explicit Cancel control missing');
+assertProductPopupContract(strpos($template, 'data-unipayment-close') !== false && strpos($template, "s='Отказ'") !== false, 'explicit Cancel control missing');
 assertProductPopupContract(strpos($template, 'class="unipayment-product-calculator__overlay" aria-hidden="true"') !== false, 'overlay must be presentation-only');
 assertProductPopupContract(strpos($template, 'unipayment_popup.banner_url') !== false && strpos($template, 'unipayment_popup.banner_url_mobile') !== false, 'CP responsive banner sources missing');
 assertProductPopupContract(strpos($template, 'data-unipayment-step="2" hidden') !== false, 'Step 2 placeholder contract missing');
-assertProductPopupContract(strpos($template, "s='Enter personal details'") !== false, 'Woo Step 2 heading missing');
+assertProductPopupContract(strpos($template, "s='Попълване на лични данни'") !== false, 'Woo Step 2 heading missing');
 $step2Fields = ['first_name', 'last_name', 'address', 'phone', 'email'];
 foreach ($step2Fields as $field) {
     assertProductPopupContract(substr_count($template, 'name="' . $field . '"') === 1, "Step 2 field {$field} must occur exactly once");
@@ -38,7 +38,7 @@ foreach ($step2Fields as $field) {
 assertProductPopupContract(strpos($template, '{if $unipayment_require_egn}') !== false, 'Process 2 extra fields must be gated');
 assertProductPopupContract(substr_count($template, 'name="egn"') === 1 && substr_count($template, 'name="phone2"') === 1, 'Process 2 Step 2 fields EGN and secondary phone must occur once');
 assertProductPopupContract(substr_count($template, 'aria-required="true"') === 7, 'all five base Step 2 fields plus Process 2 EGN and secondary phone must be required');
-foreach (['First name', 'Last name', 'Address', 'Mobile phone', 'E-Mail', 'EGN', 'Secondary phone', 'Back', 'Submit'] as $step2Label) {
+foreach (['Име', 'Фамилия', 'Адрес', 'Мобилен телефон', 'E-Mail', 'ЕГН', 'Втори телефон', 'Назад', 'Изпрати'] as $step2Label) {
     assertProductPopupContract(strpos($template, $step2Label) !== false, "missing Step 2 label {$step2Label}");
 }
 assertProductPopupContract(strpos($template, 'data-unipayment-step="3" hidden') !== false, 'final informational placeholder missing');

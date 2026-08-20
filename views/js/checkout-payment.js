@@ -219,7 +219,7 @@
                         t(
                             root,
                             "data-calculate-failed-message",
-                            "Calculation failed. Please try again.",
+                            "Неуспешно изчисление. Моля, опитайте отново.",
                         ),
                     );
                     throw error;
@@ -252,7 +252,7 @@
                     t(
                         root,
                         "data-egn-required-message",
-                        "The "EGN" field is required.",
+                        "Полето „ЕГН“ е задължително.",
                     ),
                 );
                 return false;
@@ -262,7 +262,7 @@
                     t(
                         root,
                         "data-egn-invalid-message",
-                        "Enter a valid EGN (10 digits; the first 8 must be a YYYYMMDD date).",
+                        "Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).",
                     ),
                 );
                 return false;
@@ -272,7 +272,7 @@
                     t(
                         root,
                         "data-phone2-required-message",
-                        "The "Secondary phone" field is required.",
+                        "Полето „Втори телефон“ е задължително.",
                     ),
                 );
                 return false;
@@ -282,7 +282,7 @@
                     t(
                         root,
                         "data-phone2-invalid-message",
-                        "Enter a valid secondary phone number.",
+                        "Въведете валиден втори телефонен номер.",
                     ),
                 );
                 return false;
@@ -296,7 +296,7 @@
                     t(
                         root,
                         "data-submitting-message",
-                        "The request is already being processed. Please wait.",
+                        "Заявката вече се обработва. Моля, изчакайте.",
                     ),
                 );
                 return false;
@@ -306,7 +306,7 @@
                     t(
                         root,
                         "data-consents-required-message",
-                        "Please accept all mandatory consents.",
+                        "Моля, приемете всички задължителни съгласия.",
                     ),
                 );
                 return false;
@@ -317,7 +317,7 @@
                     t(
                         root,
                         "data-calculate-failed-message",
-                        "Calculation failed. Please try again.",
+                        "Неуспешно изчисление. Моля, опитайте отново.",
                     ),
                 );
                 return false;

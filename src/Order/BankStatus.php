@@ -13,9 +13,9 @@ final class BankStatus
     public const SENT_PROCESS2 = 'bank_sent_process2';
     public const SEND_FAILED_SMARTUCF = 'bank_send_failed_smartucf';
 
-    public const LABEL_SENT_PROCESS1 = 'Sent to bank - Process 1';
-    public const LABEL_SENT_PROCESS2 = 'Sent to bank - Process 2';
-    public const LABEL_SEND_FAILED_SMARTUCF = 'Bank send failed - SmartUCF';
+    public const LABEL_SENT_PROCESS1 = 'Изпратен Банка - Процес 1';
+    public const LABEL_SENT_PROCESS2 = 'Изпратен Банка - Процес 2';
+    public const LABEL_SEND_FAILED_SMARTUCF = 'Неуспешно изпратен Банка - SmartUCF';
 
     /** @return array{status_id: string, status_label: string} */
     public static function successfulSend(bool $process2): array

@@ -17,13 +17,13 @@ final class CustomerFieldValidator
             'email' => trim((string) ($customer['email'] ?? '')),
         ];
         if ($result['first_name'] === '' || $result['last_name'] === '' || $result['address'] === '') {
-            throw new CheckoutValidationException('The required customer details are incomplete.');
+            throw new CheckoutValidationException('Задължителните лични данни са непълни.');
         }
         if (!$this->validPhone($result['phone'])) {
-            throw new CheckoutValidationException('Please enter a valid phone number.');
+            throw new CheckoutValidationException('Въведете валиден телефонен номер.');
         }
         if (!filter_var($result['email'], FILTER_VALIDATE_EMAIL)) {
-            throw new CheckoutValidationException('Please enter a valid email address.');
+            throw new CheckoutValidationException('Въведете валиден e-mail адрес.');
         }
         if ((int) ($shop['uni_proces'] ?? 0) !== 1) {
             return $result;
@@ -33,10 +33,10 @@ final class CustomerFieldValidator
         $egn = is_string($egn) ? $egn : '';
         $phone2 = $this->phone((string) ($posted['phone2'] ?? ''));
         if (!$this->validEgn($egn)) {
-            throw new CheckoutValidationException('Please enter a valid EGN (10 digits, first 8 are YYYYMMDD).');
+            throw new CheckoutValidationException('Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).');
         }
         if (!$this->validPhone($phone2)) {
-            throw new CheckoutValidationException('Please enter a valid secondary phone number.');
+            throw new CheckoutValidationException('Въведете валиден втори телефонен номер.');
         }
         $result['egn'] = $egn;
         $result['phone2'] = $phone2;

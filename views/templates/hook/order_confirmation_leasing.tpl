@@ -1,5 +1,5 @@
 <section class="unipayment-thankyou-credit-details">
-    <h3 class="unipayment-thankyou-credit-details__title">{l s='UniCredit leasing' d='Modules.Unipayment.Shop'}</h3>
+    <h3 class="unipayment-thankyou-credit-details__title">{l s='УниКредит лизинг' d='Modules.Unipayment.Shop'}</h3>
     {if isset($unipayment_leasing_rows) && $unipayment_leasing_rows|@count > 0}
         <table class="unipayment-thankyou-credit-details__table">
             <tbody>

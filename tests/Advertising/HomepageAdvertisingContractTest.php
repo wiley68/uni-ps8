@@ -44,7 +44,7 @@ assertAdvertisingContract(strpos($template, 'data-unipayment-advertising') !== f
 assertAdvertisingContract(strpos($template, 'unipayment_advertising.is_mobile') !== false, 'mobile/desktop split missing');
 assertAdvertisingContract(strpos($template, 'float_image_url') !== false, 'float image must come from presenter');
 assertAdvertisingContract(strpos($template, 'picture_url') !== false, 'panel picture must come from CP');
-assertAdvertisingContract(strpos($template, "s='INFORMATION ABOUT ONLINE CREDIT SHOPPING'") !== false, 'Woo panel link wording missing');
+assertAdvertisingContract(strpos($template, "s='ИНФОРМАЦИЯ ЗА ОНЛАЙН ПАЗАРУВАНЕ НА КРЕДИТ'") !== false, 'Woo panel link wording missing');
 assertAdvertisingContract(strpos($template, 'target="_blank" rel="noopener noreferrer"') !== false, 'external info link must be safe');
 assertAdvertisingContract(strpos($template, 'onclick=') === false, 'template must not use inline onclick');
 

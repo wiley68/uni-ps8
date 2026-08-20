@@ -40,7 +40,7 @@ final class ControlPanelOrderPayloadBuilder
             'gpr' => round((float) $snapshot['gpr'], 2),
             'vnoski' => (int) $snapshot['months'],
             'parva' => round((float) $snapshot['first_installment'], 2),
-            'status' => $process2 ? 'Sent to bank - Process 2' : 'Sent to bank - Process 1',
+            'status' => $process2 ? 'Изпратен Банка - Процес 2' : 'Изпратен Банка - Процес 1',
             'status_id' => $process2 ? 'bank_sent_process2' : 'bank_sent_process1',
             'products_id' => implode('_', $ids),
             'products_name' => substr(implode('_', $names), 0, 255),

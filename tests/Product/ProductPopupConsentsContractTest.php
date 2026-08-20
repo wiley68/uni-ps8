@@ -26,7 +26,7 @@ assertProductPopupConsentsContract(strpos($template, '{foreach from=$unipayment_
 assertProductPopupConsentsContract(strpos($template, 'data-unipayment-consent-checkbox') !== false, 'mandatory consents must render as checkboxes');
 assertProductPopupConsentsContract(strpos($template, 'name="unipayment_consent[]"') !== false, 'consent checkbox name contract missing');
 assertProductPopupConsentsContract(strpos($template, 'consent.has_checkbox') !== false, 'optional consents must stay informational when they have no checkbox');
-assertProductPopupConsentsContract(strpos($template, "s='Please accept all mandatory consents.'") !== false, 'consents required wording missing');
+assertProductPopupConsentsContract(strpos($template, "s='Моля, приемете всички задължителни съгласия.'") !== false, 'consents required wording missing');
 assertProductPopupConsentsContract(strpos($javascript, 'areMandatoryConsentsChecked()') !== false, 'Step 2 submit must stay gated by mandatory consents');
 assertProductPopupConsentsContract(strpos($javascript, 'appendAcceptedConsents(payload)') !== false, 'accepted consents must be sent with the apply request');
 assertProductPopupConsentsContract(strpos($javascript, 'payload.append("unipayment_consent[]"') !== false, 'apply payload must include accepted consent ids');

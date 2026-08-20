@@ -31,8 +31,8 @@ assertProductPopup($standard['scheme_type'] === 'standard' && $standard['months'
 assertProductPopup($standard['scheme_key'] === 'standard|STD|12|0', 'popup calculation must return the canonical scheme key');
 assertProductPopup($standard['kop_code'] === 'STD' && $standard['glp'] === 18.0, 'Standard 12-month selection must use the Standard KOP');
 assertProductPopup($standard['first_installment'] === 100.0 && !$standard['first_installment_locked'], 'editable first installment was not calculated server-side');
-assertProductPopup($standard['price_display']['primary'] === '1000.00 EUR', 'Woo EUR popup formatting changed');
-assertProductPopup($standard['monthly_installment_display']['primary'] === '85.50 EUR', 'dependent values were not recalculated from financed amount');
+assertProductPopup($standard['price_display']['primary'] === '1000.00 евро', 'Woo EUR popup formatting changed');
+assertProductPopup($standard['monthly_installment_display']['primary'] === '85.50 евро', 'dependent values were not recalculated from financed amount');
 
 $promo = $popup->calculate($shop, $product, 'EUR', 'promo', 'promo', 'PROMO', 12, 0, 'promo|PROMO|12|0', 0.0);
 assertProductPopup($promo['scheme_type'] === 'promo' && $promo['glp_display'] === '0.00', 'Promo popup must remain isolated and zero-interest');
@@ -78,8 +78,8 @@ $visual = (new ProductPopupPresenter())->present([
 ], 'buy');
 assertProductPopup($visual['banner_url'] === 'https://cdn.example.test/desktop.jpg', 'CP uni_picture banner source missing');
 assertProductPopup($visual['banner_url_mobile'] === 'https://cdn.example.test/mobile.jpg', 'CP uni_picturem banner source missing');
-assertProductPopup($visual['button_action'] === 'buy' && $visual['secondary_label'] === 'Buy', 'Buy action presentation contract failed');
-assertProductPopup((new ProductPopupPresenter())->present([], 'add_to_cart')['secondary_label'] === 'Add to cart', 'Add-to-cart action label failed');
+assertProductPopup($visual['button_action'] === 'buy' && $visual['secondary_label'] === 'Купи', 'Buy action presentation contract failed');
+assertProductPopup((new ProductPopupPresenter())->present([], 'add_to_cart')['secondary_label'] === 'Добави в количката', 'Add-to-cart action label failed');
 $customerPresentation = (new ProductPopupPresenter())->present([], 'add_to_cart', ['first_name' => 'Иван', 'email' => 'ivan@example.test', 'is_logged' => true]);
 assertProductPopup($customerPresentation['customer']['first_name'] === 'Иван' && $customerPresentation['customer']['email'] === 'ivan@example.test' && $customerPresentation['customer']['is_logged'], 'Product Popup customer prefill model was not exposed');
 $fallbackLink = (new ProductPopupPresenter())->present(['reklama_url' => '', 'uni_backurl' => 'https://example.test/fallback'], 'add_to_cart');

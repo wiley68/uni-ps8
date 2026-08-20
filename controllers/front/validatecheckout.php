@@ -43,7 +43,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             !$this->module->active || !Tools::isSubmit('unipayment_checkout_submit') || !Tools::getIsset('unipayment_checkout_token')
             || !hash_equals(Tools::getToken(false), (string) Tools::getValue('unipayment_checkout_token'))
         ) {
-            $this->showError($this->module->getTranslator()->trans('The checkout request is invalid.', [], 'Modules.Unipayment.Shop'));
+            $this->showError($this->module->getTranslator()->trans('Заявката за checkout е невалидна.', [], 'Modules.Unipayment.Shop'));
 
             return;
         }
@@ -170,7 +170,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
         } catch (Throwable $exception) {
             $lock->release($idShop, $idCart);
             PrestaShopLogger::addLog('UniPayment checkout validation failed: ' . get_class($exception), 2);
-            $this->showError($this->module->getTranslator()->trans('The financing selection could not be validated.', [], 'Modules.Unipayment.Shop'));
+            $this->showError($this->module->getTranslator()->trans('Изборът на финансиране не може да бъде валидиран.', [], 'Modules.Unipayment.Shop'));
         }
     }
 
