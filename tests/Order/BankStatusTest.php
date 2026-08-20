@@ -42,6 +42,8 @@ assertBankStatus(strpos($popup, 'FinancingOrderMailDispatcher') !== false && str
 assertBankStatus(strpos($checkout, 'FinancingOrderMailDispatcher') !== false && strpos($checkout, 'BankStatus::smartUcfFailure') !== false, 'checkout must send emails after the final bank status is known');
 assertBankStatus(strpos($gateway, 'DeferredOrderMailQueue::start') !== false, 'Process 1 order_conf must be deferred until SmartUCF');
 assertBankStatus(strpos($grid, 'hookActionEmailSendBefore') !== false, 'order_conf deferral hook must be registered');
-assertBankStatus(strpos($grid, 'applyBankStatusLabel') !== false, 'admin order box must overlay live bank status like Woo');
+assertBankStatus(strpos($grid, 'hookDisplayPaymentReturn') !== false, 'Process 2 thank-you leasing block hook must be registered');
+$leasingPresenter = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/OrderLeasingDetailsPresenter.php');
+assertBankStatus(strpos($leasingPresenter, 'applyBankStatusLabel') !== false, 'admin/thank-you leasing rows must overlay live bank status like Woo');
 
 fwrite(STDOUT, "OK (Bank status persistence for admin orders list)\n");

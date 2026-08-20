@@ -21,6 +21,7 @@ use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
 use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
 use PrestaShop\Module\Unipayment\Order\OrderAttemptRepository;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
+use PrestaShop\Module\Unipayment\Order\OrderConfirmationUrlBuilder;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
@@ -120,6 +121,14 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
             } else {
                 \PrestaShop\Module\Unipayment\Order\DeferredOrderMailQueue::flush();
+            }
+
+            if ($process2) {
+                Tools::redirect(
+                    (new OrderConfirmationUrlBuilder())->build($this->context, $module, $result->idOrder)
+                );
+
+                return;
             }
 
             $this->context->smarty->assign(['unipayment_order_result' => [

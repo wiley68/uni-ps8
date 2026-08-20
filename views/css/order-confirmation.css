@@ -1,0 +1,25 @@
+.unipayment-thankyou-credit-details {
+    margin-top: 0;
+}
+
+.unipayment-thankyou-credit-details__title {
+    margin: 0 0 1rem;
+}
+
+.unipayment-thankyou-credit-details__table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.unipayment-thankyou-credit-details__table th,
+.unipayment-thankyou-credit-details__table td {
+    text-align: left;
+    vertical-align: middle;
+    padding: 0.75rem;
+    border: 1px solid #eee;
+}
+
+.unipayment-thankyou-credit-details__table th {
+    width: 40%;
+    font-weight: 600;
+}

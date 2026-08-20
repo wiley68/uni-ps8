@@ -28,6 +28,7 @@ class Unipayment extends PaymentModule
         ];
 
         parent::__construct();
+        $this->ensureRegisteredHooks();
 
         $this->displayName = $this->trans(
             'UniCredit Credit Calculator',
@@ -76,6 +77,7 @@ class Unipayment extends PaymentModule
             && $this->registerHook('actionEmailSendBefore')
             && $this->registerHook('actionOrderGridDefinitionModifier')
             && $this->registerHook('actionOrderGridQueryBuilderModifier')
+            && $this->registerHook('displayPaymentReturn')
         ) {
             return true;
         }
@@ -95,6 +97,45 @@ class Unipayment extends PaymentModule
     public function isUsingNewTranslationSystem(): bool
     {
         return true;
+    }
+
+    private function ensureRegisteredHooks(): void
+    {
+        if ((int) $this->id <= 0) {
+            return;
+        }
+
+        foreach (['displayPaymentReturn'] as $hookName) {
+            if (!$this->isRegisteredInHook($hookName)) {
+                $this->registerHook($hookName);
+            }
+        }
+    }
+
+    /**
+     * Process 2 thank-you block on the native order-confirmation page (Woo order-received parity).
+     *
+     * @param array<string, mixed> $params
+     */
+    public function hookDisplayPaymentReturn(array $params): string
+    {
+        $order = $params['order'] ?? null;
+        $idOrder = $order instanceof Order ? (int) $order->id : (int) ($params['id_order'] ?? 0);
+        if ($idOrder <= 0) {
+            return '';
+        }
+
+        $leasingRows = (new PrestaShop\Module\Unipayment\Order\OrderLeasingDetailsPresenter())
+            ->thankYouRows($idOrder);
+        if ($leasingRows === []) {
+            return '';
+        }
+
+        $this->context->smarty->assign([
+            'unipayment_leasing_rows' => $leasingRows,
+        ]);
+
+        return $this->display(__FILE__, 'views/templates/hook/order_confirmation_leasing.tpl');
     }
 
     public function uninstall(): bool
@@ -460,6 +501,16 @@ class Unipayment extends PaymentModule
             return;
         }
 
+        if ($this->context->controller->php_self === 'order-confirmation') {
+            $this->context->controller->registerStylesheet(
+                'module-unipayment-order-confirmation',
+                'modules/' . $this->name . '/views/css/order-confirmation.css',
+                ['media' => 'all', 'priority' => 150]
+            );
+
+            return;
+        }
+
         if ($this->context->controller->php_self === 'order') {
             $this->context->controller->registerStylesheet(
                 'module-unipayment-checkout-payment',
@@ -654,30 +705,11 @@ class Unipayment extends PaymentModule
     public function hookDisplayAdminOrderMainBottom(array $params): string
     {
         $idOrder = (int) ($params['id_order'] ?? 0);
-        $snapshot = (new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository())
-            ->findByOrderId($idOrder);
-        if ($snapshot === null) {
-            return '';
-        }
-
-        $shop = [];
-        $unicid = (new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository())->getUnicid();
-        if ($unicid !== '') {
-            $shop = (new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache())->getFresh($unicid) ?? [];
-        }
-
-        $presenter = new PrestaShop\Module\Unipayment\Order\LeasingOrderEmailPresenter();
-        $leasingRows = $presenter->rowsFromSnapshot($snapshot, $shop);
+        $leasingRows = (new PrestaShop\Module\Unipayment\Order\OrderLeasingDetailsPresenter())
+            ->rowsForOrder($idOrder);
         if ($leasingRows === []) {
             return '';
         }
-
-        $bankStatus = (new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository())
-            ->findByOrderId($idOrder);
-        $leasingRows = $presenter->applyBankStatusLabel(
-            $leasingRows,
-            (string) ($bankStatus['status_label'] ?? '')
-        );
 
         $this->context->smarty->assign([
             'unipayment_leasing_rows' => $leasingRows,

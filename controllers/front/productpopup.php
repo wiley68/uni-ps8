@@ -13,6 +13,7 @@ use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
 use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
 use PrestaShop\Module\Unipayment\Order\OrderAttemptRepository;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
+use PrestaShop\Module\Unipayment\Order\OrderConfirmationUrlBuilder;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
@@ -271,6 +272,14 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                 );
                 $this->logPopupPostOrderFailure($result->idOrder, $result->orderReference, $postOrderException, 'post-order');
                 $response['post_order_error'] = 'Поръчката е създадена, но допълнителната обработка не беше завършена.';
+            }
+
+            if ($this->isProcess2($shop)) {
+                $response['redirect_url'] = (new OrderConfirmationUrlBuilder())->build(
+                    $this->context,
+                    $module,
+                    $result->idOrder
+                );
             }
 
             if ($this->isDebugResponseEnabled()) {
