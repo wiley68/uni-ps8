@@ -493,9 +493,14 @@ class Unipayment extends PaymentModule
 
         if ($this->context->controller->php_self === 'cart') {
             $this->context->controller->registerStylesheet(
+                'module-unipayment-product-calculator',
+                'modules/' . $this->name . '/views/css/product-calculator.css',
+                ['media' => 'all', 'priority' => 150]
+            );
+            $this->context->controller->registerStylesheet(
                 'module-unipayment-cart-calculator',
                 'modules/' . $this->name . '/views/css/cart-calculator.css',
-                ['media' => 'all', 'priority' => 150]
+                ['media' => 'all', 'priority' => 151]
             );
             $this->context->controller->registerJavascript(
                 'module-unipayment-cart-calculator',
@@ -641,6 +646,8 @@ class Unipayment extends PaymentModule
             'unipayment_cart_calculator' => $view,
             'unipayment_cart_calculator_json' => json_encode($view, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'unipayment_cart_calculator_url' => $this->context->link->getModuleLink($this->name, 'cartcalculator', ['ajax' => 1], true),
+            'unipayment_logo_url' => $this->_path . 'views/img/product/uni_logo.svg',
+            'unipayment_logo_alternative_url' => $this->_path . 'views/img/product/uni_logo_red.svg',
             'unipayment_offer_types' => ['standard', 'promo'],
         ]);
 

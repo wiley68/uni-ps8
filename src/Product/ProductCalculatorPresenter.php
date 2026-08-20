@@ -6,6 +6,7 @@ namespace PrestaShop\Module\Unipayment\Product;
 
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\CurrencyGate;
+use PrestaShop\Module\Unipayment\Calculator\InstallmentLabelFormatter;
 use PrestaShop\Module\Unipayment\Calculator\ProductContext;
 use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
 
@@ -76,7 +77,7 @@ final class ProductCalculatorPresenter
                     $preferred[$type]->filterId
                 ),
                 'monthly_installment' => $preferred[$type]->monthlyInstallment,
-                'installment_label' => $this->installmentLabel(
+                'installment_label' => (new InstallmentLabelFormatter())->format(
                     $preferred[$type]->months,
                     $preferred[$type]->monthlyInstallment,
                     (int) ($shop['uni_eur'] ?? 0)
@@ -118,30 +119,5 @@ final class ProductCalculatorPresenter
         $dimension = (int) $value;
 
         return $dimension >= $minimum && $dimension <= $maximum ? $dimension : $fallback;
-    }
-
-    private function installmentLabel(int $months, float $monthlyInstallment, int $currencyMode): string
-    {
-        if ($currencyMode === 1 || $currencyMode === 2) {
-            $secondary = $currencyMode === 1
-                ? round($monthlyInstallment / 1.95583, 2)
-                : round($monthlyInstallment * 1.95583, 2);
-
-            return sprintf(
-                '%d x %s %s (%s %s)',
-                $months,
-                number_format($monthlyInstallment, 2, '.', ''),
-                $currencyMode === 1 ? 'лева' : 'евро',
-                number_format($secondary, 2, '.', ''),
-                $currencyMode === 1 ? 'евро' : 'лева'
-            );
-        }
-
-        return sprintf(
-            '%d x %s %s',
-            $months,
-            number_format($monthlyInstallment, 2, '.', ''),
-            $currencyMode === 3 ? 'евро' : 'лв.'
-        );
     }
 }

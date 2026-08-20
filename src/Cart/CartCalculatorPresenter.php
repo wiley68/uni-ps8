@@ -6,6 +6,7 @@ namespace PrestaShop\Module\Unipayment\Cart;
 
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\CurrencyGate;
+use PrestaShop\Module\Unipayment\Calculator\InstallmentLabelFormatter;
 use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
 
 final class CartCalculatorPresenter
@@ -65,6 +66,11 @@ final class CartCalculatorPresenter
                     'type' => $buttonType,
                     'months' => $preferred->months,
                     'monthly_installment' => $preferred->monthlyInstallment,
+                    'installment_label' => (new InstallmentLabelFormatter())->format(
+                        $preferred->months,
+                        $preferred->monthlyInstallment,
+                        (int) ($shop['uni_eur'] ?? 0)
+                    ),
                     'schemes' => $rows,
                 ];
             }
@@ -83,6 +89,7 @@ final class CartCalculatorPresenter
             'buttons_in_row' => (int) ($shop['uni_button_row'] ?? 1) === 1,
             'button_width' => $this->dimension($shop['uni_button_width'] ?? 290, 290),
             'button_height' => $this->dimension($shop['uni_button_height'] ?? 56, 56),
+            'heading' => trim((string) ($shop['uni_zaglavie'] ?? '')),
             'offers' => $offers,
         ];
     }
