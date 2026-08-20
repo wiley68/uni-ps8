@@ -55,19 +55,29 @@ final class CheckoutPaymentPresenter
         }
         $resolution = $this->cartResolver->resolve($shop, $cart);
         $schemes = [];
+        $zeroInterestPromoKey = null;
+        $zeroInterestPromoMonths = -1;
         foreach ($this->cartResolver->unifiedSchemes($resolution) as $scheme) {
             try {
                 $result = $this->calculator->calculateScheme($shop, $cart->total, $scheme);
             } catch (UnavailableSchemeException $exception) {
                 continue;
             }
+            $key = SchemeSelection::key($scheme->type, $scheme->months, $scheme->filterId);
+            $zeroInterest = $scheme->type === 'promo'
+                && abs((float) ($scheme->coefficient['interestPercent'] ?? -1)) <= 0.00001;
+            if ($zeroInterest && $scheme->months > $zeroInterestPromoMonths) {
+                $zeroInterestPromoMonths = $scheme->months;
+                $zeroInterestPromoKey = $key;
+            }
             $schemes[] = [
-                'key' => SchemeSelection::key($scheme->type, $scheme->months, $scheme->filterId),
+                'key' => $key,
                 'scheme_type' => $scheme->type,
                 'kop_code' => $scheme->kopCode,
                 'months' => $scheme->months,
                 'filter_id' => $scheme->filterId,
                 'description' => ProductPopupSchemeList::description($shop, $scheme),
+                'zero_interest' => $zeroInterest,
                 'first_installment' => $result->firstInstallment->amount,
                 'first_installment_locked' => $result->firstInstallment->locked,
                 'show_first_installment' => $result->firstInstallment->visible,
@@ -86,13 +96,18 @@ final class CheckoutPaymentPresenter
         if ($schemes === []) {
             return null;
         }
+        // Default: longest available 0% promo scheme. Fallback: CP preferred months, then first scheme.
         $defaultKey = $schemes[0]['key'];
-        $preferred = $resolution->standardOffer ?? $resolution->promoOffer;
-        if ($preferred !== null) {
-            foreach ($schemes as $scheme) {
-                if ($scheme['months'] === $preferred->months && $scheme['kop_code'] === $preferred->kopCode) {
-                    $defaultKey = $scheme['key'];
-                    break;
+        if ($zeroInterestPromoKey !== null) {
+            $defaultKey = $zeroInterestPromoKey;
+        } else {
+            $preferred = $resolution->standardOffer ?? $resolution->promoOffer;
+            if ($preferred !== null) {
+                foreach ($schemes as $scheme) {
+                    if ($scheme['months'] === $preferred->months && $scheme['kop_code'] === $preferred->kopCode) {
+                        $defaultKey = $scheme['key'];
+                        break;
+                    }
                 }
             }
         }

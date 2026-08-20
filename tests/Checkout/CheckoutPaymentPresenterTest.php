@@ -45,6 +45,18 @@ assertCheckoutPresenter(!empty($view['consents'][0]['has_checkbox']) && empty($v
 assertCheckoutPresenter(strpos($view['cart_snapshot'], '.') !== false, 'signed cart snapshot missing');
 assertCheckoutPresenter(array_key_exists('process2', $view), 'process2 flag must be exposed');
 
+$zeroInterestPromos = array_values(array_filter($view['schemes'], static function (array $scheme): bool {
+    return !empty($scheme['zero_interest']);
+}));
+assertCheckoutPresenter($zeroInterestPromos !== [], 'fixture must expose at least one 0% promo scheme');
+$maxZeroMonths = max(array_map(static function (array $scheme): int {
+    return (int) $scheme['months'];
+}, $zeroInterestPromos));
+assertCheckoutPresenter(
+    $view['default_scheme_key'] === 'p:' . $maxZeroMonths . ':0',
+    'checkout default must prefer the longest available 0% promo scheme'
+);
+
 $preferredScheme = $view['schemes'][1];
 $preferredView = $presenter->present(true, $shop, $cart, 'BGN', [
     'scheme_type' => $preferredScheme['scheme_type'],
