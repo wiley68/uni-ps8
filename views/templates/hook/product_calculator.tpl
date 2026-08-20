@@ -71,7 +71,7 @@
                                         <source media="(max-width: 768px)"
                                         srcset="{$unipayment_popup.banner_url_mobile|escape:'htmlall':'UTF-8'}">{/if}
                                     <img src="{if $unipayment_popup.banner_url}{$unipayment_popup.banner_url|escape:'htmlall':'UTF-8'}{else}{$unipayment_popup.banner_url_mobile|escape:'htmlall':'UTF-8'}{/if}"
-                                        alt="{l s='UniCredit purchases on credit' d='Modules.Unipayment.Shop'}">
+                                        alt="{l s='UniCredit Credit purchases' d='Modules.Unipayment.Shop'}">
                                 </picture>
                                 {if $unipayment_popup.banner_link}
                             </a>{/if}

@@ -740,7 +740,7 @@ class Unipayment extends PaymentModule
         ]);
         $option = new PrestaShop\PrestaShop\Core\Payment\PaymentOption();
         $option->setModuleName($this->name)
-            ->setCallToActionText($this->trans('UniCredit purchases on credit', [], 'Modules.Unipayment.Shop'))
+            ->setCallToActionText($this->trans('UniCredit Credit purchases', [], 'Modules.Unipayment.Shop'))
             ->setAction($this->context->link->getModuleLink($this->name, 'validatecheckout', [], true))
             ->setForm($this->fetch('module:unipayment/views/templates/hook/checkout_payment.tpl'));
 
