@@ -46,6 +46,23 @@ class Unipayment extends PaymentModule
         );
     }
 
+    /**
+     * Display-only currency suffix for UI amounts (installment labels, dual amounts).
+     * Source strings EUR / BGN are registered in Modules.Unipayment.Shop for localization.
+     */
+    public function getDisplayCurrencyLabel(string $iso): string
+    {
+        $iso = strtoupper(trim($iso));
+        if ($iso === 'EUR') {
+            return $this->trans('EUR', [], 'Modules.Unipayment.Shop');
+        }
+        if ($iso === 'BGN') {
+            return $this->trans('BGN', [], 'Modules.Unipayment.Shop');
+        }
+
+        return $iso;
+    }
+
     public function install(): bool
     {
         if (!parent::install()) {

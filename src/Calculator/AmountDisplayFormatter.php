@@ -9,20 +9,29 @@ namespace PrestaShop\Module\Unipayment\Calculator;
  */
 final class AmountDisplayFormatter
 {
+    /** @var CurrencyDisplayLabel */
+    private $labels;
+
+    public function __construct(?CurrencyDisplayLabel $labels = null)
+    {
+        $this->labels = $labels ?? new CurrencyDisplayLabel();
+    }
+
     /** @param array<string, mixed> $shop @return array{primary:string,secondary:string,dual:bool} */
     public function format(float $amount, array $shop): array
     {
         $mode = (int) ($shop['uni_eur'] ?? 0);
         $primaryCurrency = in_array($mode, [2, 3], true) ? 'EUR' : 'BGN';
-        $primary = number_format(abs($amount), 2, '.', '') . ' ' . $primaryCurrency;
+        $primary = number_format(abs($amount), 2, '.', '') . ' ' . $this->labels->forIso($primaryCurrency);
         if (!in_array($mode, [1, 2], true)) {
             return ['primary' => $primary, 'secondary' => '', 'dual' => false];
         }
         $secondary = $mode === 1 ? round($amount / 1.95583, 2) : round($amount * 1.95583, 2);
+        $secondaryCurrency = $mode === 1 ? 'EUR' : 'BGN';
 
         return [
             'primary' => $primary,
-            'secondary' => number_format(abs($secondary), 2, '.', '') . ' ' . ($mode === 1 ? 'EUR' : 'BGN'),
+            'secondary' => number_format(abs($secondary), 2, '.', '') . ' ' . $this->labels->forIso($secondaryCurrency),
             'dual' => true,
         ];
     }

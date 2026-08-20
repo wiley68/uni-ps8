@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\Product;
 
+use PrestaShop\Module\Unipayment\Calculator\AmountDisplayFormatter;
 use PrestaShop\Module\Unipayment\Calculator\AvailableScheme;
 use PrestaShop\Module\Unipayment\Calculator\CalculationResult;
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
@@ -17,11 +18,17 @@ final class ProductPopupCalculator
     private $calculator;
     /** @var CurrencyGate */
     private $currencyGate;
+    /** @var AmountDisplayFormatter */
+    private $amounts;
 
-    public function __construct(Calculator $calculator, ?CurrencyGate $currencyGate = null)
-    {
+    public function __construct(
+        Calculator $calculator,
+        ?CurrencyGate $currencyGate = null,
+        ?AmountDisplayFormatter $amounts = null
+    ) {
         $this->calculator = $calculator;
         $this->currencyGate = $currencyGate ?? new CurrencyGate();
+        $this->amounts = $amounts ?? new AmountDisplayFormatter();
     }
 
     /** @param array<string, mixed> $shop @return array<string, mixed> */
@@ -96,18 +103,6 @@ final class ProductPopupCalculator
     /** @param array<string, mixed> $shop @return array{primary:string,secondary:string,dual:bool} */
     private function amountDisplay(float $amount, array $shop): array
     {
-        $mode = (int) ($shop['uni_eur'] ?? 0);
-        $primaryCurrency = in_array($mode, [2, 3], true) ? 'EUR' : 'BGN';
-        $primary = number_format(abs($amount), 2, '.', '') . ' ' . $primaryCurrency;
-        if (!in_array($mode, [1, 2], true)) {
-            return ['primary' => $primary, 'secondary' => '', 'dual' => false];
-        }
-        $secondary = $mode === 1 ? round($amount / 1.95583, 2) : round($amount * 1.95583, 2);
-
-        return [
-            'primary' => $primary,
-            'secondary' => number_format(abs($secondary), 2, '.', '') . ' ' . ($mode === 1 ? 'EUR' : 'BGN'),
-            'dual' => true,
-        ];
+        return $this->amounts->format($amount, $shop);
     }
 }
