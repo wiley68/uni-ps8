@@ -161,6 +161,7 @@
         var refreshSequence = 0;
         var lastRequestKey = "";
         var redirectPending = false;
+        var popupSubmissionToken = "";
 
         function t(attribute, fallback) {
             return root.getAttribute(attribute) || fallback;
@@ -468,6 +469,8 @@
             calculateSequence += 1;
             lastCalculation = null;
             redirectPending = false;
+            popupSubmissionToken = "";
+            root.unipaymentPopupSubmissionToken = "";
             activeType = "";
             root.classList.remove("unipayment-product-calculator--error");
             first.value = "0";
@@ -799,10 +802,63 @@
                     detail: state,
                 }),
             );
-            setStep(2, { animate: true });
-            showCustomerErrors({});
-            submitError.textContent = "";
-            updateSubmitState(false);
+
+            function enterStep2() {
+                setStep(2, { animate: true });
+                showCustomerErrors({});
+                submitError.textContent = "";
+                updateSubmitState(false);
+            }
+
+            if (isCartSource) {
+                enterStep2();
+                return;
+            }
+
+            var payload = calculationPayload("issue_submission_token");
+            var endpoint = root.getAttribute("data-popup-endpoint");
+            if (!payload || !endpoint) {
+                enterStep2();
+                return;
+            }
+            if (popupSubmissionToken)
+                payload.set("popup_submission_token", popupSubmissionToken);
+            if (applyButton) applyButton.disabled = true;
+            fetch(endpoint, {
+                method: "POST",
+                credentials: "same-origin",
+                body: payload,
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Content-Type":
+                        "application/x-www-form-urlencoded;charset=UTF-8",
+                },
+            })
+                .then(function (response) {
+                    return response.json().then(function (body) {
+                        if (
+                            !response.ok ||
+                            !body.success ||
+                            !body.popup_submission_token
+                        ) {
+                            throw new Error((body && body.message) || "token");
+                        }
+                        popupSubmissionToken = body.popup_submission_token;
+                        root.unipaymentPopupSubmissionToken =
+                            popupSubmissionToken;
+                        enterStep2();
+                    });
+                })
+                .catch(function () {
+                    errorBox.textContent = t(
+                        "data-validation-failed-message",
+                        "Данните не могат да бъдат валидирани.",
+                    );
+                })
+                .then(function () {
+                    if (applyButton && lastCalculation)
+                        applyButton.disabled = false;
+                });
         }
 
         function requestStep2Validation() {
@@ -811,6 +867,16 @@
             var payload = calculationPayload("apply");
             var endpoint = root.getAttribute("data-popup-endpoint");
             if (!payload || !endpoint) return;
+            if (!isCartSource) {
+                if (!popupSubmissionToken) {
+                    submitError.textContent = t(
+                        "data-validation-failed-message",
+                        "Данните не могат да бъдат валидирани.",
+                    );
+                    return;
+                }
+                payload.set("popup_submission_token", popupSubmissionToken);
+            }
             ["first_name", "last_name", "address", "phone", "email"].forEach(
                 function (name) {
                     payload.set(name, customerField(name).value.trim());
@@ -842,7 +908,13 @@
             })
                 .then(function (response) {
                     return response.json().then(function (body) {
+                        if (body && body.popup_submission_token)
+                            popupSubmissionToken = body.popup_submission_token;
                         if (!response.ok || !body.success) {
+                            if (body && body.selection_changed) {
+                                popupSubmissionToken = "";
+                                root.unipaymentPopupSubmissionToken = "";
+                            }
                             if (body && body.errors)
                                 showCustomerErrors(body.errors);
                             submitError.textContent =
@@ -854,6 +926,11 @@
                             redirectPending = false;
                             setProcessingState(false);
                             throw new Error(body.message || "validation");
+                        }
+                        if (body.step === "processing") {
+                            showSmartUcfLoading();
+                            setStep(3);
+                            return;
                         }
                         root.unipaymentOrderResult = body.order;
                         if (body.redirect_url) {
@@ -1039,6 +1116,8 @@
             first.value = "0";
             first.readOnly = false;
             lastCalculation = null;
+            popupSubmissionToken = "";
+            root.unipaymentPopupSubmissionToken = "";
             applyButton.disabled = true;
             setSecondaryDisabled(true);
             if (submitButton) {
@@ -1051,6 +1130,8 @@
             if (first.readOnly) return;
             first.value = first.value.replace(/\D/g, "");
             lastCalculation = null;
+            popupSubmissionToken = "";
+            root.unipaymentPopupSubmissionToken = "";
             applyButton.disabled = true;
             setSecondaryDisabled(true);
             if (submitButton) {
@@ -1101,6 +1182,8 @@
         root.unipaymentInvalidatePopup = function () {
             if (modal.hidden) return;
             lastCalculation = null;
+            popupSubmissionToken = "";
+            root.unipaymentPopupSubmissionToken = "";
             applyButton.disabled = true;
             setSecondaryDisabled(true);
             if (submitButton) {

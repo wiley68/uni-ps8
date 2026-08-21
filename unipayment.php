@@ -80,6 +80,7 @@ class Unipayment extends PaymentModule
         $bankStatus = new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository();
         $attempts = new PrestaShop\Module\Unipayment\Order\OrderAttemptRepository();
         $snapshots = new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository();
+        $popupSubmissions = new PrestaShop\Module\Unipayment\Product\PopupSubmissionRepository();
         $orderStates = new PrestaShop\Module\Unipayment\Order\OrderStateInstaller();
         if (
             $repository->install()
@@ -88,6 +89,7 @@ class Unipayment extends PaymentModule
             && $bankStatus->install()
             && $attempts->install()
             && $snapshots->install()
+            && $popupSubmissions->install()
             && $orderStates->install()
             && $this->registerHook('displayAdminOrderMainBottom')
             && $this->registerHook('displayProductAdditionalInfo')
@@ -105,6 +107,7 @@ class Unipayment extends PaymentModule
         }
 
         $orderStates->uninstall();
+        $popupSubmissions->uninstall();
         $snapshots->uninstall();
         $attempts->uninstall();
         $bankStatus->uninstall();
@@ -155,9 +158,11 @@ class Unipayment extends PaymentModule
         $bankStatus = new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository();
         $attempts = new PrestaShop\Module\Unipayment\Order\OrderAttemptRepository();
         $snapshots = new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository();
+        $popupSubmissions = new PrestaShop\Module\Unipayment\Product\PopupSubmissionRepository();
         $orderStates = new PrestaShop\Module\Unipayment\Order\OrderStateInstaller();
 
         $orderStatesRemoved = $orderStates->uninstall();
+        $popupSubmissionsRemoved = $popupSubmissions->uninstall();
         $snapshotsRemoved = $snapshots->uninstall();
         $attemptsRemoved = $attempts->uninstall();
         $bankStatusRemoved = $bankStatus->uninstall();
@@ -169,6 +174,7 @@ class Unipayment extends PaymentModule
         return $bankStatusRemoved
             && $attemptsRemoved
             && $snapshotsRemoved
+            && $popupSubmissionsRemoved
             && $orderStatesRemoved
             && $debugLogRemoved
             && $cacheRemoved

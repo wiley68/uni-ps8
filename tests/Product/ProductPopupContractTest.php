@@ -59,6 +59,8 @@ assertProductPopupContract(
 assertProductPopupContract(strpos($javascript, 'payload.set("popup_offer_type", activeType)') !== false, 'popup context must be sent for authoritative mixed-scheme validation');
 assertProductPopupContract(strpos($javascript, 'payload.set("scheme_key", fields.scheme_key)') !== false && strpos($javascript, 'payload.set("kop_code", fields.kop_code)') !== false, 'full Product Popup scheme identity must be sent for server-side validation');
 assertProductPopupContract(strpos($javascript, 'calculationPayload("apply")') !== false, 'Step 2 submit must send the Step 1 identity for authoritative apply');
+assertProductPopupContract(strpos($javascript, 'issue_submission_token') !== false, 'Step 1→2 must issue popup_submission_token');
+assertProductPopupContract(strpos($javascript, 'popup_submission_token') !== false, 'apply must send popup_submission_token');
 assertProductPopupContract(strpos($javascript, 'payload.set("phone2"') !== false, 'Process 2 secondary phone must be sent with apply');
 assertProductPopupContract(strpos($javascript, 'event.target.closest("[data-unipayment-back]")') !== false && strpos($javascript, 'setStep(1)') !== false, 'Step 2 Back navigation missing');
 assertProductPopupContract(strpos($javascript, 'input.value = input.defaultValue') !== false, 'Cancel/new popup flow must reset transient Step 2 values');
@@ -78,6 +80,7 @@ assertProductPopupContract(strpos($javascript, 'unipaymentInvalidatePopup') !== 
 assertProductPopupContract(strpos($controller, 'ProductContextFactory())->create') !== false, 'server-authoritative product price reconstruction missing');
 assertProductPopupContract(strpos($controller, 'ProductPopupCalculator(new Calculator())') !== false, 'Phase 5 calculator integration missing');
 assertProductPopupContract(strpos($controller, "if (\$action === 'validate_step2')") !== false && strpos($controller, 'ProductPopupCustomerValidator') !== false, 'Step 2 server validation contract missing');
+assertProductPopupContract(strpos($controller, "issue_submission_token") !== false, 'Product popup must issue submission tokens before apply');
 assertProductPopupContract(strpos($controller, 'OrderOrchestrator') !== false, 'Apply must orchestrate order creation after Step 2');
 assertProductPopupContract(strpos($controller, 'Tools::getValue(\'monthly_installment\'') === false && strpos($controller, 'Tools::getValue(\'total_payable\'') === false, 'browser financial values must not be trusted during Step 2 validation');
 foreach (['delete', 'deleteProduct', 'updateQty'] as $forbiddenCartMutation) {

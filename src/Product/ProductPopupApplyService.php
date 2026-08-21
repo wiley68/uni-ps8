@@ -6,6 +6,7 @@ namespace PrestaShop\Module\Unipayment\Product;
 
 use Cart;
 use Context;
+use Customer;
 use PrestaShop\Module\Unipayment\Calculator\AvailableScheme;
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\CurrencyGate;
@@ -17,6 +18,7 @@ use PrestaShop\Module\Unipayment\Checkout\ValidatedPaymentRequest;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationResult;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
+use Validate;
 
 /**
  * Coordinates the direct order flow from the product popup Step 2 "Submit".
@@ -25,9 +27,10 @@ use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
  *  1. Re-validate financing scheme availability and recalculate
  *  2. Validate customer data (including EGN when Process 2)
  *  3. Authenticated customers keep Context identity; anonymous visitors get a fresh guest
- *  4. Build a single-product cart
- *  5. Build ValidatedPaymentRequest
- *  6. Delegate to OrderOrchestrator
+ *  4. Build a single-product cart (or reuse cart bound to the popup submission)
+ *  5. Persist id_cart on the submission BEFORE OrderOrchestrator (AUD-002A)
+ *  6. Build ValidatedPaymentRequest
+ *  7. Delegate to OrderOrchestrator
  */
 final class ProductPopupApplyService
 {
@@ -47,6 +50,8 @@ final class ProductPopupApplyService
     private $consents;
     /** @var PopupCustomerIdentityGate */
     private $identityGate;
+    /** @var PopupSubmissionRepository|null */
+    private $submissions;
 
     public function __construct(
         Calculator $calculator,
@@ -56,7 +61,8 @@ final class ProductPopupApplyService
         SensitiveDataCipher $cipher,
         ?CurrencyGate $currencyGate = null,
         ?ConsentResolver $consents = null,
-        ?PopupCustomerIdentityGate $identityGate = null
+        ?PopupCustomerIdentityGate $identityGate = null,
+        ?PopupSubmissionRepository $submissions = null
     ) {
         $this->calculator = $calculator;
         $this->customerValidator = $customerValidator;
@@ -66,6 +72,7 @@ final class ProductPopupApplyService
         $this->currencyGate = $currencyGate ?? new CurrencyGate();
         $this->consents = $consents ?? new ConsentResolver();
         $this->identityGate = $identityGate ?? new PopupCustomerIdentityGate();
+        $this->submissions = $submissions;
     }
 
     /**
@@ -80,7 +87,9 @@ final class ProductPopupApplyService
         int $productId,
         int $attributeId,
         int $quantity,
-        Context $context
+        Context $context,
+        int $submissionId = 0,
+        int $reuseCartId = 0
     ): OrderOrchestrationResult {
         $popupType = (string) ($posted['popup_offer_type'] ?? '');
         $schemeType = (string) ($posted['scheme_type'] ?? '');
@@ -120,7 +129,14 @@ final class ProductPopupApplyService
             }
         ));
 
-        $this->ensureCustomerAndCart($customerData, $productId, $attributeId, $quantity, $context);
+        if ($reuseCartId > 0) {
+            $this->attachExistingCart($reuseCartId, $context);
+        } else {
+            $this->ensureCustomerAndCart($customerData, $productId, $attributeId, $quantity, $context);
+            if ($submissionId > 0 && $this->submissions !== null) {
+                $this->submissions->attachCart($submissionId, (int) $context->cart->id);
+            }
+        }
 
         $cart = $context->cart;
         $cartFingerprint = md5((int) $cart->id . ':' . $product->price . ':' . $schemeKey);
@@ -134,6 +150,31 @@ final class ProductPopupApplyService
             $shop,
             'product_popup'
         );
+    }
+
+    private function attachExistingCart(int $idCart, Context $context): void
+    {
+        $cart = new Cart($idCart);
+        if (!Validate::isLoadedObject($cart) || (int) $cart->id_shop !== (int) $context->shop->id) {
+            throw new \RuntimeException('The popup submission cart could not be recovered.');
+        }
+
+        $customer = new Customer((int) $cart->id_customer);
+        if (!Validate::isLoadedObject($customer)) {
+            throw new \RuntimeException('The popup submission customer could not be recovered.');
+        }
+
+        $context->customer = $customer;
+        $context->cart = $cart;
+        $context->cookie->id_customer = (int) $customer->id;
+        $context->cookie->customer_lastname = $customer->lastname;
+        $context->cookie->customer_firstname = $customer->firstname;
+        $context->cookie->logged = $this->identityGate->shouldUseAuthenticatedCustomer($customer) ? 1 : 0;
+        $context->cookie->passwd = $customer->passwd;
+        $context->cookie->email = $customer->email;
+        $context->cookie->is_guest = (int) $customer->is_guest;
+        $context->cookie->id_cart = (int) $cart->id;
+        $context->cookie->write();
     }
 
     /** @param array<string, string> $customerData */
