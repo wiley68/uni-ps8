@@ -27,6 +27,7 @@ use PrestaShop\Module\Unipayment\Order\OrderConfirmationUrlBuilder;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfEndpointPolicy;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionCoordinator;
 
 final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontController
@@ -116,8 +117,28 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 );
                 $smart = $coordinator->run($result->attemptId, $shop, false, $snapshot);
                 if ($smart->isCreated()) {
+                    $redirectUrl = $smart->redirectUrl();
+                    if (!(new SmartUcfEndpointPolicy())->isTrustedApplicationRedirect($redirectUrl)) {
+                        \PrestaShopLogger::addLog(
+                            'UniPayment blocked untrusted SmartUCF redirect after create.',
+                            3
+                        );
+                        (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
+                        $this->context->smarty->assign([
+                            'unipayment_order_result' => [
+                                'id_order' => $result->idOrder,
+                                'order_reference' => $result->orderReference,
+                                'control_panel_order_id' => $result->controlPanelOrderId,
+                            ],
+                            'unipayment_smartucf_outcome_unknown' => true,
+                            'unipayment_smartucf_message' => SmartUcfSessionCoordinator::CUSTOMER_OUTCOME_UNKNOWN,
+                        ]);
+                        $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
+
+                        return;
+                    }
                     (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
-                    Tools::redirect($smart->redirectUrl());
+                    Tools::redirect($redirectUrl);
 
                     return;
                 }

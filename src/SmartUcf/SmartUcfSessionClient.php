@@ -8,7 +8,7 @@ use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
 
 /**
  * HTTP client for SmartUCF sucfOnlineSessionStart.
- * Follows the Woo reference (Mtuc_Smartucf_Api_Client).
+ * Outbound destinations are gated by SmartUcfEndpointPolicy (AUD-003).
  */
 final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
 {
@@ -23,10 +23,17 @@ final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
     /** @var string */
     private $keysDir;
 
-    public function __construct(SmartUcfPayloadBuilder $payloadBuilder, ?string $keysDir = null)
-    {
+    /** @var SmartUcfEndpointPolicy */
+    private $endpointPolicy;
+
+    public function __construct(
+        SmartUcfPayloadBuilder $payloadBuilder,
+        ?string $keysDir = null,
+        ?SmartUcfEndpointPolicy $endpointPolicy = null
+    ) {
         $this->payloadBuilder = $payloadBuilder;
         $this->keysDir = $keysDir ?? dirname(__DIR__, 2) . '/keys';
+        $this->endpointPolicy = $endpointPolicy ?? new SmartUcfEndpointPolicy();
     }
 
     /**
@@ -39,22 +46,22 @@ final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
      */
     public function createSession(array $shop, array $snapshot): array
     {
-        $serviceUrl = $this->serviceUrl($shop);
-        $applicationUrl = $this->applicationUrl($shop);
+        $serviceBase = $this->serviceUrl($shop);
+        $applicationBase = $this->applicationUrl($shop);
 
-        if ($serviceUrl === '' || $serviceUrl === 'sucfOnlineSessionStart') {
-            throw new SmartUcfSessionException(
-                'The SmartUCF service URL is not configured.',
-                true,
-                '',
-                0,
-                SmartUcfSessionException::KIND_PRE_SEND
+        try {
+            $url = $this->endpointPolicy->buildSessionStartUrl($serviceBase);
+            $this->endpointPolicy->assertTrustedApplicationBase($applicationBase);
+        } catch (\InvalidArgumentException $exception) {
+            \PrestaShopLogger::addLog(
+                'UniPayment SmartUCF URL rejected before send: '
+                    . $exception->getMessage()
+                    . ' service=' . $this->endpointPolicy->describeUrlForLog($serviceBase)
+                    . ' application=' . $this->endpointPolicy->describeUrlForLog($applicationBase),
+                3
             );
-        }
-
-        if ($applicationUrl === '') {
             throw new SmartUcfSessionException(
-                'The SmartUCF application URL is not configured.',
+                'The SmartUCF endpoint URL is not trusted.',
                 true,
                 '',
                 0,
@@ -79,14 +86,14 @@ final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
             }
         }
 
-        $url = rtrim($serviceUrl, '/') . '/sucfOnlineSessionStart';
         $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
         $options = [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 2,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_MAXREDIRS => 0,
             CURLOPT_TIMEOUT => self::HTTP_TIMEOUT_SECONDS,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'POST',
@@ -95,6 +102,8 @@ final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
                 'Content-Type: application/json',
                 'cache-control: no-cache',
             ],
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
         ];
 
         if ($useCert) {
@@ -157,14 +166,16 @@ final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
             );
         }
 
-        $redirectUrl = $this->applicationRedirectUrl($shop, $sessionId);
-        if ($redirectUrl === '' || $redirectUrl === '/') {
+        try {
+            $redirectUrl = $this->endpointPolicy->buildApplicationRedirect($applicationBase, $sessionId);
+        } catch (\InvalidArgumentException $exception) {
+            // Remote session may already exist — must not be classified as pre-send retryable.
             throw new SmartUcfSessionException(
-                'The SmartUCF application URL is not configured.',
-                true,
+                'SmartUCF session redirect could not be built safely.',
+                false,
                 $rawResponse,
                 $httpCode,
-                SmartUcfSessionException::KIND_PRE_SEND
+                SmartUcfSessionException::KIND_TRANSPORT
             );
         }
 
@@ -208,13 +219,5 @@ final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
         return ShopConfigurationFlags::isTestEnvironment($shop)
             ? trim((string) ($shop['uni_test_application'] ?? ''))
             : trim((string) ($shop['uni_production_application'] ?? ''));
-    }
-
-    /** @param array<string, mixed> $shop */
-    private function applicationRedirectUrl(array $shop, string $sessionId): string
-    {
-        $base = $this->applicationUrl($shop);
-
-        return rtrim($base, '/') . '/' . ltrim($sessionId, '/');
     }
 }

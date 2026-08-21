@@ -259,7 +259,7 @@ final class SmartUcfSessionCoordinator
         if ($state === SmartUcfLifecycleStates::CREATED) {
             $redirect = (string) ($row['smartucf_redirect_url'] ?? '');
             $sessionId = (string) ($row['smartucf_session_id'] ?? '');
-            if ($redirect !== '') {
+            if ($redirect !== '' && (new SmartUcfEndpointPolicy())->isTrustedApplicationRedirect($redirect)) {
                 return SmartUcfCoordinationResult::created($redirect, $sessionId);
             }
 

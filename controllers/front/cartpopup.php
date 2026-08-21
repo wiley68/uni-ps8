@@ -24,6 +24,7 @@ use PrestaShop\Module\Unipayment\Product\GuestCustomerFactory;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCustomerValidator;
 use PrestaShop\Module\Unipayment\Product\ProductPopupValidationException;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCoordinationResult;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfEndpointPolicy;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionCoordinator;
 
 /**
@@ -250,7 +251,14 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
     private function applySmartUcfResultToResponse(array &$response, SmartUcfCoordinationResult $smart): void
     {
         if ($smart->isCreated()) {
-            $response['redirect_url'] = $smart->redirectUrl();
+            $redirectUrl = $smart->redirectUrl();
+            if (!(new SmartUcfEndpointPolicy())->isTrustedApplicationRedirect($redirectUrl)) {
+                $response['step'] = 'outcome_unknown';
+                $response['smartucf_error'] = SmartUcfSessionCoordinator::CUSTOMER_OUTCOME_UNKNOWN;
+
+                return;
+            }
+            $response['redirect_url'] = $redirectUrl;
             $response['step'] = 'order_created';
 
             return;

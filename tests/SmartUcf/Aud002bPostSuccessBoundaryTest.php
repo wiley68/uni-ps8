@@ -52,7 +52,7 @@ final class Aud002bFakeSessionGateway implements SmartUcfSessionGatewayInterface
     /** @var array<string, mixed> */
     public $session = [
         'session_id' => 'remote-sess-1',
-        'redirect_url' => 'https://bank.example/remote-sess-1',
+        'redirect_url' => 'https://onlinetest.ucfin.bg/sucf-online/Request/Start/remote-sess-1',
         'http_code' => 200,
         'raw_request' => '{}',
         'raw_response' => '{"ok":1}',
@@ -259,7 +259,7 @@ $life3 = new Aud002bMemoryLifecycle($baseRow);
 $coord3 = aud002bCoordinatorWith($life3, $gateway3);
 $result3 = $coord3->run(42, $shop, false, $snapshot);
 assertPostSuccess($result3->isCreated(), '3: created');
-assertPostSuccess($result3->redirectUrl() === 'https://bank.example/remote-sess-1', '3: redirect');
+assertPostSuccess($result3->redirectUrl() === 'https://onlinetest.ucfin.bg/sucf-online/Request/Start/remote-sess-1', '3: redirect');
 assertPostSuccess((string) $life3->row['smartucf_state'] === SmartUcfLifecycleStates::CREATED, '3: persisted created');
 $result3b = $coord3->run(42, $shop, false, $snapshot);
 assertPostSuccess($result3b->isCreated(), '3 replay: created');
