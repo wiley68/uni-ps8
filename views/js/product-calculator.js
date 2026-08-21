@@ -296,6 +296,17 @@
                 String(value || "").trim(),
             );
         }
+        /** Mirrors PrestaShop Validate::isName for Step 2 UX (server remains authoritative). */
+        function validName(value) {
+            return /^[^0-9!<>,;?=+()@#"°{}_$%:¤|]*$/u.test(
+                String(value || "").trim(),
+            );
+        }
+        /** Mirrors PrestaShop Validate::isAddress for Step 2 UX (server remains authoritative). */
+        function validAddressLine(value) {
+            var address = String(value || "").trim();
+            return address === "" || /^[^!<>?=+@{}_$%]*$/u.test(address);
+        }
 
         function validEgn(value) {
             var egn = String(value || "").replace(/\D/g, "");
@@ -342,13 +353,39 @@
 
         function customerErrors() {
             var errors = {};
-            ["first_name", "last_name", "address"].forEach(function (name) {
-                if (!nonEmpty(customerField(name).value))
-                    errors[name] = t(
-                        "data-required-field-message",
-                        "Полето е задължително.",
-                    );
-            });
+            var firstName = customerField("first_name").value;
+            if (!nonEmpty(firstName))
+                errors.first_name = t(
+                    "data-required-field-message",
+                    "Полето е задължително.",
+                );
+            else if (!validName(firstName))
+                errors.first_name = t(
+                    "data-invalid-first-name-message",
+                    "Името може да съдържа само букви, интервал, тире и апостроф.",
+                );
+            var lastName = customerField("last_name").value;
+            if (!nonEmpty(lastName))
+                errors.last_name = t(
+                    "data-required-field-message",
+                    "Полето е задължително.",
+                );
+            else if (!validName(lastName))
+                errors.last_name = t(
+                    "data-invalid-last-name-message",
+                    "Фамилията може да съдържа само букви, интервал, тире и апостроф.",
+                );
+            var address = customerField("address").value;
+            if (!nonEmpty(address))
+                errors.address = t(
+                    "data-required-field-message",
+                    "Полето е задължително.",
+                );
+            else if (!validAddressLine(address))
+                errors.address = t(
+                    "data-invalid-address-message",
+                    "Адресът може да съдържа букви, цифри, интервали и стандартни знаци. Не използвайте символи като <, >, =, +, @, {, }, _, $, %, !, ?.",
+                );
             var phone = customerField("phone").value;
             if (!nonEmpty(phone))
                 errors.phone = t(
@@ -358,7 +395,7 @@
             else if (!validPhone(phone))
                 errors.phone = t(
                     "data-invalid-phone-message",
-                    "Въведете валиден телефонен номер.",
+                    "Телефонът може да съдържа цифри, интервали, +, -, ( и ).",
                 );
             var email = customerField("email").value;
             if (!nonEmpty(email))
@@ -369,7 +406,7 @@
             else if (!validEmail(email))
                 errors.email = t(
                     "data-invalid-email-message",
-                    "Въведете валиден e-mail адрес.",
+                    "Въведете валиден e-mail адрес, например name@example.com.",
                 );
             var egnField = customerField("egn");
             if (egnField) {
@@ -382,7 +419,7 @@
                 else if (!validEgn(egn))
                     errors.egn = t(
                         "data-invalid-egn-message",
-                        "Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).",
+                        "ЕГН трябва да съдържа 10 цифри. Първите 8 трябва да са валидна дата във формат ГГГГММДД.",
                     );
             }
             var phone2Field = customerField("phone2");
@@ -396,7 +433,7 @@
                 else if (!validPhone(phone2))
                     errors.phone2 = t(
                         "data-invalid-phone2-message",
-                        "Въведете валиден втори телефонен номер.",
+                        "Вторият телефон може да съдържа цифри, интервали, +, -, ( и ).",
                     );
             }
             return errors;
@@ -412,6 +449,7 @@
             ];
             if (customerField("egn")) fields.push("egn");
             if (customerField("phone2")) fields.push("phone2");
+            var firstInvalid = null;
             fields.forEach(function (name) {
                 var el = fieldError(name);
                 var field = customerField(name);
@@ -419,7 +457,11 @@
                 var message = errors[name] || "";
                 el.textContent = message;
                 field.setAttribute("aria-invalid", message ? "true" : "false");
+                if (message && !firstInvalid) firstInvalid = field;
             });
+            if (firstInvalid && typeof firstInvalid.focus === "function") {
+                firstInvalid.focus();
+            }
         }
 
         function showCustomerFieldError(name, message) {
@@ -945,12 +987,29 @@
                             }
                             if (body && body.errors)
                                 showCustomerErrors(body.errors);
-                            submitError.textContent =
-                                body.message ||
-                                t(
-                                    "data-validation-failed-message",
-                                    "Данните не могат да бъдат валидирани.",
-                                );
+                            // Prefer field-level guidance; keep top message for consents / non-field errors.
+                            if (
+                                body &&
+                                body.errors &&
+                                (body.errors.first_name ||
+                                    body.errors.last_name ||
+                                    body.errors.address ||
+                                    body.errors.phone ||
+                                    body.errors.email ||
+                                    body.errors.egn ||
+                                    body.errors.phone2)
+                            ) {
+                                submitError.textContent = body.errors.consents
+                                    ? body.errors.consents
+                                    : "";
+                            } else {
+                                submitError.textContent =
+                                    body.message ||
+                                    t(
+                                        "data-validation-failed-message",
+                                        "Данните не могат да бъдат валидирани.",
+                                    );
+                            }
                             redirectPending = false;
                             setProcessingState(false);
                             throw new Error(body.message || "validation");

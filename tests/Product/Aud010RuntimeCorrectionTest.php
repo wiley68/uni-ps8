@@ -41,7 +41,7 @@ try {
 } catch (ProductPopupValidationException $exception) {
     assertAud010Runtime(isset($exception->errors()['first_name']), '3/5: first_name field error');
     assertAud010Runtime(
-        $exception->errors()['first_name'] === 'Моля, въведете валидно име.',
+        $exception->errors()['first_name'] === 'Името може да съдържа само букви, интервал, тире и апостроф.',
         '3: customer-safe first_name message'
     );
 }
@@ -58,7 +58,7 @@ try {
 } catch (ProductPopupValidationException $exception) {
     assertAud010Runtime(isset($exception->errors()['last_name']), '4/5: last_name field error');
     assertAud010Runtime(
-        $exception->errors()['last_name'] === 'Моля, въведете валидна фамилия.',
+        $exception->errors()['last_name'] === 'Фамилията може да съдържа само букви, интервал, тире и апостроф.',
         '4: customer-safe last_name message'
     );
 }
@@ -148,8 +148,8 @@ foreach (['product' => $productApply, 'cart' => $cartApply] as $label => $src) {
 $validatorSrc = (string) file_get_contents($root . '/src/Product/ProductPopupCustomerValidator.php');
 assertAud010Runtime(
     strpos($validatorSrc, 'validName') !== false
-        && strpos($validatorSrc, 'Моля, въведете валидна фамилия.') !== false
-        && strpos($validatorSrc, 'Моля, въведете валидно име.') !== false,
+        && strpos($validatorSrc, 'Фамилията може да съдържа само букви, интервал, тире и апостроф.') !== false
+        && strpos($validatorSrc, 'Името може да съдържа само букви, интервал, тире и апостроф.') !== false,
     'customer-safe Bulgarian name messages present'
 );
 

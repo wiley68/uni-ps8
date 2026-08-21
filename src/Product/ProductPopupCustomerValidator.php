@@ -7,6 +7,11 @@ namespace PrestaShop\Module\Unipayment\Product;
 /**
  * Step 2 customer validation for Product/Cart popup apply.
  * Name rules mirror PrestaShop Address Validate::isName so Address::add is not the first gate.
+ *
+ * Message copy summarizes PrestaShop 8 Validate::isName / isAddress (installed PS8).
+ * isName rejects digits and ! < > , ; ? = + ( ) @ # " ° { } _ $ % : ¤ |
+ * Explanatory name text lists the common safe set (letters, space, hyphen, apostrophe)
+ * without claiming rejected characters are allowed.
  */
 final class ProductPopupCustomerValidator
 {
@@ -33,23 +38,24 @@ final class ProductPopupCustomerValidator
             }
         }
         if (!isset($errors['first_name']) && !$this->validName($customer['first_name'])) {
-            $errors['first_name'] = 'Моля, въведете валидно име.';
+            $errors['first_name'] = 'Името може да съдържа само букви, интервал, тире и апостроф.';
         }
         if (!isset($errors['last_name']) && !$this->validName($customer['last_name'])) {
-            $errors['last_name'] = 'Моля, въведете валидна фамилия.';
+            $errors['last_name'] = 'Фамилията може да съдържа само букви, интервал, тире и апостроф.';
         }
         if (!isset($errors['address']) && !$this->validAddressLine($customer['address'])) {
-            $errors['address'] = 'Моля, въведете валиден адрес.';
+            // Summarizes PrestaShop Validate::isAddress (rejects ! < > ? = + @ { } _ $ %).
+            $errors['address'] = 'Адресът може да съдържа букви, цифри, интервали и стандартни знаци. Не използвайте символи като <, >, =, +, @, {, }, _, $, %, !, ?.';
         }
         if ($customer['phone'] === '') {
             $errors['phone'] = 'Полето е задължително.';
         } elseif (!$this->validPhone($customer['phone'])) {
-            $errors['phone'] = 'Въведете валиден телефонен номер.';
+            $errors['phone'] = 'Телефонът може да съдържа цифри, интервали, +, -, ( и ).';
         }
         if ($customer['email'] === '') {
             $errors['email'] = 'Полето е задължително.';
         } elseif (!filter_var($customer['email'], FILTER_VALIDATE_EMAIL)) {
-            $errors['email'] = 'Въведете валиден e-mail адрес.';
+            $errors['email'] = 'Въведете валиден e-mail адрес, например name@example.com.';
         }
         if ($requireEgn) {
             $egn = preg_replace('/\D/', '', (string) ($input['egn'] ?? ''));
@@ -58,12 +64,12 @@ final class ProductPopupCustomerValidator
             if ($egn === '') {
                 $errors['egn'] = 'Полето е задължително.';
             } elseif (!$this->validEgn($egn)) {
-                $errors['egn'] = 'Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).';
+                $errors['egn'] = 'ЕГН трябва да съдържа 10 цифри. Първите 8 трябва да са валидна дата във формат ГГГГММДД.';
             }
             if ($phone2 === '') {
                 $errors['phone2'] = 'Полето е задължително.';
             } elseif (!$this->validPhone($phone2)) {
-                $errors['phone2'] = 'Въведете валиден втори телефонен номер.';
+                $errors['phone2'] = 'Вторият телефон може да съдържа цифри, интервали, +, -, ( и ).';
             }
             if (!isset($errors['egn'])) {
                 $customer['egn'] = $egn;

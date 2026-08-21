@@ -50,8 +50,8 @@ foreach (
         ['input' => ['first_name' => '', 'last_name' => 'B', 'address' => 'C', 'phone' => '123', 'email' => 'a@b.test'], 'field' => 'first_name'],
         ['input' => ['first_name' => 'A', 'last_name' => 'B', 'address' => 'C', 'phone' => '---', 'email' => 'a@b.test'], 'field' => 'phone'],
         ['input' => ['first_name' => 'A', 'last_name' => 'B', 'address' => 'C', 'phone' => '123', 'email' => 'invalid'], 'field' => 'email'],
-        ['input' => ['first_name' => 'Иван1', 'last_name' => 'Иванов', 'address' => 'София', 'phone' => '0888123456', 'email' => 'a@b.test'], 'field' => 'first_name', 'message' => 'Моля, въведете валидно име.'],
-        ['input' => ['first_name' => 'Иван', 'last_name' => 'Иванов2', 'address' => 'София', 'phone' => '0888123456', 'email' => 'a@b.test'], 'field' => 'last_name', 'message' => 'Моля, въведете валидна фамилия.'],
+        ['input' => ['first_name' => 'Иван1', 'last_name' => 'Иванов', 'address' => 'София', 'phone' => '0888123456', 'email' => 'a@b.test'], 'field' => 'first_name', 'message' => 'Името може да съдържа само букви, интервал, тире и апостроф.'],
+        ['input' => ['first_name' => 'Иван', 'last_name' => 'Иванов2', 'address' => 'София', 'phone' => '0888123456', 'email' => 'a@b.test'], 'field' => 'last_name', 'message' => 'Фамилията може да съдържа само букви, интервал, тире и апостроф.'],
     ] as $case
 ) {
     try {
