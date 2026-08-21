@@ -16,6 +16,7 @@ use PrestaShop\Module\Unipayment\Checkout\ValidatedPaymentRequest;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationResult;
 use PrestaShop\Module\Unipayment\Product\GuestCustomerFactory;
+use PrestaShop\Module\Unipayment\Product\PopupCustomerIdentityGate;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCustomerValidator;
 use PrestaShop\Module\Unipayment\Product\ProductPopupSchemeList;
 use PrestaShop\Module\Unipayment\Product\ProductPopupValidationException;
@@ -42,6 +43,8 @@ final class CartPopupApplyService
     private $currencyGate;
     /** @var ConsentResolver */
     private $consents;
+    /** @var PopupCustomerIdentityGate */
+    private $identityGate;
 
     public function __construct(
         Calculator $calculator,
@@ -50,7 +53,8 @@ final class CartPopupApplyService
         GuestCustomerFactory $guestFactory,
         OrderOrchestrator $orchestrator,
         ?CurrencyGate $currencyGate = null,
-        ?ConsentResolver $consents = null
+        ?ConsentResolver $consents = null,
+        ?PopupCustomerIdentityGate $identityGate = null
     ) {
         $this->calculator = $calculator;
         $this->popupCalculator = $popupCalculator;
@@ -59,6 +63,7 @@ final class CartPopupApplyService
         $this->orchestrator = $orchestrator;
         $this->currencyGate = $currencyGate ?? new CurrencyGate();
         $this->consents = $consents ?? new ConsentResolver();
+        $this->identityGate = $identityGate ?? new PopupCustomerIdentityGate();
     }
 
     /**
@@ -143,8 +148,17 @@ final class CartPopupApplyService
             throw new \RuntimeException('The cart could not be prepared for the popup order.');
         }
 
-        $customerId = (int) $context->customer->id;
-        if ($customerId <= 0) {
+        if ($this->identityGate->shouldUseAuthenticatedCustomer($context->customer)) {
+            $customerId = (int) $context->customer->id;
+            $addressId = (int) \Address::getFirstCustomerAddressId($customerId);
+            if ($addressId > 0) {
+                $cart->id_address_delivery = $addressId;
+                $cart->id_address_invoice = $addressId;
+            }
+            $cart->id_customer = $customerId;
+            $cart->secure_key = (string) $context->customer->secure_key;
+        } else {
+            // AUD-001: form e-mail never selects Customer identity. Always create a fresh guest.
             $result = $this->guestFactory->ensure($customerData, $context);
             $context->customer = $result['customer'];
             $context->cookie->id_customer = (int) $result['customer']->id;
@@ -159,14 +173,6 @@ final class CartPopupApplyService
             $cart->secure_key = (string) $result['customer']->secure_key;
             $cart->id_address_delivery = (int) $result['address']->id;
             $cart->id_address_invoice = (int) $result['address']->id;
-        } else {
-            $addressId = (int) \Address::getFirstCustomerAddressId($customerId);
-            if ($addressId > 0) {
-                $cart->id_address_delivery = $addressId;
-                $cart->id_address_invoice = $addressId;
-            }
-            $cart->id_customer = $customerId;
-            $cart->secure_key = (string) $context->customer->secure_key;
         }
 
         if (!$cart->update()) {

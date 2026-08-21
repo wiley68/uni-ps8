@@ -9,21 +9,18 @@ use Configuration;
 use Context;
 use Country;
 use Customer;
-use Validate;
 
 /**
- * Creates or reuses a PrestaShop guest Customer and Address from product popup
- * Step 2 data, enabling direct order creation for non-logged-in visitors.
+ * Creates a PrestaShop guest Customer + Address for anonymous popup order flows.
  *
- * Follows the standard PrestaShop guest checkout pattern (is_guest = 1).
+ * AUD-001: never reuse an existing Customer by e-mail. E-mail is not proof of
+ * identity. Registered accounts must stay untouched; each anonymous apply gets
+ * a fresh is_guest=1 customer (PS allows non-unique guest e-mails).
  */
 final class GuestCustomerFactory
 {
     /**
-     * Ensures a guest customer and address exist for the given Step 2 data.
-     * If a customer with the same email already exists, it is reused.
-     *
-     * @param array<string, string> $customerData Validated Step 2 fields (first_name, last_name, email, phone, address)
+     * @param array<string, string> $customerData Validated Step 2 fields
      * @return array{customer: Customer, address: Address}
      */
     public function ensure(array $customerData, Context $context): array
@@ -38,26 +35,19 @@ final class GuestCustomerFactory
             throw new \RuntimeException('The customer data is incomplete for guest account creation.');
         }
 
-        $customer = $this->findOrCreateCustomer($email, $firstName, $lastName, $context);
-        $address = $this->ensureAddress($customer, $firstName, $lastName, $phone, $addressLine, $context);
+        $customer = $this->createGuestCustomer($email, $firstName, $lastName, $context);
+        $address = $this->createGuestAddress($customer, $firstName, $lastName, $phone, $addressLine, $context);
 
         return ['customer' => $customer, 'address' => $address];
     }
 
-    private function findOrCreateCustomer(string $email, string $firstName, string $lastName, Context $context): Customer
+    private function createGuestCustomer(string $email, string $firstName, string $lastName, Context $context): Customer
     {
-        $existingId = (int) Customer::customerExists($email, true);
-        if ($existingId > 0) {
-            $existing = new Customer($existingId);
-            if (Validate::isLoadedObject($existing)) {
-                return $existing;
-            }
-        }
-
         $customer = new Customer();
         $customer->firstname = substr($firstName, 0, 255);
         $customer->lastname = substr($lastName, 0, 255);
         $customer->email = substr($email, 0, 255);
+        // Random hash only for ObjectModel requirements — guests must not authenticate with it.
         $customer->passwd = md5(time() . uniqid((string) mt_rand(), true));
         $customer->is_guest = 1;
         $customer->active = 1;
@@ -73,8 +63,14 @@ final class GuestCustomerFactory
         return $customer;
     }
 
-    private function ensureAddress(Customer $customer, string $firstName, string $lastName, string $phone, string $addressLine, Context $context): Address
-    {
+    private function createGuestAddress(
+        Customer $customer,
+        string $firstName,
+        string $lastName,
+        string $phone,
+        string $addressLine,
+        Context $context
+    ): Address {
         $defaultCountryId = (int) Configuration::get('PS_COUNTRY_DEFAULT');
 
         $address = new Address();

@@ -24,7 +24,7 @@ use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
  * Flow:
  *  1. Re-validate financing scheme availability and recalculate
  *  2. Validate customer data (including EGN when Process 2)
- *  3. Ensure guest customer/address for non-logged-in visitors
+ *  3. Authenticated customers keep Context identity; anonymous visitors get a fresh guest
  *  4. Build a single-product cart
  *  5. Build ValidatedPaymentRequest
  *  6. Delegate to OrderOrchestrator
@@ -45,6 +45,8 @@ final class ProductPopupApplyService
     private $currencyGate;
     /** @var ConsentResolver */
     private $consents;
+    /** @var PopupCustomerIdentityGate */
+    private $identityGate;
 
     public function __construct(
         Calculator $calculator,
@@ -53,7 +55,8 @@ final class ProductPopupApplyService
         OrderOrchestrator $orchestrator,
         SensitiveDataCipher $cipher,
         ?CurrencyGate $currencyGate = null,
-        ?ConsentResolver $consents = null
+        ?ConsentResolver $consents = null,
+        ?PopupCustomerIdentityGate $identityGate = null
     ) {
         $this->calculator = $calculator;
         $this->customerValidator = $customerValidator;
@@ -62,6 +65,7 @@ final class ProductPopupApplyService
         $this->cipher = $cipher;
         $this->currencyGate = $currencyGate ?? new CurrencyGate();
         $this->consents = $consents ?? new ConsentResolver();
+        $this->identityGate = $identityGate ?? new PopupCustomerIdentityGate();
     }
 
     /**
@@ -135,9 +139,12 @@ final class ProductPopupApplyService
     /** @param array<string, string> $customerData */
     private function ensureCustomerAndCart(array $customerData, int $productId, int $attributeId, int $quantity, Context $context): void
     {
-        $customerId = (int) $context->customer->id;
-
-        if ($customerId <= 0) {
+        if ($this->identityGate->shouldUseAuthenticatedCustomer($context->customer)) {
+            $customerId = (int) $context->customer->id;
+            $addressId = (int) \Address::getFirstCustomerAddressId($customerId);
+            $cart = $this->createFreshCart($context, $addressId > 0 ? $addressId : 0);
+        } else {
+            // AUD-001: form e-mail never selects Customer identity. Always create a fresh guest.
             $result = $this->guestFactory->ensure($customerData, $context);
             $context->customer = $result['customer'];
             $context->cookie->id_customer = (int) $result['customer']->id;
@@ -149,9 +156,6 @@ final class ProductPopupApplyService
             $context->cookie->is_guest = 1;
 
             $cart = $this->createFreshCart($context, (int) $result['address']->id);
-        } else {
-            $addressId = (int) \Address::getFirstCustomerAddressId($customerId);
-            $cart = $this->createFreshCart($context, $addressId > 0 ? $addressId : 0);
         }
 
         $cart->updateQty($quantity, $productId, $attributeId > 0 ? $attributeId : null);
