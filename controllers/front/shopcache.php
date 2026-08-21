@@ -6,6 +6,7 @@ use PrestaShop\Module\Unipayment\Api\ControlPanelClient;
 use PrestaShop\Module\Unipayment\Api\CurlHttpTransport;
 use PrestaShop\Module\Unipayment\Api\Exception\ModuleApiException;
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
+use PrestaShop\Module\Unipayment\Configuration\Exception\ShopConfigurationSnapshotValidationException;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationService;
 use PrestaShop\Module\Unipayment\Controller\ModuleApiController;
@@ -25,8 +26,17 @@ final class UnipaymentShopcacheModuleFrontController extends ModuleApiController
         }
 
         $service = $this->createShopConfigurationService();
-        if (!$service->replaceSnapshot($unicid, $data)) {
-            throw new ModuleApiException('The shop configuration cache could not be replaced.', 500);
+        try {
+            if (!$service->replaceSnapshot($unicid, $data)) {
+                throw new ModuleApiException('The shop configuration cache could not be replaced.', 500);
+            }
+        } catch (ShopConfigurationSnapshotValidationException $exception) {
+            throw new ModuleApiException(
+                'The shop configuration snapshot is invalid.',
+                422,
+                $exception->errorCode(),
+                $exception->responseData()
+            );
         }
 
         return [

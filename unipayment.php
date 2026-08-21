@@ -320,6 +320,14 @@ class Unipayment extends PaymentModule
             return $this->displayConfirmation(
                 $this->trans('Данните от банката са обновени успешно.', [], 'Modules.Unipayment.Admin')
             );
+        } catch (PrestaShop\Module\Unipayment\Configuration\Exception\ShopConfigurationSnapshotValidationException $exception) {
+            return $this->displayError(
+                $this->trans(
+                    'Данните от банката са невалидни и не бяха приложени. Предишната конфигурация е запазена.',
+                    [],
+                    'Modules.Unipayment.Admin'
+                )
+            );
         } catch (PrestaShop\Module\Unipayment\Api\Exception\TimeoutException $exception) {
             return $this->displayError(
                 $this->trans('Връзката с банката изтече. Моля, опитайте отново.', [], 'Modules.Unipayment.Admin')

@@ -14,19 +14,23 @@ final class Configuration
     /** @var array<string, mixed> */
     public static $values = [];
 
-    public static function updateValue($key, $value): bool
+    /**
+     * @param mixed $value
+     */
+    public static function updateValue(string $key, $value): bool
     {
         self::$values[$key] = $value;
 
         return true;
     }
 
-    public static function get($key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
+    /** @return mixed */
+    public static function get(string $key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
     {
         return self::$values[$key] ?? $default;
     }
 
-    public static function deleteByName($key): bool
+    public static function deleteByName(string $key): bool
     {
         unset(self::$values[$key]);
 
@@ -36,9 +40,7 @@ final class Configuration
 
 final class PhpEncryption
 {
-    public function __construct(string $key)
-    {
-    }
+    public function __construct(string $key) {}
 
     public function encrypt(string $plaintext): string
     {
@@ -62,7 +64,10 @@ require_once dirname(__DIR__, 2) . '/src/Api/Exception/AuthenticationException.p
 require_once dirname(__DIR__, 2) . '/src/Api/Exception/ConnectionException.php';
 require_once dirname(__DIR__, 2) . '/src/Api/Exception/HttpException.php';
 require_once dirname(__DIR__, 2) . '/src/Api/Exception/InvalidPayloadException.php';
+require_once dirname(__DIR__, 2) . '/src/Configuration/Exception/ShopConfigurationSnapshotValidationException.php';
+require_once dirname(__DIR__, 2) . '/src/Configuration/ShopConfigurationSnapshotValidator.php';
 require_once dirname(__DIR__, 2) . '/src/Configuration/ShopConfigurationService.php';
+require_once dirname(__DIR__) . '/fixtures/shop_snapshot.php';
 
 use PrestaShop\Module\Unipayment\Api\Exception\AuthenticationException;
 use PrestaShop\Module\Unipayment\Api\Exception\ConnectionException;
@@ -162,7 +167,7 @@ $service = new ShopConfigurationService($configuration, $cache, $provider, $toke
 $unicid = $configuration->getUnicid();
 
 // Missing cache: initial fetch and persistent full snapshot replacement.
-$provider->responses[] = ['success' => true, 'data' => ['id' => 10, 'kop' => ['id' => 1]]];
+$provider->responses[] = ['success' => true, 'data' => unipayment_valid_shop_snapshot(['id' => 10])];
 $initial = $service->get();
 assertPhase3($provider->calls === 1, 'missing cache did not call Control Panel');
 assertPhase3($initial['id'] === 10 && $cache->rows[$unicid] === $initial, 'initial snapshot was not cached');
@@ -173,14 +178,14 @@ assertPhase3($provider->calls === 1 && $hit === $initial, 'fresh cache did not a
 
 // Expired cache: refresh from Control Panel.
 $cache->fresh = false;
-$provider->responses[] = ['success' => true, 'data' => ['id' => 10, 'kop' => ['id' => 2]]];
+$provider->responses[] = ['success' => true, 'data' => unipayment_valid_shop_snapshot(['id' => 10, 'uni_zaglavie' => 'v2'])];
 $expiredRefresh = $service->get();
-assertPhase3($provider->calls === 2 && $expiredRefresh['kop']['id'] === 2, 'expired cache was not refreshed');
+assertPhase3($provider->calls === 2 && $expiredRefresh['uni_zaglavie'] === 'v2', 'expired cache was not refreshed');
 
 // Manual refresh: bypass a fresh cache row.
-$provider->responses[] = ['success' => true, 'data' => ['id' => 10, 'kop' => ['id' => 3]]];
+$provider->responses[] = ['success' => true, 'data' => unipayment_valid_shop_snapshot(['id' => 10, 'uni_zaglavie' => 'v3'])];
 $manualRefresh = $service->get(true);
-assertPhase3($provider->calls === 3 && $manualRefresh['kop']['id'] === 3, 'forced refresh used cached data');
+assertPhase3($provider->calls === 3 && $manualRefresh['uni_zaglavie'] === 'v3', 'forced refresh used cached data');
 
 // Transient errors retain the stored row, but are propagated instead of serving expired stale data.
 $cache->fresh = false;
@@ -203,7 +208,7 @@ try {
 }
 
 // A permanent shop-not-found response has the same purge policy.
-$cache->replace($unicid, ['id' => 10]);
+$cache->replace($unicid, unipayment_valid_shop_snapshot(['id' => 10]));
 $tokens->save('replacement-token', 'Bearer', 2000000000);
 $provider->responses[] = new HttpException(404, ['message' => 'shop not found']);
 try {
@@ -216,7 +221,7 @@ try {
 
 // Phase 4 preparation: direct CP push replacement is a full snapshot and makes no outbound request.
 $callsBeforePush = $provider->calls;
-$pushed = ['id' => 10, 'kop' => ['id' => 99], 'consents' => [['id' => 5]]];
+$pushed = unipayment_valid_shop_snapshot(['id' => 10, 'consents' => [['id' => 5, 'name' => 'C', 'mandatory' => 1]]]);
 assertPhase3($service->replaceSnapshot($unicid, $pushed), 'push snapshot replacement failed');
 assertPhase3($cache->rows[$unicid] === $pushed, 'push snapshot was merged instead of replaced');
 assertPhase3($provider->calls === $callsBeforePush, 'push replacement made an outbound request');

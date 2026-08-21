@@ -8,6 +8,7 @@ use PrestaShop\Module\Unipayment\Api\Exception\AuthenticationException;
 use PrestaShop\Module\Unipayment\Api\Exception\HttpException;
 use PrestaShop\Module\Unipayment\Api\Exception\InvalidPayloadException;
 use PrestaShop\Module\Unipayment\Api\ShopConfigurationProviderInterface;
+use PrestaShop\Module\Unipayment\Configuration\Exception\ShopConfigurationSnapshotValidationException;
 use PrestaShop\Module\Unipayment\Security\TokenRepository;
 
 final class ShopConfigurationService
@@ -24,16 +25,21 @@ final class ShopConfigurationService
     /** @var TokenRepository */
     private $tokens;
 
+    /** @var ShopConfigurationSnapshotValidator */
+    private $snapshotValidator;
+
     public function __construct(
         ConfigurationRepository $configuration,
         ShopConfigurationCacheInterface $cache,
         ShopConfigurationProviderInterface $provider,
-        TokenRepository $tokens
+        TokenRepository $tokens,
+        ?ShopConfigurationSnapshotValidator $snapshotValidator = null
     ) {
         $this->configuration = $configuration;
         $this->cache = $cache;
         $this->provider = $provider;
         $this->tokens = $tokens;
+        $this->snapshotValidator = $snapshotValidator ?? new ShopConfigurationSnapshotValidator();
     }
 
     /** @return array<string, mixed> */
@@ -56,7 +62,7 @@ final class ShopConfigurationService
     }
 
     /**
-     * Full snapshot replacement entry point for the Phase 4 push handler.
+     * Full snapshot replacement entry point for the CP push handler.
      *
      * @param array<string, mixed> $shopData
      */
@@ -65,6 +71,8 @@ final class ShopConfigurationService
         if (trim($unicid) === '' || $shopData === []) {
             throw new InvalidPayloadException('The pushed shop configuration snapshot is invalid.');
         }
+
+        $this->snapshotValidator->validate($shopData, trim($unicid));
 
         return $this->cache->replace(trim($unicid), $shopData);
     }
@@ -85,11 +93,25 @@ final class ShopConfigurationService
                 throw new InvalidPayloadException('The Control Panel returned no usable shop configuration.');
             }
 
+            try {
+                $this->snapshotValidator->validate($shopData, $unicid);
+            } catch (ShopConfigurationSnapshotValidationException $exception) {
+                \PrestaShopLogger::addLog(
+                    'UniPayment shop snapshot validation failed on pull: '
+                        . $this->summarizeViolations($exception),
+                    3
+                );
+                throw $exception;
+            }
+
             if (!$this->cache->replace($unicid, $shopData)) {
                 throw new InvalidPayloadException('The shop configuration cache could not be stored.');
             }
 
             return $shopData;
+        } catch (ShopConfigurationSnapshotValidationException $exception) {
+            // Keep known-good cache. Do not purge tokens.
+            throw $exception;
         } catch (AuthenticationException $exception) {
             $this->purgePermanentFailure($unicid);
             throw $exception;
@@ -113,5 +135,15 @@ final class ShopConfigurationService
             $this->cache->clear();
         }
         $this->tokens->invalidate();
+    }
+
+    private function summarizeViolations(ShopConfigurationSnapshotValidationException $exception): string
+    {
+        $parts = [];
+        foreach (array_slice($exception->violations(), 0, 10) as $violation) {
+            $parts[] = ($violation['path'] !== '' ? $violation['path'] : '(root)') . ':' . $violation['code'];
+        }
+
+        return implode(', ', $parts);
     }
 }

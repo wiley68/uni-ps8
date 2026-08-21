@@ -31,10 +31,17 @@ abstract class ModuleApiController extends \ModuleFrontController
             $response = $this->handleAuthenticatedRequest($payload, $unicid);
             $this->sendJson($response, 200);
         } catch (ModuleApiException $exception) {
-            $this->sendJson([
+            $body = [
                 'success' => false,
                 'message' => $exception->getMessage(),
-            ], $exception->getStatusCode());
+            ];
+            if ($exception->getErrorCode() !== null) {
+                $body['error'] = $exception->getErrorCode();
+            }
+            if ($exception->getResponseData() !== null) {
+                $body['data'] = $exception->getResponseData();
+            }
+            $this->sendJson($body, $exception->getStatusCode());
         } catch (\Throwable $exception) {
             \PrestaShopLogger::addLog(
                 sprintf('UniPayment module API failure in %s.', static::class),
