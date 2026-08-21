@@ -58,12 +58,16 @@ final class SmartUcfLifecycleRepository
             (string) ($row['smartucf_state'] ?? '') === SmartUcfLifecycleStates::SUBMITTING
             && $this->isStaleSubmitting($row)
         ) {
-            $this->markOutcomeUnknown(
-                $attemptId,
-                SmartUcfFailureClassification::CLASS_TRANSPORT_AMBIGUOUS,
-                (int) ($row['smartucf_http_code'] ?? 0)
-            );
-            $row = $this->findByAttempt($attemptId);
+            try {
+                $this->markOutcomeUnknown(
+                    $attemptId,
+                    SmartUcfFailureClassification::CLASS_TRANSPORT_AMBIGUOUS,
+                    (int) ($row['smartucf_http_code'] ?? 0)
+                );
+            } catch (SmartUcfLifecyclePersistenceException $exception) {
+                // Keep row as-is; caller must not invent a persisted terminal state.
+            }
+            $row = $this->findByAttempt($attemptId) ?? $row;
         }
 
         return $row;
@@ -131,15 +135,17 @@ final class SmartUcfLifecycleRepository
             ],
             '`id_attempt` = ' . (int) $attemptId . " AND `smartucf_state` = '" . pSQL(SmartUcfLifecycleStates::SUBMITTING) . "'"
         );
-        if (!$ok) {
-            throw new \RuntimeException('The SmartUCF created state could not be persisted.');
+        if (!$ok || (int) $this->database->Affected_Rows() !== 1) {
+            throw new SmartUcfLifecyclePersistenceException(
+                'The SmartUCF created transition did not update exactly one submitting row.'
+            );
         }
     }
 
     public function markOutcomeUnknown(int $attemptId, string $errorClass, int $httpCode = 0): void
     {
         $now = gmdate('Y-m-d H:i:s');
-        $this->database->update(
+        $ok = $this->database->update(
             FinancingSnapshotRepository::TABLE,
             [
                 'smartucf_state' => SmartUcfLifecycleStates::OUTCOME_UNKNOWN,
@@ -154,12 +160,17 @@ final class SmartUcfLifecycleRepository
                 . pSQL(SmartUcfLifecycleStates::SUBMITTING) . "','"
                 . pSQL(SmartUcfLifecycleStates::NOT_STARTED) . "')"
         );
+        if (!$ok || (int) $this->database->Affected_Rows() !== 1) {
+            throw new SmartUcfLifecyclePersistenceException(
+                'The SmartUCF outcome_unknown transition did not update exactly one eligible row.'
+            );
+        }
     }
 
     public function markFailed(int $attemptId, string $errorClass, bool $retryable, int $httpCode = 0): void
     {
         $now = gmdate('Y-m-d H:i:s');
-        $this->database->update(
+        $ok = $this->database->update(
             FinancingSnapshotRepository::TABLE,
             [
                 'smartucf_state' => SmartUcfLifecycleStates::FAILED,
@@ -172,6 +183,11 @@ final class SmartUcfLifecycleRepository
             '`id_attempt` = ' . (int) $attemptId
                 . " AND `smartucf_state` = '" . pSQL(SmartUcfLifecycleStates::SUBMITTING) . "'"
         );
+        if (!$ok || (int) $this->database->Affected_Rows() !== 1) {
+            throw new SmartUcfLifecyclePersistenceException(
+                'The SmartUCF failed transition did not update exactly one submitting row.'
+            );
+        }
     }
 
     /** @param array<string, mixed> $row */

@@ -7,7 +7,6 @@ namespace PrestaShop\Module\Unipayment\SmartUcf;
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
 use PrestaShop\Module\Unipayment\Order\BankStatus;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
-use PrestaShop\Module\Unipayment\Order\FinancingOrderMailDispatcher;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
 use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
@@ -30,7 +29,7 @@ final class SmartUcfSessionCoordinator
 
     /** @var SmartUcfLifecycleRepository */
     private $lifecycle;
-    /** @var SmartUcfSessionClient */
+    /** @var SmartUcfSessionGatewayInterface */
     private $client;
     /** @var SmartUcfPayloadBuilder */
     private $payloadBuilder;
@@ -47,7 +46,7 @@ final class SmartUcfSessionCoordinator
 
     public function __construct(
         ?SmartUcfLifecycleRepository $lifecycle = null,
-        ?SmartUcfSessionClient $client = null,
+        ?SmartUcfSessionGatewayInterface $client = null,
         ?SmartUcfPayloadBuilder $payloadBuilder = null,
         ?SmartUcfFailureClassifier $classifier = null,
         ?FinancingSnapshotRepository $snapshots = null,
@@ -116,62 +115,67 @@ final class SmartUcfSessionCoordinator
         try {
             $smartUcfPayload = $this->payloadBuilder->build($shop, $snapshot);
             $session = $this->client->createSession($shop, $snapshot);
+        } catch (\Throwable $exception) {
+            return $this->handleCreateFailure(
+                $attemptId,
+                $snapshot,
+                $exception,
+                $smartUcfPayload
+            );
+        }
+
+        // Remote success is proven (valid session returned). Never authorize another createSession.
+        try {
             $this->lifecycle->markCreated(
                 $attemptId,
                 (string) $session['session_id'],
                 (string) $session['redirect_url'],
                 (int) ($session['http_code'] ?? 0)
             );
+        } catch (\Throwable $persistException) {
+            \PrestaShopLogger::addLog(
+                'UniPayment SmartUCF markCreated failed after remote success: '
+                    . get_class($persistException) . ' ' . $persistException->getMessage(),
+                3
+            );
 
+            try {
+                $this->lifecycle->markOutcomeUnknown(
+                    $attemptId,
+                    SmartUcfFailureClassification::CLASS_TRANSPORT_AMBIGUOUS,
+                    (int) ($session['http_code'] ?? 0)
+                );
+            } catch (\Throwable $fallbackException) {
+                \PrestaShopLogger::addLog(
+                    'UniPayment SmartUCF outcome_unknown fallback failed after remote success: '
+                        . get_class($fallbackException) . ' ' . $fallbackException->getMessage(),
+                    3
+                );
+            }
+
+            return SmartUcfCoordinationResult::outcomeUnknown(self::CUSTOMER_OUTCOME_UNKNOWN);
+        }
+
+        try {
             $this->persistSuccessfulBankStatus((string) ($snapshot['order_reference'] ?? ''));
             $this->logSession(
                 (int) ($snapshot['id_order'] ?? 0),
                 (string) ($snapshot['order_reference'] ?? ''),
                 $session
             );
-
-            return SmartUcfCoordinationResult::created(
-                (string) $session['redirect_url'],
-                (string) $session['session_id'],
-                $session
-            );
-        } catch (\Throwable $exception) {
-            $classification = $this->classifier->classifyThrowable($exception);
-            $this->logFailure(
-                (int) ($snapshot['id_order'] ?? 0),
-                (string) ($snapshot['order_reference'] ?? ''),
-                $exception,
-                $smartUcfPayload,
-                $exception instanceof SmartUcfSessionException ? $exception->rawResponse() : ''
-            );
-
-            if ($classification->targetState() === SmartUcfLifecycleStates::OUTCOME_UNKNOWN) {
-                $this->lifecycle->markOutcomeUnknown(
-                    $attemptId,
-                    $classification->errorClass(),
-                    $classification->httpCode()
-                );
-
-                return SmartUcfCoordinationResult::outcomeUnknown(self::CUSTOMER_OUTCOME_UNKNOWN);
-            }
-
-            $this->lifecycle->markFailed(
-                $attemptId,
-                $classification->errorClass(),
-                $classification->isRetryable(),
-                $classification->httpCode()
-            );
-            $this->markDefinitiveFailure(
-                (int) ($snapshot['id_order'] ?? 0),
-                (string) ($snapshot['order_reference'] ?? '')
-            );
-
-            return SmartUcfCoordinationResult::failed(
-                self::CUSTOMER_FAILED,
-                $classification->isRetryable(),
-                $classification->errorClass()
+        } catch (\Throwable $postSuccessException) {
+            \PrestaShopLogger::addLog(
+                'UniPayment post-SmartUCF success side effect failed (lifecycle remains created): '
+                    . get_class($postSuccessException) . ' ' . $postSuccessException->getMessage(),
+                2
             );
         }
+
+        return SmartUcfCoordinationResult::created(
+            (string) $session['redirect_url'],
+            (string) $session['session_id'],
+            $session
+        );
     }
 
     /**
@@ -182,6 +186,68 @@ final class SmartUcfSessionCoordinator
     public function resume(int $attemptId, array $shop, bool $process2): SmartUcfCoordinationResult
     {
         return $this->run($attemptId, $shop, $process2, null);
+    }
+
+    /**
+     * @param array<string, mixed> $snapshot
+     * @param mixed $smartUcfPayload
+     */
+    private function handleCreateFailure(
+        int $attemptId,
+        array $snapshot,
+        \Throwable $exception,
+        $smartUcfPayload
+    ): SmartUcfCoordinationResult {
+        $classification = $this->classifier->classifyThrowable($exception);
+        $this->logFailure(
+            (int) ($snapshot['id_order'] ?? 0),
+            (string) ($snapshot['order_reference'] ?? ''),
+            $exception,
+            $smartUcfPayload,
+            $exception instanceof SmartUcfSessionException ? $exception->rawResponse() : ''
+        );
+
+        if ($classification->targetState() === SmartUcfLifecycleStates::OUTCOME_UNKNOWN) {
+            try {
+                $this->lifecycle->markOutcomeUnknown(
+                    $attemptId,
+                    $classification->errorClass(),
+                    $classification->httpCode()
+                );
+            } catch (SmartUcfLifecyclePersistenceException $persistException) {
+                \PrestaShopLogger::addLog(
+                    'UniPayment SmartUCF outcome_unknown persistence failed: ' . $persistException->getMessage(),
+                    3
+                );
+            }
+
+            return SmartUcfCoordinationResult::outcomeUnknown(self::CUSTOMER_OUTCOME_UNKNOWN);
+        }
+
+        try {
+            $this->lifecycle->markFailed(
+                $attemptId,
+                $classification->errorClass(),
+                $classification->isRetryable(),
+                $classification->httpCode()
+            );
+        } catch (SmartUcfLifecyclePersistenceException $persistException) {
+            \PrestaShopLogger::addLog(
+                'UniPayment SmartUCF failed persistence failed: ' . $persistException->getMessage(),
+                3
+            );
+        }
+
+        $this->markDefinitiveFailure(
+            (int) ($snapshot['id_order'] ?? 0),
+            (string) ($snapshot['order_reference'] ?? '')
+        );
+
+        return SmartUcfCoordinationResult::failed(
+            self::CUSTOMER_FAILED,
+            $classification->isRetryable(),
+            $classification->errorClass()
+        );
     }
 
     /**
@@ -207,7 +273,6 @@ final class SmartUcfSessionCoordinator
         }
         if ($state === SmartUcfLifecycleStates::FAILED) {
             $retryable = !empty($row['smartucf_retryable']);
-            // Non-retryable failed: return failed. Retryable failed: allow claim path (return null).
             if (!$retryable) {
                 return SmartUcfCoordinationResult::failed(
                     self::CUSTOMER_FAILED,

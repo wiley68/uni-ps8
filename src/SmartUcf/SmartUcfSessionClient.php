@@ -10,7 +10,7 @@ use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
  * HTTP client for SmartUCF sucfOnlineSessionStart.
  * Follows the Woo reference (Mtuc_Smartucf_Api_Client).
  */
-final class SmartUcfSessionClient
+final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
 {
     private const SSL_PASSWD = '1234';
 
