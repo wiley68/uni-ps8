@@ -11,5 +11,12 @@
         "**/var/cache/**",
         "**/var/logs/**",
         "**/var/sessions/**"
-    ]
+    ],
+    "files.associations": {
+        "*.tpl": "smarty"
+    },
+    "[smarty]": {
+        "editor.formatOnSave": false,
+        "editor.defaultFormatter": null
+    }
 }
