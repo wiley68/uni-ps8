@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace PrestaShop\Module\Unipayment\Uninstall;
 
 /**
- * Result of an explicit local module-data purge (AUD-006).
+ * Result of module-owned local data cleanup during uninstall (AUD-006).
  */
 final class ModuleDataPurgeResult
 {

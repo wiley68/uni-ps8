@@ -336,9 +336,13 @@ final class CertificateLocalStore
 
     /**
      * Remove runtime certificate material and sync artifacts (AUD-006).
-     * Preserves package protection files (.htaccess, index.php).
+     * Preserves package protection files (.htaccess, index.php) when present.
+     *
+     * @param bool $restoreProtectionFiles When true (certificate sync context), ensure
+     *                                     protection files exist after cleanup. For true
+     *                                     module uninstall pass false — do not recreate files.
      */
-    public function purgeRuntimeArtifacts(): bool
+    public function purgeRuntimeArtifacts(bool $restoreProtectionFiles = true): bool
     {
         $ok = true;
         $preserve = ['.htaccess' => true, 'index.php' => true];
@@ -377,7 +381,9 @@ final class CertificateLocalStore
         }
 
         $this->cleanupLeaseTempDirectories();
-        $this->ensureProtectionFiles();
+        if ($restoreProtectionFiles) {
+            $this->ensureProtectionFiles();
+        }
 
         return $ok;
     }

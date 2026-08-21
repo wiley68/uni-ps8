@@ -17,8 +17,8 @@ use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateLocalStore;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository;
 
 /**
- * Explicit destructive purge of module-owned local data (AUD-006).
- * Does not delete native PrestaShop orders/history or remote Control Panel data.
+ * Deletes module-owned local data for true module uninstall (AUD-006).
+ * Does not recreate schema/config and does not delete native PS or remote CP data.
  */
 final class ModuleDataPurger
 {
@@ -74,16 +74,12 @@ final class ModuleDataPurger
         }
 
         $this->runComponent('certificates', function () {
-            return $this->certificateStore->purgeRuntimeArtifacts();
-        }, $completed, $errors);
-
-        $this->runComponent('schema_recreate', function () {
-            return $this->recreateEmptySchema();
+            return $this->certificateStore->purgeRuntimeArtifacts(false);
         }, $completed, $errors);
 
         $success = $errors === [];
         \PrestaShopLogger::addLog(
-            'UniPayment module data purge '
+            'UniPayment module uninstall data cleanup '
                 . ($success ? 'succeeded' : 'failed')
                 . '; completed=' . implode(',', $completed)
                 . ($errors !== [] ? '; errors=' . implode(',', $errors) : ''),
@@ -110,7 +106,7 @@ final class ModuleDataPurger
     {
         $ok = (new ConfigurationRepository())->uninstall();
         $ok = $this->deleteConfigurationByPrefix(self::CHECKOUT_LOCK_PREFIX) && $ok;
-        // OrderState configuration pointers are removed by OrderStateInstaller::purge().
+
         return $ok;
     }
 
@@ -130,25 +126,6 @@ final class ModuleDataPurger
             }
             $ok = \Configuration::deleteByName($name) && $ok;
         }
-
-        return $ok;
-    }
-
-    private function recreateEmptySchema(): bool
-    {
-        $repository = new ConfigurationRepository();
-        $ok = $repository->install()
-            && (new ShopConfigurationCache($this->database))->install()
-            && (new SmartUcfDebugLogRepository($this->database))->install()
-            && (new OrderBankStatusRepository($this->database))->install()
-            && (new OrderAttemptRepository($this->database))->install()
-            && (new FinancingSnapshotRepository($this->database))->install()
-            && (new PopupSubmissionRepository($this->database))->install()
-            && $this->orderStates->install();
-
-        // Keep module installed but inactive until credentials are reconfigured.
-        $ok = \Configuration::updateValue(ConfigurationRepository::ENABLED, false) && $ok;
-        $this->certificateStore->ensureProtectionFiles();
 
         return $ok;
     }
@@ -182,7 +159,7 @@ final class ModuleDataPurger
         } catch (\Throwable $exception) {
             $errors[] = $label;
             \PrestaShopLogger::addLog(
-                'UniPayment purge component failed: ' . $label . ' (' . get_class($exception) . ')',
+                'UniPayment uninstall cleanup component failed: ' . $label . ' (' . get_class($exception) . ')',
                 3
             );
         }

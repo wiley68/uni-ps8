@@ -30,7 +30,7 @@ final class OrderStateInstaller
     }
 
     /**
-     * Explicit purge / uninstall OrderState policy (AUD-006).
+     * Uninstall OrderState policy (AUD-006): unused delete; referenced preserve.
      */
     public function purge(): bool
     {

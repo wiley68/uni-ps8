@@ -79,20 +79,3 @@
     <form action="{$unipayment_form_action|escape:'htmlall':'UTF-8'}" method="post" style="margin:0;"><button type="submit" name="submitUnipaymentDownloadJournal" class="btn btn-default"><i class="icon-download"></i> {l s='Изтегли журнал операции' d='Modules.Unipayment.Admin'}</button></form>
   </div>
 </div>
-
-<div class="panel panel-danger">
-  <div class="panel-heading"><i class="icon-warning-sign"></i> {l s='Опасна зона' d='Modules.Unipayment.Admin'}</div>
-  <div class="alert alert-danger">
-    <p><strong>{l s='Изтрий всички данни на модула' d='Modules.Unipayment.Admin'}</strong></p>
-    <p>{l s='Това действие е необратимо. Ще бъдат изтрити настройките на модула, кешираните данни от Control Panel, локалните финансови записи на модула, журналният запис, локалният сертификат и частен ключ, както и локалната автентикация.' d='Modules.Unipayment.Admin'}</p>
-    <p>{l s='Поръчките в PrestaShop и акаунтът/поръчките в Control Panel няма да бъдат изтрити. Ако имате нужда от резервно копие, направете го преди продължаване.' d='Modules.Unipayment.Admin'}</p>
-  </div>
-  <div class="panel-footer">
-    <form action="{$unipayment_form_action|escape:'htmlall':'UTF-8'}" method="post" style="margin:0;" onsubmit="return confirm('{$unipayment_purge_confirm|escape:'javascript'}');">
-      <input type="hidden" name="token" value="{$unipayment_admin_token|escape:'htmlall':'UTF-8'}">
-      <button type="submit" name="submitUnipaymentPurgeData" class="btn btn-danger">
-        <i class="icon-trash"></i> {l s='Изтрий всички данни на модула' d='Modules.Unipayment.Admin'}
-      </button>
-    </form>
-  </div>
-</div>
