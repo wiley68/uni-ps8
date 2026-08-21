@@ -204,6 +204,11 @@ class Unipayment extends PaymentModule
             $output .= $this->handleBankDataRefresh();
         }
 
+        if (Tools::isSubmit('submitUnipaymentPurgeData')) {
+            $output .= $this->handleModuleDataPurge();
+            $repository = new PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository();
+        }
+
         $configurationSubmitted = Tools::isSubmit('submitUnipaymentConfiguration');
         $this->context->smarty->assign([
             'unipayment_form_action' => $this->context->link->getAdminLink(
@@ -211,6 +216,12 @@ class Unipayment extends PaymentModule
                 true,
                 [],
                 ['configure' => $this->name]
+            ),
+            'unipayment_admin_token' => Tools::getAdminTokenLite('AdminModules'),
+            'unipayment_purge_confirm' => $this->trans(
+                'Това действие е необратимо. Ще бъдат изтрити всички данни на модула (настройки, кеш, локални сертификати, журнали). Поръчките в PrestaShop и данните в Control Panel няма да бъдат изтрити. Продължавате ли?',
+                [],
+                'Modules.Unipayment.Admin'
             ),
             'unipayment_enabled' => $configurationSubmitted
                 ? (bool) Tools::getValue('UNIPAYMENT_ENABLED', false)
@@ -307,6 +318,58 @@ class Unipayment extends PaymentModule
 
         return $this->displayConfirmation(
             $this->trans('Настройките са записани успешно.', [], 'Modules.Unipayment.Admin')
+        );
+    }
+
+    private function handleModuleDataPurge(): string
+    {
+        if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+            return $this->displayError(
+                $this->trans('Невалидна заявка за изтриване на данни.', [], 'Modules.Unipayment.Admin')
+            );
+        }
+
+        $employee = $this->context->employee;
+        $submittedToken = (string) Tools::getValue('token', '');
+        if (
+            !$employee instanceof Employee
+            || !Validate::isLoadedObject($employee)
+            || !hash_equals(Tools::getAdminTokenLite('AdminModules'), $submittedToken)
+        ) {
+            return $this->displayError(
+                $this->trans('Нямате право да изтриете данните на модула.', [], 'Modules.Unipayment.Admin')
+            );
+        }
+
+        $client = null;
+        try {
+            if ((new PrestaShop\Module\Unipayment\Security\TokenRepository())->hasToken()) {
+                $client = $this->createControlPanelClient();
+            }
+        } catch (\Throwable $exception) {
+            $client = null;
+        }
+
+        $result = (new PrestaShop\Module\Unipayment\Uninstall\ModuleDataPurger(null, $client))->purge();
+        if ($result->isSuccess()) {
+            return $this->displayConfirmation(
+                $this->trans(
+                    'Данните на модула бяха изтрити успешно. Поръчките в PrestaShop и данните в Control Panel не са изтривани. Модулът е деактивиран — въведете отново UNICID и секрета, за да го ползвате.',
+                    [],
+                    'Modules.Unipayment.Admin'
+                )
+            );
+        }
+
+        $safeComponents = implode(', ', $result->errors());
+
+        return $this->displayError(
+            $this->trans(
+                'Част от данните на модула не можаха да бъдат изтрити. Прегледайте системния журнал и опитайте отново.',
+                [],
+                'Modules.Unipayment.Admin'
+            )
+                . ($safeComponents !== '' ? ' (' . htmlspecialchars($safeComponents, ENT_QUOTES, 'UTF-8') . ')' : '')
         );
     }
 

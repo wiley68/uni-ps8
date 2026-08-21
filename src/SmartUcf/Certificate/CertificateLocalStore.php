@@ -334,6 +334,86 @@ final class CertificateLocalStore
         }
     }
 
+    /**
+     * Remove runtime certificate material and sync artifacts (AUD-006).
+     * Preserves package protection files (.htaccess, index.php).
+     */
+    public function purgeRuntimeArtifacts(): bool
+    {
+        $ok = true;
+        $preserve = ['.htaccess' => true, 'index.php' => true];
+
+        foreach (
+            [
+                $this->certificatePath(),
+                $this->privateKeyPath(),
+                $this->keysDir . '/' . self::LOCK_FILENAME,
+                $this->keysDir . '/' . self::STATE_FILENAME,
+            ] as $path
+        ) {
+            if (!is_file($path)) {
+                continue;
+            }
+            if (!@unlink($path)) {
+                $ok = false;
+            }
+        }
+
+        $incoming = $this->keysDir . '/.incoming';
+        if (is_dir($incoming) && !$this->removeDirectoryContents($incoming, true)) {
+            $ok = false;
+        }
+
+        if (is_dir($this->keysDir)) {
+            foreach (scandir($this->keysDir) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..' || isset($preserve[$entry])) {
+                    continue;
+                }
+                $path = $this->keysDir . '/' . $entry;
+                if (is_file($path) && !@unlink($path)) {
+                    $ok = false;
+                }
+            }
+        }
+
+        $this->cleanupLeaseTempDirectories();
+        $this->ensureProtectionFiles();
+
+        return $ok;
+    }
+
+    private function cleanupLeaseTempDirectories(): void
+    {
+        $temp = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR);
+        foreach (glob($temp . DIRECTORY_SEPARATOR . 'unipayment-ssl-*') ?: [] as $dir) {
+            if (!is_dir($dir)) {
+                continue;
+            }
+            foreach (glob($dir . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
+                if (is_file($file)) {
+                    @unlink($file);
+                }
+            }
+            @rmdir($dir);
+        }
+    }
+
+    private function removeDirectoryContents(string $directory, bool $removeDirectory): bool
+    {
+        $ok = true;
+        foreach (glob(rtrim($directory, '/\\') . '/*') ?: [] as $path) {
+            if (is_file($path) && !@unlink($path)) {
+                $ok = false;
+            }
+        }
+        if ($removeDirectory && is_dir($directory) && !@rmdir($directory)) {
+            // Directory may be non-empty after partial failure.
+            $ok = false;
+        }
+
+        return $ok;
+    }
+
     /** Soften world-readable keys when PHP user can chmod them. */
     private function hardenAuthoritativePermissions(): void
     {
