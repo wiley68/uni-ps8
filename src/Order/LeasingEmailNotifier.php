@@ -6,13 +6,13 @@ namespace PrestaShop\Module\Unipayment\Order;
 
 final class LeasingEmailNotifier
 {
-    /** @var FinancingSnapshotRepository */
+    /** @var FinancingSnapshotStoreInterface */
     private $snapshots;
 
     /** @var LeasingOrderEmailPresenter */
     private $presenter;
 
-    public function __construct(?FinancingSnapshotRepository $snapshots = null, ?LeasingOrderEmailPresenter $presenter = null)
+    public function __construct(?FinancingSnapshotStoreInterface $snapshots = null, ?LeasingOrderEmailPresenter $presenter = null)
     {
         $this->snapshots = $snapshots ?? new FinancingSnapshotRepository();
         $this->presenter = $presenter ?? new LeasingOrderEmailPresenter();
@@ -20,14 +20,13 @@ final class LeasingEmailNotifier
 
     /**
      * Sends leasing-information email to customer and admin — once per attempt.
+     * Assumes current install schema (incl. leasing_email_sent); does not mutate DDL.
      *
      * @param array<string, mixed> $snapshot
      * @param array<string, mixed> $shop
      */
     public function notify(array $snapshot, int $attemptId, array $shop = []): void
     {
-        $this->ensureColumn();
-
         $current = $this->snapshots->findByAttempt($attemptId);
         if ($current !== null && !empty($current['leasing_email_sent'])) {
             return;
@@ -92,24 +91,5 @@ final class LeasingEmailNotifier
                 2
             );
         }
-    }
-
-    private static $columnEnsured = false;
-
-    private function ensureColumn(): void
-    {
-        if (self::$columnEnsured) {
-            return;
-        }
-        self::$columnEnsured = true;
-        $table = _DB_PREFIX_ . FinancingSnapshotRepository::TABLE;
-        $rows = \Db::getInstance()->executeS("SHOW COLUMNS FROM `{$table}` LIKE 'leasing_email_sent'");
-        $row = is_array($rows) && $rows !== [] ? $rows[0] : null;
-        if (!$row) {
-            \Db::getInstance()->execute("ALTER TABLE `{$table}` ADD `leasing_email_sent` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0");
-            $rows = \Db::getInstance()->executeS("SHOW COLUMNS FROM `{$table}` LIKE 'leasing_email_sent'");
-            $row = is_array($rows) && $rows !== [] ? $rows[0] : null;
-        }
-        self::$columnEnsured = is_array($row);
     }
 }
