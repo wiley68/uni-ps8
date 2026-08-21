@@ -92,6 +92,63 @@ assertAud002bRepo((string) $created['smartucf_session_id'] === 'sess-1', 'sessio
 assertAud002bRepo((string) $created['smartucf_redirect_url'] === 'https://bank.example/sess-1', 'redirect persisted');
 assertAud002bRepo($lifecycle->claimForSubmitting($attemptId) === null, 'created cannot be reclaimed');
 
+$markCreatedTwiceFailed = false;
+try {
+    $lifecycle->markCreated($attemptId, 'sess-2', 'https://bank.example/sess-2', 200);
+} catch (\PrestaShop\Module\Unipayment\SmartUcf\SmartUcfLifecyclePersistenceException $e) {
+    $markCreatedTwiceFailed = true;
+}
+assertAud002bRepo($markCreatedTwiceFailed, 'markCreated with affected_rows!=1 must throw');
+$stillCreated = $lifecycle->findByAttempt($attemptId);
+assertAud002bRepo((string) $stillCreated['smartucf_session_id'] === 'sess-1', 'failed markCreated must not overwrite created');
+
+// markCreated from non-submitting (not_started) → throw
+$attemptZero = $attemptId + 10;
+$db->execute('DELETE FROM `' . _DB_PREFIX_ . FinancingSnapshotRepository::TABLE . '` WHERE `id_attempt`=' . (int) $attemptZero);
+$db->insert(FinancingSnapshotRepository::TABLE, [
+    'id_attempt' => $attemptZero,
+    'id_order' => $attemptZero,
+    'order_reference' => 'AUD002BZERO',
+    'cart_fingerprint' => str_repeat('d', 32),
+    'scheme_type' => 'standard',
+    'scheme_key' => 'standard|W|12|0',
+    'kop_code' => 'W',
+    'months' => 12,
+    'filter_id' => 0,
+    'first_installment' => 0,
+    'financed_amount' => 100,
+    'monthly_installment' => 10,
+    'total_payable' => 120,
+    'glp' => 0,
+    'gpr' => 0,
+    'coefficient' => 1,
+    'order_total' => 100,
+    'currency_iso' => 'EUR',
+    'id_currency' => 1,
+    'module_version' => '2.0.0',
+    'submission_source' => 'product_popup',
+    'customer_json' => '{}',
+    'address_json' => '{}',
+    'lines_json' => '[]',
+    'consents_json' => '[]',
+    'lifecycle_status' => 'cp_created',
+    'leasing_email_sent' => 0,
+    'smartucf_state' => SmartUcfLifecycleStates::NOT_STARTED,
+    'smartucf_retryable' => 0,
+    'created_at' => $now,
+    'updated_at' => $now,
+]);
+$zeroRowsFailed = false;
+try {
+    $lifecycle->markCreated($attemptZero, 'sess-x', 'https://bank.example/x', 200);
+} catch (\PrestaShop\Module\Unipayment\SmartUcf\SmartUcfLifecyclePersistenceException $e) {
+    $zeroRowsFailed = true;
+}
+assertAud002bRepo($zeroRowsFailed, 'markCreated affected_rows=0 must not be accepted as created');
+$zeroRow = $lifecycle->findByAttempt($attemptZero);
+assertAud002bRepo((string) $zeroRow['smartucf_state'] === SmartUcfLifecycleStates::NOT_STARTED, 'zero-row markCreated leaves prior state');
+
+
 // Retryable failed → claim
 $attempt2 = $attemptId + 1;
 $db->execute('DELETE FROM `' . _DB_PREFIX_ . FinancingSnapshotRepository::TABLE . '` WHERE `id_attempt`=' . (int) $attempt2);
@@ -181,6 +238,7 @@ $lifecycle->markOutcomeUnknown($attempt2, SmartUcfFailureClassification::CLASS_T
 $row2 = $lifecycle->findByAttempt($attempt2);
 assertAud002bRepo((string) $row2['smartucf_state'] === SmartUcfLifecycleStates::OUTCOME_UNKNOWN, 'markOutcomeUnknown from submitting');
 
-$db->execute('DELETE FROM `' . _DB_PREFIX_ . FinancingSnapshotRepository::TABLE . '` WHERE `id_attempt` IN (' . (int) $attemptId . ',' . (int) $attempt2 . ',' . (int) $attempt3 . ')');
+$db->execute('DELETE FROM `' . _DB_PREFIX_ . FinancingSnapshotRepository::TABLE . '` WHERE `id_attempt` IN ('
+    . (int) $attemptId . ',' . (int) $attempt2 . ',' . (int) $attempt3 . ',' . (int) $attemptZero . ')');
 
 fwrite(STDOUT, "OK (AUD-002B lifecycle repository)\n");

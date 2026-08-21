@@ -104,11 +104,16 @@ assertAud002b(strpos($lifecycle, 'markOutcomeUnknown') !== false, 'outcome_unkno
 $coordinator = (string) file_get_contents($root . '/src/SmartUcf/SmartUcfSessionCoordinator.php');
 assertAud002b(strpos($coordinator, 'markDefinitiveFailure') !== false, 'definitive failure path exists');
 assertAud002b(strpos($coordinator, 'OUTCOME_UNKNOWN') !== false, 'coordinator handles outcome_unknown');
-assertAud002b(strpos($coordinator, 'markDefinitiveFailure') < strpos($coordinator, 'isFailed') || true, 'structure ok');
+assertAud002b(strpos($coordinator, 'handleCreateFailure') !== false, 'create failure boundary helper');
+assertAud002b(strpos($coordinator, 'markCreated failed after remote success') !== false, 'post-success markCreated handling');
 // outcome_unknown must not call markDefinitiveFailure in that branch
 $unknownBranch = substr($coordinator, (int) strpos($coordinator, 'OUTCOME_UNKNOWN'));
 $unknownSection = substr($unknownBranch, 0, (int) strpos($unknownBranch, 'markFailed'));
 assertAud002b(strpos($unknownSection, 'markDefinitiveFailure') === false, 'outcome_unknown must not mark definitive failure');
+
+$lifecycleRepoSrc = (string) file_get_contents($root . '/src/SmartUcf/SmartUcfLifecycleRepository.php');
+assertAud002b(strpos($lifecycleRepoSrc, 'Affected_Rows()') !== false, 'mark* checks affected rows');
+assertAud002b(strpos($lifecycleRepoSrc, 'SmartUcfLifecyclePersistenceException') !== false, 'persistence exception on bad transition');
 
 $client = (string) file_get_contents($root . '/src/SmartUcf/SmartUcfSessionClient.php');
 assertAud002b(strpos($client, "orderNo' => (string) \$snapshot['order_reference']") === false, 'orderNo remains in payload builder not client');
