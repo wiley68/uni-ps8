@@ -533,12 +533,20 @@ class Unipayment extends PaymentModule
             $this->context->controller->registerJavascript(
                 'module-unipayment-product-calculator',
                 'modules/' . $this->name . '/views/js/product-calculator.js',
-                ['position' => 'bottom', 'priority' => 150]
+                [
+                    'position' => 'bottom',
+                    'priority' => 150,
+                    'version' => $this->assetVersion('views/js/product-calculator.js'),
+                ]
             );
             $this->context->controller->registerJavascript(
                 'module-unipayment-cart-calculator',
                 'modules/' . $this->name . '/views/js/cart-calculator.js',
-                ['position' => 'bottom', 'priority' => 151]
+                [
+                    'position' => 'bottom',
+                    'priority' => 151,
+                    'version' => $this->assetVersion('views/js/cart-calculator.js'),
+                ]
             );
 
             return;
@@ -563,7 +571,11 @@ class Unipayment extends PaymentModule
             $this->context->controller->registerJavascript(
                 'module-unipayment-checkout-payment',
                 'modules/' . $this->name . '/views/js/checkout-payment.js',
-                ['position' => 'bottom', 'priority' => 150]
+                [
+                    'position' => 'bottom',
+                    'priority' => 150,
+                    'version' => $this->assetVersion('views/js/checkout-payment.js'),
+                ]
             );
 
             return;
@@ -581,8 +593,23 @@ class Unipayment extends PaymentModule
         $this->context->controller->registerJavascript(
             'module-unipayment-product-calculator',
             'modules/' . $this->name . '/views/js/product-calculator.js',
-            ['position' => 'bottom', 'priority' => 150]
+            [
+                'position' => 'bottom',
+                'priority' => 150,
+                'version' => $this->assetVersion('views/js/product-calculator.js'),
+            ]
         );
+    }
+
+    /**
+     * Cache-bust front assets without bumping the module business version.
+     */
+    private function assetVersion(string $relativePath): string
+    {
+        $path = _PS_MODULE_DIR_ . $this->name . '/' . ltrim($relativePath, '/');
+        $mtime = is_file($path) ? (int) filemtime($path) : 0;
+
+        return $this->version . ($mtime > 0 ? '.' . $mtime : '');
     }
 
     /**

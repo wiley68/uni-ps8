@@ -815,16 +815,35 @@
                 return;
             }
 
+            ensurePopupSubmissionToken(true)
+                .then(function () {
+                    enterStep2();
+                })
+                .catch(function () {
+                    errorBox.textContent = t(
+                        "data-validation-failed-message",
+                        "Данните не могат да бъдат валидирани.",
+                    );
+                });
+        }
+
+        function ensurePopupSubmissionToken(forceIssue) {
+            if (isCartSource) {
+                return Promise.resolve("");
+            }
+            if (!forceIssue && popupSubmissionToken) {
+                return Promise.resolve(popupSubmissionToken);
+            }
             var payload = calculationPayload("issue_submission_token");
             var endpoint = root.getAttribute("data-popup-endpoint");
             if (!payload || !endpoint) {
-                enterStep2();
-                return;
+                return Promise.reject(new Error("token"));
             }
-            if (popupSubmissionToken)
+            if (popupSubmissionToken) {
                 payload.set("popup_submission_token", popupSubmissionToken);
+            }
             if (applyButton) applyButton.disabled = true;
-            fetch(endpoint, {
+            return fetch(endpoint, {
                 method: "POST",
                 credentials: "same-origin",
                 body: payload,
@@ -846,47 +865,26 @@
                         popupSubmissionToken = body.popup_submission_token;
                         root.unipaymentPopupSubmissionToken =
                             popupSubmissionToken;
-                        enterStep2();
+                        return popupSubmissionToken;
                     });
                 })
-                .catch(function () {
-                    errorBox.textContent = t(
-                        "data-validation-failed-message",
-                        "Данните не могат да бъдат валидирани.",
-                    );
-                })
-                .then(function () {
+                .then(function (token) {
                     if (applyButton && lastCalculation)
                         applyButton.disabled = false;
+                    return token;
+                })
+                .catch(function (error) {
+                    if (applyButton && lastCalculation)
+                        applyButton.disabled = false;
+                    throw error;
                 });
         }
 
         function requestStep2Validation() {
             if (!customerForm || !submitButton || !step3) return;
             if (!updateSubmitState(true)) return;
-            var payload = calculationPayload("apply");
             var endpoint = root.getAttribute("data-popup-endpoint");
-            if (!payload || !endpoint) return;
-            if (!isCartSource) {
-                if (!popupSubmissionToken) {
-                    submitError.textContent = t(
-                        "data-validation-failed-message",
-                        "Данните не могат да бъдат валидирани.",
-                    );
-                    return;
-                }
-                payload.set("popup_submission_token", popupSubmissionToken);
-            }
-            ["first_name", "last_name", "address", "phone", "email"].forEach(
-                function (name) {
-                    payload.set(name, customerField(name).value.trim());
-                },
-            );
-            var egnField = customerField("egn");
-            if (egnField) payload.set("egn", egnField.value.trim());
-            var phone2Field = customerField("phone2");
-            if (phone2Field) payload.set("phone2", phone2Field.value.trim());
-            appendAcceptedConsents(payload);
+            if (!endpoint) return;
             if (submitButton) {
                 submitButton.disabled = true;
                 submitButton.setAttribute("aria-disabled", "true");
@@ -896,16 +894,46 @@
             setProcessingState(true);
             showSmartUcfLoading();
             setStep(3);
-            fetch(endpoint, {
-                method: "POST",
-                credentials: "same-origin",
-                body: payload,
-                headers: {
-                    "X-Requested-With": "XMLHttpRequest",
-                    "Content-Type":
-                        "application/x-www-form-urlencoded;charset=UTF-8",
-                },
-            })
+
+            ensurePopupSubmissionToken(false)
+                .then(function (token) {
+                    var payload = calculationPayload("apply");
+                    if (!payload) throw new Error("selection");
+                    if (!isCartSource) {
+                        if (!token && !popupSubmissionToken) {
+                            throw new Error("token");
+                        }
+                        payload.set(
+                            "popup_submission_token",
+                            token || popupSubmissionToken,
+                        );
+                    }
+                    [
+                        "first_name",
+                        "last_name",
+                        "address",
+                        "phone",
+                        "email",
+                    ].forEach(function (name) {
+                        payload.set(name, customerField(name).value.trim());
+                    });
+                    var egnField = customerField("egn");
+                    if (egnField) payload.set("egn", egnField.value.trim());
+                    var phone2Field = customerField("phone2");
+                    if (phone2Field)
+                        payload.set("phone2", phone2Field.value.trim());
+                    appendAcceptedConsents(payload);
+                    return fetch(endpoint, {
+                        method: "POST",
+                        credentials: "same-origin",
+                        body: payload,
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest",
+                            "Content-Type":
+                                "application/x-www-form-urlencoded;charset=UTF-8",
+                        },
+                    });
+                })
                 .then(function (response) {
                     return response.json().then(function (body) {
                         if (body && body.popup_submission_token)
