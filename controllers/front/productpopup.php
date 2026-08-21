@@ -26,9 +26,8 @@ use PrestaShop\Module\Unipayment\Product\ProductPopupApplyService;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCustomerValidator;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCalculator;
 use PrestaShop\Module\Unipayment\Product\ProductPopupValidationException;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfPayloadBuilder;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionClient;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionException;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCoordinationResult;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionCoordinator;
 
 final class UnipaymentProductPopupModuleFrontController extends ModuleFrontController
 {
@@ -231,7 +230,11 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             'first_installment' => $posted['first_installment'],
         ], $this->context);
 
-        $gate = $this->resolvePopupSubmissionGate($submissions, $token, $resolved['hash']);
+        /** @var Unipayment $module */
+        $module = $this->module;
+        $cpClient = new ControlPanelOrderClientAdapter($module->getControlPanelClient());
+
+        $gate = $this->resolvePopupSubmissionGate($submissions, $token, $resolved['hash'], $shop, $module, $cpClient);
         if (isset($gate['response'])) {
             return $gate['response'];
         }
@@ -241,9 +244,6 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         $reuseCartId = (int) ($submission['id_cart'] ?? 0);
         $submissionId = (int) $submission['id_submission'];
 
-        /** @var Unipayment $module */
-        $module = $this->module;
-        $cpClient = new ControlPanelOrderClientAdapter($module->getControlPanelClient());
         $orchestrator = new OrderOrchestrator(
             new OrderAttemptRepository(),
             new FinancingSnapshotRepository(),
@@ -321,10 +321,17 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
     }
 
     /**
+     * @param array<string, mixed> $shop
      * @return array{response?: array<string, mixed>, submission?: array<string, mixed>}
      */
-    private function resolvePopupSubmissionGate(PopupSubmissionRepository $submissions, string $token, string $selectionHash): array
-    {
+    private function resolvePopupSubmissionGate(
+        PopupSubmissionRepository $submissions,
+        string $token,
+        string $selectionHash,
+        array $shop,
+        Unipayment $module,
+        ControlPanelOrderClientAdapter $cpClient
+    ): array {
         if ($token === '') {
             http_response_code(400);
 
@@ -353,7 +360,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         $state = (string) $row['state'];
         if ($state === PopupSubmissionStates::ORDER_CREATED && (int) ($row['id_order'] ?? 0) > 0) {
             return [
-                'response' => $this->existingOrderResponse($row),
+                'response' => $this->existingOrderResponse($row, $shop, $module, $cpClient),
             ];
         }
 
@@ -396,7 +403,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
 
             $latest = $submissions->findByToken($token);
             if (is_array($latest) && (string) $latest['state'] === PopupSubmissionStates::ORDER_CREATED) {
-                return ['response' => $this->existingOrderResponse($latest)];
+                return ['response' => $this->existingOrderResponse($latest, $shop, $module, $cpClient)];
             }
             if (is_array($latest) && (string) $latest['state'] === PopupSubmissionStates::PROCESSING) {
                 if ((int) ($latest['id_cart'] ?? 0) > 0) {
@@ -421,11 +428,16 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
 
     /**
      * @param array<string, mixed> $row
+     * @param array<string, mixed> $shop
      * @return array<string, mixed>
      */
-    private function existingOrderResponse(array $row): array
-    {
-        return [
+    private function existingOrderResponse(
+        array $row,
+        array $shop,
+        Unipayment $module,
+        ControlPanelOrderClientAdapter $cpClient
+    ): array {
+        $response = [
             'success' => true,
             'step' => 'order_created',
             'replay' => true,
@@ -437,6 +449,38 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                 'id_attempt' => (int) ($row['id_attempt'] ?? 0),
             ],
         ];
+
+        $attemptId = (int) ($row['id_attempt'] ?? 0);
+        if ($attemptId <= 0) {
+            return $response;
+        }
+
+        $process2 = $this->isProcess2($shop);
+        if ($process2) {
+            $response['redirect_url'] = (new OrderConfirmationUrlBuilder())->build(
+                $this->context,
+                $module,
+                (int) $row['id_order']
+            );
+
+            return $response;
+        }
+
+        $shop['_currency_iso'] = (string) $this->context->currency->iso_code;
+        $coordinator = new SmartUcfSessionCoordinator(
+            null,
+            null,
+            null,
+            null,
+            null,
+            $cpClient,
+            $module,
+            $this->context
+        );
+        $smart = $coordinator->resume($attemptId, $shop, false);
+        $this->applySmartUcfResultToResponse($response, $smart);
+
+        return $response;
     }
 
     /** @return array<string, mixed> */
@@ -446,7 +490,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             'success' => true,
             'step' => 'processing',
             'popup_submission_token' => $token,
-            'message' => 'The financing request is already being processed.',
+            'message' => SmartUcfSessionCoordinator::CUSTOMER_PROCESSING,
         ];
     }
 
@@ -477,64 +521,57 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
 
         try {
             $snapshot = (new FinancingSnapshotRepository())->findByAttempt($result->attemptId);
-            if ($snapshot !== null) {
-                $process2 = $this->isProcess2($shop);
-                $finalStatus = BankStatus::successfulSend($process2);
-                if ($process2) {
-                    $this->persistBankStatus($result->orderReference, $finalStatus);
-                }
-
-                if (!$process2) {
-                    $shop['_currency_iso'] = (string) $this->context->currency->iso_code;
-                    $payloadBuilder = new SmartUcfPayloadBuilder();
-                    $smartUcfPayload = $payloadBuilder->build($shop, $snapshot);
-                    $smartUcf = new SmartUcfSessionClient($payloadBuilder);
-                    try {
-                        $session = $smartUcf->createSession($shop, $snapshot);
-                        $this->persistBankStatus($result->orderReference, $finalStatus);
-                        $response['redirect_url'] = $session['redirect_url'];
-                        $this->logSmartUcf($result->idOrder, $result->orderReference, $session);
-                    } catch (SmartUcfSessionException $e) {
-                        $this->logSmartUcfError(
-                            $result->idOrder,
-                            $result->orderReference,
-                            $e,
-                            $smartUcfPayload,
-                            $e->rawResponse()
-                        );
-                        $this->markSmartUcfFailure($cpClient, $result->idOrder, $result->orderReference);
-                        $finalStatus = BankStatus::smartUcfFailure();
-                        $response['smartucf_error'] = $this->smartUcfErrorMessage($e);
-                    } catch (\Throwable $smartUcfException) {
-                        PrestaShopLogger::addLog(
-                            'UniPayment popup SmartUCF unexpected failure: ' . get_class($smartUcfException) . ' ' . $smartUcfException->getMessage(),
-                            2
-                        );
-                        $this->logPopupPostOrderFailure(
-                            $result->idOrder,
-                            $result->orderReference,
-                            $smartUcfException,
-                            'smartucf-unexpected',
-                            $smartUcfPayload
-                        );
-                        $this->markSmartUcfFailure($cpClient, $result->idOrder, $result->orderReference);
-                        $finalStatus = BankStatus::smartUcfFailure();
-                        $response['smartucf_error'] = 'There is a temporary problem with the bank order submission service.';
-                    }
-                }
-
-                try {
-                    (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
-                } catch (\Throwable $emailException) {
-                    PrestaShopLogger::addLog(
-                        'UniPayment popup leasing email failed: ' . get_class($emailException) . ' ' . $emailException->getMessage(),
-                        2
-                    );
-                    $this->logPopupPostOrderFailure($result->idOrder, $result->orderReference, $emailException, 'leasing-email');
-                    $response['email_error'] = 'Leasing email could not be sent.';
-                }
-            } else {
+            if ($snapshot === null) {
                 \PrestaShop\Module\Unipayment\Order\DeferredOrderMailQueue::flush();
+
+                return $response;
+            }
+
+            $process2 = $this->isProcess2($shop);
+            $finalStatus = BankStatus::successfulSend($process2);
+            if ($process2) {
+                $this->persistBankStatus($result->orderReference, $finalStatus);
+                $response['redirect_url'] = (new OrderConfirmationUrlBuilder())->build(
+                    $this->context,
+                    $module,
+                    $result->idOrder
+                );
+            } else {
+                $shop['_currency_iso'] = (string) $this->context->currency->iso_code;
+                $coordinator = new SmartUcfSessionCoordinator(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    $cpClient,
+                    $module,
+                    $this->context
+                );
+                $smart = $coordinator->run($result->attemptId, $shop, false, $snapshot);
+                $this->applySmartUcfResultToResponse($response, $smart);
+                if ($smart->isFailed()) {
+                    $finalStatus = BankStatus::smartUcfFailure();
+                } elseif ($smart->isOutcomeUnknown()) {
+                    // Order exists; do not claim SmartUCF failure in e-mail status.
+                    $finalStatus = BankStatus::successfulSend(false);
+                } elseif ($smart->isCreated()) {
+                    $finalStatus = BankStatus::successfulSend(false);
+                } elseif ($smart->isProcessing()) {
+                    // Still in flight — skip e-mail until terminal (leasing marker protects later).
+                    return $response;
+                }
+            }
+
+            try {
+                (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
+            } catch (\Throwable $emailException) {
+                PrestaShopLogger::addLog(
+                    'UniPayment popup leasing email failed: ' . get_class($emailException) . ' ' . $emailException->getMessage(),
+                    2
+                );
+                $this->logPopupPostOrderFailure($result->idOrder, $result->orderReference, $emailException, 'leasing-email');
+                $response['email_error'] = 'Leasing email could not be sent.';
             }
         } catch (\Throwable $postOrderException) {
             \PrestaShop\Module\Unipayment\Order\DeferredOrderMailQueue::flush();
@@ -544,14 +581,6 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             );
             $this->logPopupPostOrderFailure($result->idOrder, $result->orderReference, $postOrderException, 'post-order');
             $response['post_order_error'] = 'The order was created, but additional processing was not completed.';
-        }
-
-        if ($this->isProcess2($shop)) {
-            $response['redirect_url'] = (new OrderConfirmationUrlBuilder())->build(
-                $this->context,
-                $module,
-                $result->idOrder
-            );
         }
 
         if ($this->isDebugResponseEnabled()) {
@@ -564,6 +593,40 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         }
 
         return $response;
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     */
+    private function applySmartUcfResultToResponse(array &$response, SmartUcfCoordinationResult $smart): void
+    {
+        if ($smart->isCreated()) {
+            $response['redirect_url'] = $smart->redirectUrl();
+            $response['step'] = 'order_created';
+
+            return;
+        }
+        if ($smart->isProcessing()) {
+            $response['step'] = 'processing';
+            $response['message'] = $smart->customerMessage() !== ''
+                ? $smart->customerMessage()
+                : SmartUcfSessionCoordinator::CUSTOMER_PROCESSING;
+
+            return;
+        }
+        if ($smart->isOutcomeUnknown()) {
+            $response['step'] = 'outcome_unknown';
+            $response['smartucf_error'] = $smart->customerMessage() !== ''
+                ? $smart->customerMessage()
+                : SmartUcfSessionCoordinator::CUSTOMER_OUTCOME_UNKNOWN;
+
+            return;
+        }
+        if ($smart->isFailed()) {
+            $response['smartucf_error'] = $smart->customerMessage() !== ''
+                ? $smart->customerMessage()
+                : SmartUcfSessionCoordinator::CUSTOMER_FAILED;
+        }
     }
 
     private function ensureCart(): Cart
@@ -588,67 +651,6 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         $this->context->cookie->write();
 
         return $cart;
-    }
-
-    /** @param array<string, mixed> $session */
-    private function logSmartUcf(int $idOrder, string $orderReference, array $session): void
-    {
-        $journal = $this->diagnosticJournal();
-        if ($journal === null) {
-            return;
-        }
-        $journal->record(
-            $idOrder,
-            $orderReference,
-            (int) ($session['http_code'] ?? 0),
-            $session['raw_request'] ?? '',
-            $session['raw_response'] ?? ''
-        );
-    }
-
-    private function logSmartUcfError(int $idOrder, string $orderReference, SmartUcfSessionException $exception, $request = '', $response = ''): void
-    {
-        PrestaShopLogger::addLog('UniPayment SmartUCF session failed: ' . $exception->getMessage(), 2);
-        $journal = $this->diagnosticJournal();
-        if ($journal === null) {
-            return;
-        }
-        $journal->record($idOrder, $orderReference, $exception->httpCode(), $request, $response, $exception->getMessage());
-    }
-
-    private function markSmartUcfFailure(ControlPanelOrderClientAdapter $cpClient, int $idOrder, string $orderReference): void
-    {
-        $cpOrderId = substr($orderReference, 0, 13);
-        $failedStatus = BankStatus::smartUcfFailure();
-        try {
-            $cpClient->updateOrderStatus(
-                $cpOrderId,
-                $failedStatus['status_label'],
-                $failedStatus['status_id']
-            );
-        } catch (\Throwable $e) {
-            PrestaShopLogger::addLog('UniPayment CP status update failed after SmartUCF error: ' . get_class($e), 2);
-        }
-
-        $this->persistBankStatus($orderReference, $failedStatus);
-
-        try {
-            (new NativePrestaShopOrderGateway($this->module, $this->context))->markFailed($idOrder);
-        } catch (\Throwable $e) {
-            PrestaShopLogger::addLog('UniPayment order mark failed after SmartUCF error failed: ' . get_class($e), 2);
-        }
-    }
-
-    private function diagnosticJournal(): ?\PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDiagnosticJournal
-    {
-        try {
-            return new \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDiagnosticJournal(
-                new \PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository(),
-                new \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository()
-            );
-        } catch (\Throwable $e) {
-            return null;
-        }
     }
 
     private function logPopupSelectionFailure(\Throwable $exception): void
@@ -723,19 +725,6 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                 2
             );
         }
-    }
-
-    private function smartUcfErrorMessage(SmartUcfSessionException $exception): string
-    {
-        $raw = $exception->rawResponse();
-        if ($raw !== '') {
-            $decoded = json_decode($raw, true);
-            if (is_array($decoded) && !empty($decoded['errorText'])) {
-                return 'SmartUCF: ' . (string) $decoded['errorText'];
-            }
-        }
-
-        return 'There is a temporary problem with the bank order submission service.';
     }
 
     private function isDebugResponseEnabled(): bool

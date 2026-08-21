@@ -25,8 +25,17 @@ final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterfa
             `module_version` VARCHAR(11) NOT NULL, `submission_source` VARCHAR(32) NOT NULL,
             `customer_json` LONGTEXT NOT NULL, `address_json` LONGTEXT NOT NULL, `lines_json` LONGTEXT NOT NULL, `consents_json` LONGTEXT NOT NULL,
             `sensitive_payload` LONGTEXT NULL, `control_panel_order_id` BIGINT UNSIGNED NULL, `lifecycle_status` VARCHAR(32) NOT NULL, `leasing_email_sent` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
+            `smartucf_state` VARCHAR(32) NOT NULL DEFAULT \'not_started\',
+            `smartucf_session_id` VARCHAR(128) NULL,
+            `smartucf_redirect_url` VARCHAR(768) NULL,
+            `smartucf_http_code` SMALLINT NULL,
+            `smartucf_error_class` VARCHAR(64) NULL,
+            `smartucf_retryable` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
+            `smartucf_claimed_at` DATETIME NULL,
+            `smartucf_completed_at` DATETIME NULL,
             `created_at` DATETIME NOT NULL, `updated_at` DATETIME NOT NULL, PRIMARY KEY (`id_snapshot`),
-            UNIQUE KEY `uniq_unipayment_snapshot_attempt` (`id_attempt`), UNIQUE KEY `uniq_unipayment_snapshot_order` (`id_order`)
+            UNIQUE KEY `uniq_unipayment_snapshot_attempt` (`id_attempt`), UNIQUE KEY `uniq_unipayment_snapshot_order` (`id_order`),
+            KEY `idx_unipayment_snapshot_smartucf_state` (`smartucf_state`, `smartucf_claimed_at`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
     }
 

@@ -34,8 +34,8 @@ $popup = (string) file_get_contents(dirname(__DIR__, 2) . '/controllers/front/pr
 $checkout = (string) file_get_contents(dirname(__DIR__, 2) . '/controllers/front/validatecheckout.php');
 $grid = (string) file_get_contents(dirname(__DIR__, 2) . '/unipayment.php');
 $gateway = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/NativePrestaShopOrderGateway.php');
-assertBankStatus(strpos($popup, 'persistBankStatus($result->orderReference, $finalStatus)') !== false, 'popup must persist successful bank status for the admin list');
-assertBankStatus(strpos($checkout, 'persistBankStatus($result->orderReference, $finalStatus)') !== false, 'checkout must persist successful bank status for the admin list');
+assertBankStatus(strpos($popup, 'SmartUcfSessionCoordinator') !== false, 'popup must use shared SmartUCF coordinator');
+assertBankStatus(strpos($checkout, 'SmartUcfSessionCoordinator') !== false, 'checkout must use shared SmartUCF coordinator');
 assertBankStatus(strpos($grid, 'unipayment_bs.status_label') !== false, 'orders grid must read persisted bank status labels');
 assertBankStatus(strpos($grid, "setName('UniCredit статус')") !== false, 'orders grid column name must match Woo UniCredit status');
 assertBankStatus(strpos($popup, 'FinancingOrderMailDispatcher') !== false && strpos($popup, 'BankStatus::smartUcfFailure') !== false, 'popup must send emails after the final bank status is known');
@@ -45,5 +45,10 @@ assertBankStatus(strpos($grid, 'hookActionEmailSendBefore') !== false, 'order_co
 assertBankStatus(strpos($grid, 'hookDisplayPaymentReturn') !== false, 'Process 2 thank-you leasing block hook must be registered');
 $leasingPresenter = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/OrderLeasingDetailsPresenter.php');
 assertBankStatus(strpos($leasingPresenter, 'applyBankStatusLabel') !== false, 'admin/thank-you leasing rows must overlay live bank status like Woo');
+$cart = (string) file_get_contents(dirname(__DIR__, 2) . '/controllers/front/cartpopup.php');
+assertBankStatus(strpos($cart, 'SmartUcfSessionCoordinator') !== false, 'cart popup must use shared SmartUCF coordinator');
+assertBankStatus(strpos($popup, 'createSession(') === false, 'popup must not call createSession directly');
+assertBankStatus(strpos($checkout, 'createSession(') === false, 'checkout must not call createSession directly');
+assertBankStatus(strpos($cart, 'createSession(') === false, 'cart must not call createSession directly');
 
 fwrite(STDOUT, "OK (Bank status persistence for admin orders list)\n");

@@ -27,11 +27,7 @@ use PrestaShop\Module\Unipayment\Order\OrderConfirmationUrlBuilder;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDiagnosticJournal;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfPayloadBuilder;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionClient;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionException;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionCoordinator;
 
 final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontController
 {
@@ -106,31 +102,56 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 $this->persistBankStatus($result->orderReference, $finalStatus);
             }
 
-            if (!$process2) {
-                if ($snapshot !== null) {
-                    $shop['_currency_iso'] = (string) $this->context->currency->iso_code;
-                    $payloadBuilder = new SmartUcfPayloadBuilder();
-                    $smartUcfPayload = $payloadBuilder->build($shop, $snapshot);
-                    $smartUcf = new SmartUcfSessionClient($payloadBuilder);
-                    try {
-                        $session = $smartUcf->createSession($shop, $snapshot);
-                        $this->persistBankStatus($result->orderReference, $finalStatus);
-                        $this->logSmartUcfSession($result->idOrder, $result->orderReference, $session);
-                        (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
-                        Tools::redirect($session['redirect_url']);
+            if (!$process2 && $snapshot !== null) {
+                $shop['_currency_iso'] = (string) $this->context->currency->iso_code;
+                $coordinator = new SmartUcfSessionCoordinator(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    $cpClient,
+                    $module,
+                    $this->context
+                );
+                $smart = $coordinator->run($result->attemptId, $shop, false, $snapshot);
+                if ($smart->isCreated()) {
+                    (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
+                    Tools::redirect($smart->redirectUrl());
 
-                        return;
-                    } catch (SmartUcfSessionException $e) {
-                        $this->logSmartUcfError(
-                            $result->idOrder,
-                            $result->orderReference,
-                            $e,
-                            $smartUcfPayload,
-                            $e->rawResponse()
-                        );
-                        $this->markSmartUcfFailure($cpClient, $result->idOrder, $result->orderReference);
-                        $finalStatus = BankStatus::smartUcfFailure();
-                    }
+                    return;
+                }
+                if ($smart->isProcessing()) {
+                    $this->context->smarty->assign([
+                        'unipayment_order_result' => [
+                            'id_order' => $result->idOrder,
+                            'order_reference' => $result->orderReference,
+                            'control_panel_order_id' => $result->controlPanelOrderId,
+                        ],
+                        'unipayment_smartucf_processing' => true,
+                        'unipayment_smartucf_message' => $smart->customerMessage(),
+                    ]);
+                    $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
+
+                    return;
+                }
+                if ($smart->isOutcomeUnknown()) {
+                    (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
+                    $this->context->smarty->assign([
+                        'unipayment_order_result' => [
+                            'id_order' => $result->idOrder,
+                            'order_reference' => $result->orderReference,
+                            'control_panel_order_id' => $result->controlPanelOrderId,
+                        ],
+                        'unipayment_smartucf_outcome_unknown' => true,
+                        'unipayment_smartucf_message' => $smart->customerMessage(),
+                    ]);
+                    $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
+
+                    return;
+                }
+                if ($smart->isFailed()) {
+                    $finalStatus = BankStatus::smartUcfFailure();
                 }
             }
 
@@ -186,70 +207,6 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             'phone2' => (string) Tools::getValue('unipayment_phone2', ''),
             'consent' => Tools::getValue('unipayment_consent', []),
         ];
-    }
-
-    /** @param array<string, mixed> $session */
-    private function logSmartUcfSession(int $idOrder, string $orderReference, array $session): void
-    {
-        try {
-            $journal = new SmartUcfDiagnosticJournal(
-                new \PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository(),
-                new SmartUcfDebugLogRepository()
-            );
-            $journal->record(
-                $idOrder,
-                $orderReference,
-                (int) ($session['http_code'] ?? 0),
-                $session['raw_request'] ?? '',
-                $session['raw_response'] ?? ''
-            );
-        } catch (\Throwable $e) {
-            // Logging failure must not break the checkout flow.
-        }
-    }
-
-    private function logSmartUcfError(int $idOrder, string $orderReference, SmartUcfSessionException $exception, $request = '', $response = ''): void
-    {
-        PrestaShopLogger::addLog('UniPayment SmartUCF session failed during checkout: ' . $exception->getMessage(), 2);
-        try {
-            $journal = new SmartUcfDiagnosticJournal(
-                new \PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository(),
-                new SmartUcfDebugLogRepository()
-            );
-            $journal->record(
-                $idOrder,
-                $orderReference,
-                $exception->httpCode(),
-                $request,
-                $response !== '' ? $response : $exception->getMessage(),
-                $exception->getMessage()
-            );
-        } catch (\Throwable $e) {
-            // Logging failure must not break the checkout flow.
-        }
-    }
-
-    private function markSmartUcfFailure(ControlPanelOrderClientAdapter $cpClient, int $idOrder, string $orderReference): void
-    {
-        $cpOrderId = substr($orderReference, 0, 13);
-        $failedStatus = BankStatus::smartUcfFailure();
-        try {
-            $cpClient->updateOrderStatus(
-                $cpOrderId,
-                $failedStatus['status_label'],
-                $failedStatus['status_id']
-            );
-        } catch (\Throwable $e) {
-            PrestaShopLogger::addLog('UniPayment CP status update failed after SmartUCF error: ' . get_class($e), 2);
-        }
-
-        $this->persistBankStatus($orderReference, $failedStatus);
-
-        try {
-            (new NativePrestaShopOrderGateway($this->module, $this->context))->markFailed($idOrder);
-        } catch (\Throwable $e) {
-            PrestaShopLogger::addLog('UniPayment order mark failed after SmartUCF error failed: ' . get_class($e), 2);
-        }
     }
 
     /** @param array{status_id: string, status_label: string} $status */

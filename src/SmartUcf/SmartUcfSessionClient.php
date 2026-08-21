@@ -14,6 +14,9 @@ final class SmartUcfSessionClient
 {
     private const SSL_PASSWD = '1234';
 
+    /** HTTP timeout in seconds (used by AUD-008 stale grace calibration). */
+    public const HTTP_TIMEOUT_SECONDS = 10;
+
     /** @var SmartUcfPayloadBuilder */
     private $payloadBuilder;
 
@@ -40,11 +43,23 @@ final class SmartUcfSessionClient
         $applicationUrl = $this->applicationUrl($shop);
 
         if ($serviceUrl === '' || $serviceUrl === 'sucfOnlineSessionStart') {
-            throw new SmartUcfSessionException('The SmartUCF service URL is not configured.', false);
+            throw new SmartUcfSessionException(
+                'The SmartUCF service URL is not configured.',
+                true,
+                '',
+                0,
+                SmartUcfSessionException::KIND_PRE_SEND
+            );
         }
 
         if ($applicationUrl === '') {
-            throw new SmartUcfSessionException('The SmartUCF application URL is not configured.', false);
+            throw new SmartUcfSessionException(
+                'The SmartUCF application URL is not configured.',
+                true,
+                '',
+                0,
+                SmartUcfSessionException::KIND_PRE_SEND
+            );
         }
 
         $payload = $this->payloadBuilder->build($shop, $snapshot);
@@ -54,7 +69,13 @@ final class SmartUcfSessionClient
             $keyPath = $this->keysDir . '/avalon_private_key.pem';
             $certPath = $this->keysDir . '/avalon_cert.pem';
             if (!is_readable($keyPath) || !is_readable($certPath)) {
-                throw new SmartUcfSessionException('SmartUCF SSL key or certificate is missing or unreadable.', false);
+                throw new SmartUcfSessionException(
+                    'SmartUCF SSL key or certificate is missing or unreadable.',
+                    true,
+                    '',
+                    0,
+                    SmartUcfSessionException::KIND_PRE_SEND
+                );
             }
         }
 
@@ -66,7 +87,7 @@ final class SmartUcfSessionClient
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 2,
-            CURLOPT_TIMEOUT => 10,
+            CURLOPT_TIMEOUT => self::HTTP_TIMEOUT_SECONDS,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'POST',
             CURLOPT_POSTFIELDS => $jsonPayload,
@@ -91,31 +112,60 @@ final class SmartUcfSessionClient
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
+        $rawResponse = is_string($response) ? $response : '';
+
         if ($error !== '') {
             throw new SmartUcfSessionException(
                 'SmartUCF connection failed: ' . $error,
-                true,
-                '',
-                $httpCode
+                false,
+                $rawResponse !== '' ? $rawResponse : $error,
+                $httpCode,
+                SmartUcfSessionException::KIND_TRANSPORT
             );
         }
 
-        $decoded = is_string($response) ? json_decode($response, false) : null;
-        $sessionId = isset($decoded->sucfOnlineSessionID) ? trim((string) $decoded->sucfOnlineSessionID) : '';
-        $rawResponse = is_string($response) ? $response : '';
+        if ($rawResponse === '') {
+            throw new SmartUcfSessionException(
+                'SmartUCF returned an empty response.',
+                false,
+                '',
+                $httpCode,
+                SmartUcfSessionException::KIND_TRANSPORT
+            );
+        }
 
+        $decoded = json_decode($rawResponse, false);
+        if (!is_object($decoded)) {
+            throw new SmartUcfSessionException(
+                'SmartUCF returned invalid JSON.',
+                false,
+                $rawResponse,
+                $httpCode,
+                SmartUcfSessionException::KIND_TRANSPORT
+            );
+        }
+
+        $sessionId = isset($decoded->sucfOnlineSessionID) ? trim((string) $decoded->sucfOnlineSessionID) : '';
         if ($sessionId === '') {
+            $kind = $this->detectDuplicateKind($rawResponse, $httpCode);
             throw new SmartUcfSessionException(
                 'SmartUCF did not return a session identifier.',
-                $httpCode >= 500,
+                false,
                 $rawResponse,
-                $httpCode
+                $httpCode,
+                $kind
             );
         }
 
         $redirectUrl = $this->applicationRedirectUrl($shop, $sessionId);
         if ($redirectUrl === '' || $redirectUrl === '/') {
-            throw new SmartUcfSessionException('The SmartUCF application URL is not configured.', false);
+            throw new SmartUcfSessionException(
+                'The SmartUCF application URL is not configured.',
+                true,
+                $rawResponse,
+                $httpCode,
+                SmartUcfSessionException::KIND_PRE_SEND
+            );
         }
 
         return [
@@ -123,8 +173,25 @@ final class SmartUcfSessionClient
             'redirect_url' => $redirectUrl,
             'http_code' => $httpCode,
             'raw_request' => $jsonPayload,
-            'raw_response' => is_string($response) ? $response : '',
+            'raw_response' => $rawResponse,
         ];
+    }
+
+    private function detectDuplicateKind(string $rawResponse, int $httpCode): string
+    {
+        $haystack = strtolower($rawResponse);
+        $duplicate = (strpos($haystack, 'duplicate') !== false && strpos($haystack, 'order') !== false)
+            || strpos($haystack, 'already exists') !== false
+            || strpos($haystack, 'order already') !== false
+            || strpos($haystack, 'съществува') !== false;
+        if ($duplicate) {
+            return SmartUcfSessionException::KIND_DUPLICATE;
+        }
+        if ($httpCode >= 500 || $httpCode === 0) {
+            return SmartUcfSessionException::KIND_TRANSPORT;
+        }
+
+        return SmartUcfSessionException::KIND_REMOTE;
     }
 
     /** @param array<string, mixed> $shop */

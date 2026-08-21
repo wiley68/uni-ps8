@@ -56,6 +56,8 @@ final class FinancingSnapshotFactory
             'sensitive_payload' => $this->cipher->encrypt($sensitive),
             'control_panel_order_id' => null,
             'lifecycle_status' => OrderOrchestrator::PS_ORDER_CREATED,
+            'smartucf_state' => 'not_started',
+            'smartucf_retryable' => 0,
         ];
     }
 }

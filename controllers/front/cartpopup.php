@@ -23,9 +23,8 @@ use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 use PrestaShop\Module\Unipayment\Product\GuestCustomerFactory;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCustomerValidator;
 use PrestaShop\Module\Unipayment\Product\ProductPopupValidationException;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfPayloadBuilder;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionClient;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionException;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCoordinationResult;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionCoordinator;
 
 /**
  * Cart popup calculate / apply endpoint (Woo source=cart parity).
@@ -175,37 +174,29 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
                     $finalStatus = BankStatus::successfulSend($process2);
                     if ($process2) {
                         $this->persistBankStatus($result->orderReference, $finalStatus);
-                    }
-
-                    if (!$process2) {
+                        $response['redirect_url'] = (new OrderConfirmationUrlBuilder())->build(
+                            $this->context,
+                            $module,
+                            $result->idOrder
+                        );
+                    } else {
                         $shop['_currency_iso'] = (string) $this->context->currency->iso_code;
-                        $payloadBuilder = new SmartUcfPayloadBuilder();
-                        $smartUcfPayload = $payloadBuilder->build($shop, $snapshot);
-                        $smartUcf = new SmartUcfSessionClient($payloadBuilder);
-                        try {
-                            $session = $smartUcf->createSession($shop, $snapshot);
-                            $this->persistBankStatus($result->orderReference, $finalStatus);
-                            $response['redirect_url'] = $session['redirect_url'];
-                            $this->logSmartUcf($result->idOrder, $result->orderReference, $session);
-                        } catch (SmartUcfSessionException $e) {
-                            $this->logSmartUcfError(
-                                $result->idOrder,
-                                $result->orderReference,
-                                $e,
-                                $smartUcfPayload,
-                                $e->rawResponse()
-                            );
-                            $this->markSmartUcfFailure($cpClient, $result->idOrder, $result->orderReference);
+                        $coordinator = new SmartUcfSessionCoordinator(
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            $cpClient,
+                            $module,
+                            $this->context
+                        );
+                        $smart = $coordinator->run($result->attemptId, $shop, false, $snapshot);
+                        $this->applySmartUcfResultToResponse($response, $smart);
+                        if ($smart->isFailed()) {
                             $finalStatus = BankStatus::smartUcfFailure();
-                            $response['smartucf_error'] = $this->smartUcfErrorMessage($e);
-                        } catch (\Throwable $smartUcfException) {
-                            PrestaShopLogger::addLog(
-                                'UniPayment cart popup SmartUCF unexpected failure: ' . get_class($smartUcfException) . ' ' . $smartUcfException->getMessage(),
-                                2
-                            );
-                            $this->markSmartUcfFailure($cpClient, $result->idOrder, $result->orderReference);
-                            $finalStatus = BankStatus::smartUcfFailure();
-                            $response['smartucf_error'] = 'There is a temporary problem with the bank order submission service.';
+                        } elseif ($smart->isProcessing()) {
+                            return $response;
                         }
                     }
 
@@ -228,14 +219,6 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
                     2
                 );
                 $response['post_order_error'] = 'The order was created, but additional processing was not completed.';
-            }
-
-            if ($this->isProcess2($shop)) {
-                $response['redirect_url'] = (new OrderConfirmationUrlBuilder())->build(
-                    $this->context,
-                    $module,
-                    $result->idOrder
-                );
             }
 
             return $response;
@@ -261,78 +244,38 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
         }
     }
 
-    /** @param array<string, mixed> $session */
-    private function logSmartUcf(int $idOrder, string $orderReference, array $session): void
+    /**
+     * @param array<string, mixed> $response
+     */
+    private function applySmartUcfResultToResponse(array &$response, SmartUcfCoordinationResult $smart): void
     {
-        $journal = $this->diagnosticJournal();
-        if ($journal === null) {
+        if ($smart->isCreated()) {
+            $response['redirect_url'] = $smart->redirectUrl();
+            $response['step'] = 'order_created';
+
             return;
         }
-        $journal->record(
-            $idOrder,
-            $orderReference,
-            (int) ($session['http_code'] ?? 0),
-            $session['raw_request'] ?? '',
-            $session['raw_response'] ?? ''
-        );
-    }
+        if ($smart->isProcessing()) {
+            $response['step'] = 'processing';
+            $response['message'] = $smart->customerMessage() !== ''
+                ? $smart->customerMessage()
+                : SmartUcfSessionCoordinator::CUSTOMER_PROCESSING;
 
-    private function logSmartUcfError(int $idOrder, string $orderReference, SmartUcfSessionException $exception, $request = '', $response = ''): void
-    {
-        PrestaShopLogger::addLog('UniPayment SmartUCF session failed: ' . $exception->getMessage(), 2);
-        $journal = $this->diagnosticJournal();
-        if ($journal === null) {
             return;
         }
-        $journal->record($idOrder, $orderReference, $exception->httpCode(), $request, $response, $exception->getMessage());
-    }
+        if ($smart->isOutcomeUnknown()) {
+            $response['step'] = 'outcome_unknown';
+            $response['smartucf_error'] = $smart->customerMessage() !== ''
+                ? $smart->customerMessage()
+                : SmartUcfSessionCoordinator::CUSTOMER_OUTCOME_UNKNOWN;
 
-    private function markSmartUcfFailure(ControlPanelOrderClientAdapter $cpClient, int $idOrder, string $orderReference): void
-    {
-        $cpOrderId = substr($orderReference, 0, 13);
-        $failedStatus = BankStatus::smartUcfFailure();
-        try {
-            $cpClient->updateOrderStatus(
-                $cpOrderId,
-                $failedStatus['status_label'],
-                $failedStatus['status_id']
-            );
-        } catch (\Throwable $e) {
-            PrestaShopLogger::addLog('UniPayment CP status update failed after SmartUCF error: ' . get_class($e), 2);
+            return;
         }
-
-        $this->persistBankStatus($orderReference, $failedStatus);
-
-        try {
-            (new NativePrestaShopOrderGateway($this->module, $this->context))->markFailed($idOrder);
-        } catch (\Throwable $e) {
-            PrestaShopLogger::addLog('UniPayment order mark failed after SmartUCF error failed: ' . get_class($e), 2);
+        if ($smart->isFailed()) {
+            $response['smartucf_error'] = $smart->customerMessage() !== ''
+                ? $smart->customerMessage()
+                : SmartUcfSessionCoordinator::CUSTOMER_FAILED;
         }
-    }
-
-    private function diagnosticJournal(): ?\PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDiagnosticJournal
-    {
-        try {
-            return new \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDiagnosticJournal(
-                new \PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository(),
-                new \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository()
-            );
-        } catch (\Throwable $e) {
-            return null;
-        }
-    }
-
-    private function smartUcfErrorMessage(SmartUcfSessionException $exception): string
-    {
-        $raw = $exception->rawResponse();
-        if ($raw !== '') {
-            $decoded = json_decode($raw, true);
-            if (is_array($decoded) && !empty($decoded['errorText'])) {
-                return 'SmartUCF: ' . (string) $decoded['errorText'];
-            }
-        }
-
-        return 'There is a temporary problem with the bank order submission service.';
     }
 
     /** @param array<string, mixed> $shop */

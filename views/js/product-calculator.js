@@ -960,6 +960,19 @@
                             setStep(3);
                             return;
                         }
+                        if (body.step === "outcome_unknown") {
+                            setProcessingState(false);
+                            showSmartUcfError(
+                                body.smartucf_error ||
+                                    body.message ||
+                                    t(
+                                        "data-smartucf-error-default",
+                                        "Възникна грешка при обработката на заявката.",
+                                    ),
+                            );
+                            setStep(3);
+                            return;
+                        }
                         root.unipaymentOrderResult = body.order;
                         if (body.redirect_url) {
                             window.location.assign(body.redirect_url);
