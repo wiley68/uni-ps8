@@ -220,6 +220,9 @@ class Unipayment extends PaymentModule
             'unipayment_button_top_spacing' => $configurationSubmitted
                 ? (string) Tools::getValue('UNIPAYMENT_BUTTON_TOP_SPACING', '0')
                 : (string) $repository->getButtonTopSpacing(),
+            'unipayment_sync_bank_rejection_state' => $configurationSubmitted
+                ? (bool) Tools::getValue('UNIPAYMENT_SYNC_BANK_REJECTION_STATE', false)
+                : $repository->isSyncBankRejectionStateEnabled(),
             'unipayment_has_secret' => $repository->hasSecret(),
             'unipayment_secret_readable' => $repository->isSecretReadable(),
         ]);
@@ -271,6 +274,7 @@ class Unipayment extends PaymentModule
         }
 
         $credentialsChanged = $repository->getUnicid() !== $unicid || $secret !== '';
+        $syncBankRejection = (bool) Tools::getValue('UNIPAYMENT_SYNC_BANK_REJECTION_STATE', false);
         $saved = $repository->save(
             (bool) Tools::getValue('UNIPAYMENT_ENABLED', false),
             $unicid,
@@ -278,13 +282,18 @@ class Unipayment extends PaymentModule
             (bool) Tools::getValue('UNIPAYMENT_ADVERTISING_ENABLED', false),
             (bool) Tools::getValue('UNIPAYMENT_DEBUG_ENABLED', false),
             $buttonAction,
-            (int) $buttonTopSpacing
+            (int) $buttonTopSpacing,
+            $syncBankRejection
         );
 
         if (!$saved) {
             return $this->displayError(
                 $this->trans('Настройките на модула не могат да бъдат записани.', [], 'Modules.Unipayment.Admin')
             );
+        }
+
+        if ($syncBankRejection) {
+            (new PrestaShop\Module\Unipayment\Order\OrderStateInstaller())->install();
         }
 
         if ($credentialsChanged) {

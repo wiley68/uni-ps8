@@ -5,37 +5,35 @@ declare(strict_types=1);
 namespace PrestaShop\Module\Unipayment\Order;
 
 /**
- * Maps bank status labels (pushed from CP) to PrestaShop order states.
- *
- * Status labels match the CP OrderStatus enum values (Bulgarian text).
- * The mapping intentionally uses the human-readable `status` label rather than
- * `status_id`, because the bank's reqStatusCode values are not standardized.
+ * Optional PrestaShop order-state sync for definitive bank rejection (AUD-009).
+ * Maps by stable status_id only. Never maps labels or positive/paid statuses.
  */
 final class BankStatusOrderStateMapper
 {
-    private const REJECTION_LABELS = [
-        'Declined',
-        'Declined by customer',
-        'Declined by customer on contact',
-    ];
+    /** @var BankStatusRejectionPolicy */
+    private $rejectionPolicy;
 
-    private const ACCEPTANCE_LABELS = [
-        'Signed contract',
-        'Activated contract',
-    ];
+    public function __construct(?BankStatusRejectionPolicy $rejectionPolicy = null)
+    {
+        $this->rejectionPolicy = $rejectionPolicy ?? new BankStatusRejectionPolicy();
+    }
 
     /**
-     * Applies the PS order state change based on the bank status label.
-     * Returns true if the order state was changed, false if no mapping matched.
+     * @return bool True when PrestaShop current_state was changed.
      */
-    public function apply(int $idOrder, string $statusLabel): bool
+    public function apply(int $idOrder, string $statusId, bool $syncRejectionEnabled): bool
     {
-        if ($idOrder <= 0 || $statusLabel === '') {
+        if (!$syncRejectionEnabled || $idOrder <= 0) {
             return false;
         }
 
-        $targetStateId = $this->resolve($statusLabel);
-        if ($targetStateId === null) {
+        $statusId = trim($statusId);
+        if ($statusId === '' || !$this->rejectionPolicy->isRejection($statusId)) {
+            return false;
+        }
+
+        $targetStateId = (int) \Configuration::get(OrderStateInstaller::REJECTED);
+        if ($targetStateId <= 0) {
             return false;
         }
 
@@ -52,22 +50,5 @@ final class BankStatusOrderStateMapper
         $order->setCurrentState($targetStateId);
 
         return true;
-    }
-
-    private function resolve(string $statusLabel): ?int
-    {
-        $label = trim($statusLabel);
-
-        if (in_array($label, self::ACCEPTANCE_LABELS, true)) {
-            return (int) \Configuration::get('PS_OS_PAYMENT');
-        }
-
-        if (in_array($label, self::REJECTION_LABELS, true)) {
-            $failedId = (int) \Configuration::get(OrderStateInstaller::FAILED);
-
-            return $failedId > 0 ? $failedId : null;
-        }
-
-        return null;
     }
 }

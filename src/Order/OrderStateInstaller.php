@@ -8,16 +8,21 @@ final class OrderStateInstaller
 {
     public const AWAITING = 'UNIPAYMENT_OS_AWAITING';
     public const FAILED = 'UNIPAYMENT_OS_FAILED';
+    public const REJECTED = 'UNIPAYMENT_OS_REJECTED';
 
     private const AWAITING_NAME = 'Awaiting UniCredit financing';
     private const FAILED_NAME = 'UniCredit submission failed';
+    /** Merchant-facing BO name (AUD-009 dedicated bank-rejection state). */
+    private const REJECTED_NAME = 'Отказано финансиране от УниКредит';
     private const AWAITING_COLOR = '#4169E1';
     private const FAILED_COLOR = '#DC3545';
+    private const REJECTED_COLOR = '#B71C1C';
 
     public function install(): bool
     {
         return $this->create(self::AWAITING, self::AWAITING_NAME, self::AWAITING_COLOR)
-            && $this->create(self::FAILED, self::FAILED_NAME, self::FAILED_COLOR);
+            && $this->create(self::FAILED, self::FAILED_NAME, self::FAILED_COLOR)
+            && $this->create(self::REJECTED, self::REJECTED_NAME, self::REJECTED_COLOR);
     }
 
     /**
@@ -35,7 +40,7 @@ final class OrderStateInstaller
     public function purge(): bool
     {
         $result = true;
-        foreach ([self::AWAITING, self::FAILED] as $key) {
+        foreach ([self::AWAITING, self::FAILED, self::REJECTED] as $key) {
             $id = (int) \Configuration::get($key);
             if ($id <= 0) {
                 $id = $this->findExistingStateId($this->nameForKey($key), $this->colorForKey($key));
@@ -107,6 +112,9 @@ final class OrderStateInstaller
         $state->hidden = false;
         $state->logable = false;
         $state->paid = false;
+        $state->invoice = false;
+        $state->delivery = false;
+        $state->shipped = false;
 
         return $state->add() && \Configuration::updateValue($key, (int) $state->id);
     }
@@ -132,11 +140,25 @@ final class OrderStateInstaller
 
     private function nameForKey(string $key): string
     {
-        return $key === self::FAILED ? self::FAILED_NAME : self::AWAITING_NAME;
+        if ($key === self::FAILED) {
+            return self::FAILED_NAME;
+        }
+        if ($key === self::REJECTED) {
+            return self::REJECTED_NAME;
+        }
+
+        return self::AWAITING_NAME;
     }
 
     private function colorForKey(string $key): string
     {
-        return $key === self::FAILED ? self::FAILED_COLOR : self::AWAITING_COLOR;
+        if ($key === self::FAILED) {
+            return self::FAILED_COLOR;
+        }
+        if ($key === self::REJECTED) {
+            return self::REJECTED_COLOR;
+        }
+
+        return self::AWAITING_COLOR;
     }
 }

@@ -13,6 +13,7 @@ final class ConfigurationRepository
     public const DEBUG_ENABLED = 'UNIPAYMENT_DEBUG_ENABLED';
     public const PRODUCT_BUTTON_ACTION = 'UNIPAYMENT_PRODUCT_BUTTON_ACTION';
     public const BUTTON_TOP_SPACING = 'UNIPAYMENT_BUTTON_TOP_SPACING';
+    public const SYNC_BANK_REJECTION_STATE = 'UNIPAYMENT_SYNC_BANK_REJECTION_STATE';
 
     public const BUTTON_ACTION_ADD_TO_CART = 'add_to_cart';
     public const BUTTON_ACTION_BUY = 'buy';
@@ -20,6 +21,7 @@ final class ConfigurationRepository
     public const DEFAULT_DEBUG_ENABLED = false;
     public const DEFAULT_PRODUCT_BUTTON_ACTION = self::BUTTON_ACTION_ADD_TO_CART;
     public const DEFAULT_BUTTON_TOP_SPACING = 0;
+    public const DEFAULT_SYNC_BANK_REJECTION_STATE = false;
     public const MAX_BUTTON_TOP_SPACING = 200;
 
     private const ENCRYPTED_PREFIX = 'enc:v1:';
@@ -31,25 +33,29 @@ final class ConfigurationRepository
             && \Configuration::updateValue(self::ADVERTISING_ENABLED, self::DEFAULT_ADVERTISING_ENABLED)
             && \Configuration::updateValue(self::DEBUG_ENABLED, self::DEFAULT_DEBUG_ENABLED)
             && \Configuration::updateValue(self::PRODUCT_BUTTON_ACTION, self::DEFAULT_PRODUCT_BUTTON_ACTION)
-            && \Configuration::updateValue(self::BUTTON_TOP_SPACING, self::DEFAULT_BUTTON_TOP_SPACING);
+            && \Configuration::updateValue(self::BUTTON_TOP_SPACING, self::DEFAULT_BUTTON_TOP_SPACING)
+            && \Configuration::updateValue(self::SYNC_BANK_REJECTION_STATE, self::DEFAULT_SYNC_BANK_REJECTION_STATE);
     }
 
     public function uninstall(): bool
     {
         $result = true;
 
-        foreach ([
-            self::ENABLED,
-            self::UNICID,
-            self::SECRET,
-            self::ADVERTISING_ENABLED,
-            self::DEBUG_ENABLED,
-            self::PRODUCT_BUTTON_ACTION,
-            self::BUTTON_TOP_SPACING,
-            'UNIPAYMENT_CP_ACCESS_TOKEN',
-            'UNIPAYMENT_CP_TOKEN_TYPE',
-            'UNIPAYMENT_CP_TOKEN_EXPIRES_AT',
-        ] as $key) {
+        foreach (
+            [
+                self::ENABLED,
+                self::UNICID,
+                self::SECRET,
+                self::ADVERTISING_ENABLED,
+                self::DEBUG_ENABLED,
+                self::PRODUCT_BUTTON_ACTION,
+                self::BUTTON_TOP_SPACING,
+                self::SYNC_BANK_REJECTION_STATE,
+                'UNIPAYMENT_CP_ACCESS_TOKEN',
+                'UNIPAYMENT_CP_TOKEN_TYPE',
+                'UNIPAYMENT_CP_TOKEN_EXPIRES_AT',
+            ] as $key
+        ) {
             $result = \Configuration::deleteByName($key) && $result;
         }
 
@@ -63,15 +69,16 @@ final class ConfigurationRepository
         bool $advertisingEnabled = self::DEFAULT_ADVERTISING_ENABLED,
         bool $debugEnabled = self::DEFAULT_DEBUG_ENABLED,
         string $productButtonAction = self::DEFAULT_PRODUCT_BUTTON_ACTION,
-        int $buttonTopSpacing = self::DEFAULT_BUTTON_TOP_SPACING
-    ): bool
-    {
+        int $buttonTopSpacing = self::DEFAULT_BUTTON_TOP_SPACING,
+        bool $syncBankRejectionState = self::DEFAULT_SYNC_BANK_REJECTION_STATE
+    ): bool {
         $result = \Configuration::updateValue(self::ENABLED, $enabled)
             && \Configuration::updateValue(self::UNICID, $unicid)
             && \Configuration::updateValue(self::ADVERTISING_ENABLED, $advertisingEnabled)
             && \Configuration::updateValue(self::DEBUG_ENABLED, $debugEnabled)
             && \Configuration::updateValue(self::PRODUCT_BUTTON_ACTION, $this->normalizeProductButtonAction($productButtonAction))
-            && \Configuration::updateValue(self::BUTTON_TOP_SPACING, $this->normalizeButtonTopSpacing($buttonTopSpacing));
+            && \Configuration::updateValue(self::BUTTON_TOP_SPACING, $this->normalizeButtonTopSpacing($buttonTopSpacing))
+            && \Configuration::updateValue(self::SYNC_BANK_REJECTION_STATE, $syncBankRejectionState);
 
         if ($secret === null) {
             return $result;
@@ -98,6 +105,17 @@ final class ConfigurationRepository
     public function isDebugEnabled(): bool
     {
         return (bool) \Configuration::get(self::DEBUG_ENABLED, null, null, null, self::DEFAULT_DEBUG_ENABLED);
+    }
+
+    public function isSyncBankRejectionStateEnabled(): bool
+    {
+        return (bool) \Configuration::get(
+            self::SYNC_BANK_REJECTION_STATE,
+            null,
+            null,
+            null,
+            self::DEFAULT_SYNC_BANK_REJECTION_STATE
+        );
     }
 
     public function getProductButtonAction(): string

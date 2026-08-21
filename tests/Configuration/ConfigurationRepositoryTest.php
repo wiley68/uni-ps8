@@ -14,19 +14,31 @@ final class Configuration
     /** @var array<string, mixed> */
     public static $values = [];
 
-    public static function updateValue($key, $value): bool
+    /**
+     * @param string|array<string, string> $value
+     */
+    public static function updateValue(string $key, $value): bool
     {
         self::$values[$key] = $value;
 
         return true;
     }
 
-    public static function get($key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
-    {
+    /**
+     * @param mixed $default
+     * @return mixed
+     */
+    public static function get(
+        string $key,
+        ?int $idLang = null,
+        ?int $idShopGroup = null,
+        ?int $idShop = null,
+        $default = false
+    ) {
         return self::$values[$key] ?? $default;
     }
 
-    public static function deleteByName($key): bool
+    public static function deleteByName(string $key): bool
     {
         unset(self::$values[$key]);
 
@@ -36,15 +48,16 @@ final class Configuration
 
 final class PhpEncryption
 {
-    public function __construct(string $key)
-    {
-    }
+    public function __construct(string $key) {}
 
     public function encrypt(string $plaintext): string
     {
         return base64_encode(strrev($plaintext));
     }
 
+    /**
+     * @return string|false
+     */
     public function decrypt(string $ciphertext)
     {
         $decoded = base64_decode($ciphertext, true);
@@ -63,8 +76,10 @@ if (!$repository->install() || !$repository->isEnabled()) {
     fwrite(STDERR, "FAIL: configuration defaults were not installed\n");
     exit(1);
 }
-if ($repository->isAdvertisingEnabled()
+if (
+    $repository->isAdvertisingEnabled()
     || $repository->isDebugEnabled()
+    || $repository->isSyncBankRejectionStateEnabled()
     || $repository->getProductButtonAction() !== ConfigurationRepository::BUTTON_ACTION_ADD_TO_CART
     || $repository->getButtonTopSpacing() !== 0
 ) {
@@ -73,12 +88,14 @@ if ($repository->isAdvertisingEnabled()
 }
 
 $plainSecret = 'local-test-value';
-if (!$repository->save(false, '123e4567-e89b-12d3-a456-426614174000', $plainSecret, true, true, ConfigurationRepository::BUTTON_ACTION_BUY, 24)) {
+if (!$repository->save(false, '123e4567-e89b-12d3-a456-426614174000', $plainSecret, true, true, ConfigurationRepository::BUTTON_ACTION_BUY, 24, true)) {
     fwrite(STDERR, "FAIL: configuration was not saved\n");
     exit(1);
 }
-if (!$repository->isAdvertisingEnabled()
+if (
+    !$repository->isAdvertisingEnabled()
     || !$repository->isDebugEnabled()
+    || !$repository->isSyncBankRejectionStateEnabled()
     || $repository->getProductButtonAction() !== ConfigurationRepository::BUTTON_ACTION_BUY
     || $repository->getButtonTopSpacing() !== 24
 ) {
@@ -104,7 +121,8 @@ if (Configuration::$values[ConfigurationRepository::SECRET] !== $storedSecret) {
 }
 
 $repository->save(true, '123e4567-e89b-12d3-a456-426614174000', null, false, false, 'invalid', -10);
-if ($repository->getProductButtonAction() !== ConfigurationRepository::BUTTON_ACTION_ADD_TO_CART
+if (
+    $repository->getProductButtonAction() !== ConfigurationRepository::BUTTON_ACTION_ADD_TO_CART
     || $repository->getButtonTopSpacing() !== 0
 ) {
     fwrite(STDERR, "FAIL: repository safety normalization failed\n");
