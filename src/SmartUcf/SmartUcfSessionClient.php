@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace PrestaShop\Module\Unipayment\SmartUcf;
 
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
+use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateConsumerLease;
+use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificatePairValidator;
 
 /**
  * HTTP client for SmartUCF sucfOnlineSessionStart.
@@ -12,8 +14,6 @@ use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
  */
 final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
 {
-    private const SSL_PASSWD = '1234';
-
     /** HTTP timeout in seconds (used by AUD-008 stale grace calibration). */
     public const HTTP_TIMEOUT_SECONDS = 10;
 
@@ -44,8 +44,11 @@ final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
      *
      * @return array{session_id: string, redirect_url: string, http_code: int, raw_request: string, raw_response: string}
      */
-    public function createSession(array $shop, array $snapshot): array
-    {
+    public function createSession(
+        array $shop,
+        array $snapshot,
+        ?CertificateConsumerLease $certificateLease = null
+    ): array {
         $serviceBase = $this->serviceUrl($shop);
         $applicationBase = $this->applicationUrl($shop);
 
@@ -72,10 +75,19 @@ final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
         $payload = $this->payloadBuilder->build($shop, $snapshot);
         $useCert = ShopConfigurationFlags::usesSmartUcfCertificate($shop);
 
+        $keyPath = null;
+        $certPath = null;
+        $certPassword = CertificatePairValidator::PASSPHRASE;
         if ($useCert) {
-            $keyPath = $this->keysDir . '/avalon_private_key.pem';
-            $certPath = $this->keysDir . '/avalon_cert.pem';
-            if (!is_readable($keyPath) || !is_readable($certPath)) {
+            if ($certificateLease !== null) {
+                $keyPath = $certificateLease->privateKeyPath();
+                $certPath = $certificateLease->certificatePath();
+                $certPassword = $certificateLease->password();
+            } else {
+                $keyPath = $this->keysDir . '/avalon_private_key.pem';
+                $certPath = $this->keysDir . '/avalon_cert.pem';
+            }
+            if ($keyPath === '' || $certPath === '' || !is_readable($keyPath) || !is_readable($certPath)) {
                 throw new SmartUcfSessionException(
                     'SmartUCF SSL key or certificate is missing or unreadable.',
                     true,
@@ -106,11 +118,11 @@ final class SmartUcfSessionClient implements SmartUcfSessionGatewayInterface
             CURLOPT_SSL_VERIFYHOST => 2,
         ];
 
-        if ($useCert) {
-            $options[CURLOPT_SSLKEY] = $this->keysDir . '/avalon_private_key.pem';
-            $options[CURLOPT_SSLKEYPASSWD] = self::SSL_PASSWD;
-            $options[CURLOPT_SSLCERT] = $this->keysDir . '/avalon_cert.pem';
-            $options[CURLOPT_SSLCERTPASSWD] = self::SSL_PASSWD;
+        if ($useCert && $keyPath !== null && $certPath !== null) {
+            $options[CURLOPT_SSLKEY] = $keyPath;
+            $options[CURLOPT_SSLKEYPASSWD] = $certPassword;
+            $options[CURLOPT_SSLCERT] = $certPath;
+            $options[CURLOPT_SSLCERTPASSWD] = $certPassword;
             $options[CURLOPT_SSLVERSION] = CURL_SSLVERSION_TLSv1_2;
         }
 

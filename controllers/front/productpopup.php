@@ -233,7 +233,8 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
 
         /** @var Unipayment $module */
         $module = $this->module;
-        $cpClient = new ControlPanelOrderClientAdapter($module->getControlPanelClient());
+        $cpApi = $module->getControlPanelClient();
+        $cpClient = new ControlPanelOrderClientAdapter($cpApi);
 
         $gate = $this->resolvePopupSubmissionGate($submissions, $token, $resolved['hash'], $shop, $module, $cpClient);
         if (isset($gate['response'])) {
@@ -476,7 +477,8 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             null,
             $cpClient,
             $module,
-            $this->context
+            $this->context,
+            $module->getControlPanelClient()
         );
         $smart = $coordinator->resume($attemptId, $shop, false);
         $this->applySmartUcfResultToResponse($response, $smart);
@@ -547,7 +549,8 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                     null,
                     $cpClient,
                     $module,
-                    $this->context
+                    $this->context,
+                    $module->getControlPanelClient()
                 );
                 $smart = $coordinator->run($result->attemptId, $shop, false, $snapshot);
                 $this->applySmartUcfResultToResponse($response, $smart);

@@ -85,7 +85,8 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 $module->getCheckoutCustomerData()
             );
             $shop['_is_mobile'] = $this->context->isMobile();
-            $cpClient = new ControlPanelOrderClientAdapter($module->getControlPanelClient());
+            $cpApi = $module->getControlPanelClient();
+            $cpClient = new ControlPanelOrderClientAdapter($cpApi);
             $orchestrator = new OrderOrchestrator(
                 new OrderAttemptRepository(),
                 new FinancingSnapshotRepository(),
@@ -113,7 +114,8 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                     null,
                     $cpClient,
                     $module,
-                    $this->context
+                    $this->context,
+                    $cpApi
                 );
                 $smart = $coordinator->run($result->attemptId, $shop, false, $snapshot);
                 if ($smart->isCreated()) {

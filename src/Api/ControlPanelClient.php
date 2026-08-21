@@ -155,6 +155,99 @@ final class ControlPanelClient implements ShopConfigurationProviderInterface
     }
 
     /**
+     * Lightweight SSL certificate metadata (no PEM body).
+     *
+     * @return array{
+     *     available: bool,
+     *     ssl_revision: string,
+     *     certificate_sha256: string,
+     *     private_key_sha256: string,
+     *     not_before?: string,
+     *     not_after?: string
+     * }
+     */
+    public function getSslCertificateMetadata(): array
+    {
+        $response = $this->authenticatedRequest('GET', '/ssl/certificate');
+        $data = $response['data'] ?? null;
+        if (!is_array($data)) {
+            throw new InvalidPayloadException('The Control Panel SSL metadata response has no data object.');
+        }
+
+        return $this->normalizeSslMetadata($data);
+    }
+
+    /**
+     * Full SSL certificate + private key bundle.
+     *
+     * @return array{
+     *     ssl_revision: string,
+     *     certificate_sha256: string,
+     *     private_key_sha256: string,
+     *     not_before?: string,
+     *     not_after?: string,
+     *     certificate_pem: string,
+     *     private_key_pem: string
+     * }
+     */
+    public function downloadSslCertificateBundle(): array
+    {
+        $response = $this->authenticatedRequest('GET', '/ssl/certificate/bundle');
+        $data = $response['data'] ?? null;
+        if (!is_array($data)) {
+            throw new InvalidPayloadException('The Control Panel SSL bundle response has no data object.');
+        }
+        foreach (['certificate_pem', 'private_key_pem', 'certificate_sha256', 'private_key_sha256'] as $required) {
+            if (!isset($data[$required]) || !is_string($data[$required]) || $data[$required] === '') {
+                throw new InvalidPayloadException('The Control Panel SSL bundle is missing required fields.');
+            }
+        }
+        $meta = $this->normalizeSslMetadata(array_merge($data, ['available' => true]));
+
+        return [
+            'ssl_revision' => $meta['ssl_revision'],
+            'certificate_sha256' => $meta['certificate_sha256'],
+            'private_key_sha256' => $meta['private_key_sha256'],
+            'not_before' => $meta['not_before'] ?? '',
+            'not_after' => $meta['not_after'] ?? '',
+            'certificate_pem' => (string) $data['certificate_pem'],
+            'private_key_pem' => (string) $data['private_key_pem'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array{
+     *     available: bool,
+     *     ssl_revision: string,
+     *     certificate_sha256: string,
+     *     private_key_sha256: string,
+     *     not_before?: string,
+     *     not_after?: string
+     * }
+     */
+    private function normalizeSslMetadata(array $data): array
+    {
+        $available = !empty($data['available']);
+        $certHash = strtolower(trim((string) ($data['certificate_sha256'] ?? '')));
+        $keyHash = strtolower(trim((string) ($data['private_key_sha256'] ?? '')));
+        if ($available) {
+            if (!preg_match('/^[a-f0-9]{64}$/', $certHash) || !preg_match('/^[a-f0-9]{64}$/', $keyHash)) {
+                throw new InvalidPayloadException('The Control Panel SSL metadata hashes are invalid.');
+            }
+        }
+
+        return [
+            'available' => $available,
+            'ssl_revision' => (string) ($data['ssl_revision'] ?? ''),
+            'certificate_sha256' => $certHash,
+            'private_key_sha256' => $keyHash,
+            'not_before' => isset($data['not_before']) ? (string) $data['not_before'] : '',
+            'not_after' => isset($data['not_after']) ? (string) $data['not_after'] : '',
+        ];
+    }
+
+    /**
      * @param array<string, mixed>|null $payload
      * @return array<string, mixed>
      */
@@ -282,7 +375,8 @@ final class ControlPanelClient implements ShopConfigurationProviderInterface
         $tokenType = $response['token_type'] ?? null;
         $expiresIn = $response['expires_in'] ?? null;
 
-        if (!is_string($accessToken) || $accessToken === ''
+        if (
+            !is_string($accessToken) || $accessToken === ''
             || !is_string($tokenType) || strcasecmp($tokenType, 'Bearer') !== 0
             || !is_numeric($expiresIn) || (int) $expiresIn <= 0
         ) {

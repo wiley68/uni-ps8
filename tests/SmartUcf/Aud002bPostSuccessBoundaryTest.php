@@ -58,7 +58,7 @@ final class Aud002bFakeSessionGateway implements SmartUcfSessionGatewayInterface
         'raw_response' => '{"ok":1}',
     ];
 
-    public function createSession(array $shop, array $snapshot): array
+    public function createSession(array $shop, array $snapshot, $certificateLease = null): array
     {
         ++$this->createCalls;
         if ($this->throwOnCreate !== null) {

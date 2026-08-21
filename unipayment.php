@@ -82,6 +82,11 @@ class Unipayment extends PaymentModule
         $snapshots = new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository();
         $popupSubmissions = new PrestaShop\Module\Unipayment\Product\PopupSubmissionRepository();
         $orderStates = new PrestaShop\Module\Unipayment\Order\OrderStateInstaller();
+        try {
+            (new PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateLocalStore())->ensureProtectionFiles();
+        } catch (\Throwable $exception) {
+            // Non-fatal: sync will retry protection files at runtime.
+        }
         if (
             $repository->install()
             && $cache->install()

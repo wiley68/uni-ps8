@@ -138,7 +138,8 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
 
         /** @var Unipayment $module */
         $module = $this->module;
-        $cpClient = new ControlPanelOrderClientAdapter($module->getControlPanelClient());
+        $cpApi = $module->getControlPanelClient();
+        $cpClient = new ControlPanelOrderClientAdapter($cpApi);
         $orchestrator = new OrderOrchestrator(
             new OrderAttemptRepository(),
             new FinancingSnapshotRepository(),
@@ -190,7 +191,8 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
                             null,
                             $cpClient,
                             $module,
-                            $this->context
+                            $this->context,
+                            $cpApi
                         );
                         $smart = $coordinator->run($result->attemptId, $shop, false, $snapshot);
                         $this->applySmartUcfResultToResponse($response, $smart);

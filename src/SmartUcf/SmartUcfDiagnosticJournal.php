@@ -10,9 +10,26 @@ final class SmartUcfDiagnosticJournal
 {
     private const REDACTED = '[REDACTED]';
     private const SENSITIVE_KEYS = [
-        'authorization', 'bearer', 'token', 'access_token', 'refresh_token', 'secret', 'secret_key',
-        'password', 'pass', 'private_key', 'certificate_password', 'user', 'clientfirstname',
-        'clientlastname', 'clientphone', 'clientemail', 'clientdeliveryaddress', 'egn',
+        'authorization',
+        'bearer',
+        'token',
+        'access_token',
+        'refresh_token',
+        'secret',
+        'secret_key',
+        'password',
+        'pass',
+        'private_key',
+        'private_key_pem',
+        'certificate_pem',
+        'certificate_password',
+        'user',
+        'clientfirstname',
+        'clientlastname',
+        'clientphone',
+        'clientemail',
+        'clientdeliveryaddress',
+        'egn',
     ];
 
     /** @var ConfigurationRepository */
@@ -26,6 +43,10 @@ final class SmartUcfDiagnosticJournal
         $this->store = $store;
     }
 
+    /**
+     * @param mixed $request
+     * @param mixed $response
+     */
     public function record(int $idOrder, string $orderId, int $httpCode, $request, $response, ?string $transportError = null): bool
     {
         if (!$this->configuration->isDebugEnabled()) {
@@ -84,6 +105,7 @@ final class SmartUcfDiagnosticJournal
         return $entry;
     }
 
+    /** @param mixed $body @return mixed */
     private function sanitizeBody($body)
     {
         if (is_string($body)) {
@@ -97,6 +119,7 @@ final class SmartUcfDiagnosticJournal
         return $this->sanitizeValue($body);
     }
 
+    /** @param mixed $value @return mixed */
     private function sanitizeValue($value, string $key = '')
     {
         if (in_array(strtolower($key), self::SENSITIVE_KEYS, true)) {

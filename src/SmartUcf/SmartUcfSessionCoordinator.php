@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\SmartUcf;
 
+use PrestaShop\Module\Unipayment\Api\ControlPanelClient;
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
+use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
 use PrestaShop\Module\Unipayment\Order\BankStatus;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
 use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
+use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateConsumerLease;
+use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateSynchronizer;
+use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateSyncException;
 
 /**
  * Authoritative SmartUCF create-session lifecycle after PS+CP success (AUD-002B / AUD-008).
@@ -39,6 +44,10 @@ final class SmartUcfSessionCoordinator
     private $snapshots;
     /** @var ControlPanelOrderClientAdapter|null */
     private $cpClient;
+    /** @var ControlPanelClient|null */
+    private $controlPanelApi;
+    /** @var CertificateSynchronizer|null */
+    private $certificateSynchronizer;
     /** @var object|null Module instance for PS markFailed */
     private $module;
     /** @var \Context|null */
@@ -52,7 +61,9 @@ final class SmartUcfSessionCoordinator
         ?FinancingSnapshotRepository $snapshots = null,
         ?ControlPanelOrderClientAdapter $cpClient = null,
         $module = null,
-        ?\Context $context = null
+        ?\Context $context = null,
+        ?ControlPanelClient $controlPanelApi = null,
+        ?CertificateSynchronizer $certificateSynchronizer = null
     ) {
         $this->payloadBuilder = $payloadBuilder ?? new SmartUcfPayloadBuilder();
         $this->lifecycle = $lifecycle ?? new SmartUcfLifecycleRepository();
@@ -62,6 +73,8 @@ final class SmartUcfSessionCoordinator
         $this->cpClient = $cpClient;
         $this->module = $module;
         $this->context = $context;
+        $this->controlPanelApi = $controlPanelApi;
+        $this->certificateSynchronizer = $certificateSynchronizer;
     }
 
     /**
@@ -95,8 +108,41 @@ final class SmartUcfSessionCoordinator
             return $replay;
         }
 
+        $certificateLease = null;
+        if (ShopConfigurationFlags::usesSmartUcfCertificate($shop)) {
+            try {
+                $certificateLease = $this->resolveCertificateSynchronizer()->ensureCurrent();
+            } catch (CertificateSyncException $exception) {
+                \PrestaShopLogger::addLog(
+                    'UniPayment SSL certificate sync failed before SmartUCF claim: '
+                        . $exception->reason() . ' ' . $exception->getMessage(),
+                    3
+                );
+
+                return SmartUcfCoordinationResult::failed(
+                    self::CUSTOMER_FAILED,
+                    true,
+                    SmartUcfFailureClassification::CLASS_PRE_SEND
+                );
+            } catch (\Throwable $exception) {
+                \PrestaShopLogger::addLog(
+                    'UniPayment SSL certificate sync unexpected failure: ' . get_class($exception),
+                    3
+                );
+
+                return SmartUcfCoordinationResult::failed(
+                    self::CUSTOMER_FAILED,
+                    true,
+                    SmartUcfFailureClassification::CLASS_PRE_SEND
+                );
+            }
+        }
+
         $claimed = $this->lifecycle->claimForSubmitting($attemptId);
         if ($claimed === null) {
+            if ($certificateLease !== null) {
+                $certificateLease->release();
+            }
             $latest = $this->lifecycle->readAndNormalize($attemptId);
             if ($latest === null) {
                 return SmartUcfCoordinationResult::processing(self::CUSTOMER_PROCESSING);
@@ -114,7 +160,7 @@ final class SmartUcfSessionCoordinator
 
         try {
             $smartUcfPayload = $this->payloadBuilder->build($shop, $snapshot);
-            $session = $this->client->createSession($shop, $snapshot);
+            $session = $this->client->createSession($shop, $snapshot, $certificateLease);
         } catch (\Throwable $exception) {
             return $this->handleCreateFailure(
                 $attemptId,
@@ -122,6 +168,10 @@ final class SmartUcfSessionCoordinator
                 $exception,
                 $smartUcfPayload
             );
+        } finally {
+            if ($certificateLease !== null) {
+                $certificateLease->release();
+            }
         }
 
         // Remote success is proven (valid session returned). Never authorize another createSession.
@@ -186,6 +236,22 @@ final class SmartUcfSessionCoordinator
     public function resume(int $attemptId, array $shop, bool $process2): SmartUcfCoordinationResult
     {
         return $this->run($attemptId, $shop, $process2, null);
+    }
+
+    private function resolveCertificateSynchronizer(): CertificateSynchronizer
+    {
+        if ($this->certificateSynchronizer !== null) {
+            return $this->certificateSynchronizer;
+        }
+        if ($this->controlPanelApi === null) {
+            throw new CertificateSyncException(
+                'Control Panel client is not configured for certificate synchronization.',
+                CertificateSyncException::REASON_CP_TRANSPORT
+            );
+        }
+        $this->certificateSynchronizer = new CertificateSynchronizer($this->controlPanelApi);
+
+        return $this->certificateSynchronizer;
     }
 
     /**
