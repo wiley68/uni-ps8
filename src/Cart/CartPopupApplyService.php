@@ -17,6 +17,7 @@ use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationResult;
 use PrestaShop\Module\Unipayment\Product\GuestCustomerFactory;
 use PrestaShop\Module\Unipayment\Product\PopupCustomerIdentityGate;
+use PrestaShop\Module\Unipayment\Product\PopupOrderAddressResolver;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCustomerValidator;
 use PrestaShop\Module\Unipayment\Product\ProductPopupSchemeList;
 use PrestaShop\Module\Unipayment\Product\ProductPopupValidationException;
@@ -45,6 +46,8 @@ final class CartPopupApplyService
     private $consents;
     /** @var PopupCustomerIdentityGate */
     private $identityGate;
+    /** @var PopupOrderAddressResolver */
+    private $addressResolver;
 
     public function __construct(
         Calculator $calculator,
@@ -54,7 +57,8 @@ final class CartPopupApplyService
         OrderOrchestrator $orchestrator,
         ?CurrencyGate $currencyGate = null,
         ?ConsentResolver $consents = null,
-        ?PopupCustomerIdentityGate $identityGate = null
+        ?PopupCustomerIdentityGate $identityGate = null,
+        ?PopupOrderAddressResolver $addressResolver = null
     ) {
         $this->calculator = $calculator;
         $this->popupCalculator = $popupCalculator;
@@ -64,6 +68,7 @@ final class CartPopupApplyService
         $this->currencyGate = $currencyGate ?? new CurrencyGate();
         $this->consents = $consents ?? new ConsentResolver();
         $this->identityGate = $identityGate ?? new PopupCustomerIdentityGate();
+        $this->addressResolver = $addressResolver ?? new PopupOrderAddressResolver();
     }
 
     /**
@@ -149,13 +154,18 @@ final class CartPopupApplyService
         }
 
         if ($this->identityGate->shouldUseAuthenticatedCustomer($context->customer)) {
-            $customerId = (int) $context->customer->id;
-            $addressId = (int) \Address::getFirstCustomerAddressId($customerId);
-            if ($addressId > 0) {
-                $cart->id_address_delivery = $addressId;
-                $cart->id_address_invoice = $addressId;
+            $addressId = $this->addressResolver->resolveForLoggedInCustomer(
+                $context->customer,
+                $customerData,
+                $context,
+                $cart
+            );
+            if ($addressId <= 0) {
+                throw new \RuntimeException('The financing address could not be resolved.');
             }
-            $cart->id_customer = $customerId;
+            $cart->id_address_delivery = $addressId;
+            $cart->id_address_invoice = $addressId;
+            $cart->id_customer = (int) $context->customer->id;
             $cart->secure_key = (string) $context->customer->secure_key;
         } else {
             // AUD-001: form e-mail never selects Customer identity. Always create a fresh guest.

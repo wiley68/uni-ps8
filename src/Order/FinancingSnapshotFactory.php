@@ -28,6 +28,14 @@ final class FinancingSnapshotFactory
         ];
         unset($customer['egn'], $customer['phone2']);
 
+        // AUD-010: popup financing contact email may differ from Customer.email.
+        if (in_array($submissionSource, ['product_popup', 'cart_popup'], true)) {
+            $financingEmail = trim((string) ($request->customer['email'] ?? ''));
+            if ($financingEmail !== '') {
+                $customer['email'] = $financingEmail;
+            }
+        }
+
         return [
             'id_order' => $order->idOrder,
             'order_reference' => $order->reference,

@@ -52,6 +52,8 @@ final class ProductPopupApplyService
     private $identityGate;
     /** @var PopupSubmissionRepository|null */
     private $submissions;
+    /** @var PopupOrderAddressResolver */
+    private $addressResolver;
 
     public function __construct(
         Calculator $calculator,
@@ -62,7 +64,8 @@ final class ProductPopupApplyService
         ?CurrencyGate $currencyGate = null,
         ?ConsentResolver $consents = null,
         ?PopupCustomerIdentityGate $identityGate = null,
-        ?PopupSubmissionRepository $submissions = null
+        ?PopupSubmissionRepository $submissions = null,
+        ?PopupOrderAddressResolver $addressResolver = null
     ) {
         $this->calculator = $calculator;
         $this->customerValidator = $customerValidator;
@@ -73,6 +76,7 @@ final class ProductPopupApplyService
         $this->consents = $consents ?? new ConsentResolver();
         $this->identityGate = $identityGate ?? new PopupCustomerIdentityGate();
         $this->submissions = $submissions;
+        $this->addressResolver = $addressResolver ?? new PopupOrderAddressResolver();
     }
 
     /**
@@ -181,9 +185,16 @@ final class ProductPopupApplyService
     private function ensureCustomerAndCart(array $customerData, int $productId, int $attributeId, int $quantity, Context $context): void
     {
         if ($this->identityGate->shouldUseAuthenticatedCustomer($context->customer)) {
-            $customerId = (int) $context->customer->id;
-            $addressId = (int) \Address::getFirstCustomerAddressId($customerId);
-            $cart = $this->createFreshCart($context, $addressId > 0 ? $addressId : 0);
+            $addressId = $this->addressResolver->resolveForLoggedInCustomer(
+                $context->customer,
+                $customerData,
+                $context,
+                $context->cart instanceof Cart ? $context->cart : null
+            );
+            if ($addressId <= 0) {
+                throw new \RuntimeException('The financing address could not be resolved.');
+            }
+            $cart = $this->createFreshCart($context, $addressId);
         } else {
             // AUD-001: form e-mail never selects Customer identity. Always create a fresh guest.
             $result = $this->guestFactory->ensure($customerData, $context);
