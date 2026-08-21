@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\Product;
 
+/**
+ * Step 2 customer validation for Product/Cart popup apply.
+ * Name rules mirror PrestaShop Address Validate::isName so Address::add is not the first gate.
+ */
 final class ProductPopupCustomerValidator
 {
     /**
@@ -27,6 +31,15 @@ final class ProductPopupCustomerValidator
             if ($customer[$field] === '') {
                 $errors[$field] = 'Полето е задължително.';
             }
+        }
+        if (!isset($errors['first_name']) && !$this->validName($customer['first_name'])) {
+            $errors['first_name'] = 'Моля, въведете валидно име.';
+        }
+        if (!isset($errors['last_name']) && !$this->validName($customer['last_name'])) {
+            $errors['last_name'] = 'Моля, въведете валидна фамилия.';
+        }
+        if (!isset($errors['address']) && !$this->validAddressLine($customer['address'])) {
+            $errors['address'] = 'Моля, въведете валиден адрес.';
         }
         if ($customer['phone'] === '') {
             $errors['phone'] = 'Полето е задължително.';
@@ -78,6 +91,30 @@ final class ProductPopupCustomerValidator
     public function validPhone(string $phone): bool
     {
         return $phone !== '' && (bool) preg_match('/^[-0-9+() ]+$/', $phone) && (bool) preg_match('/\d/', $phone);
+    }
+
+    /**
+     * PrestaShop Address firstname/lastname rule (Validate::isName).
+     */
+    public function validName(string $name): bool
+    {
+        if (class_exists(\Validate::class) && is_callable([\Validate::class, 'isName'])) {
+            return (bool) \Validate::isName($name);
+        }
+
+        return (bool) preg_match('/^[^0-9!<>,;?=+()@#"°{}_$%:¤|]*$/u', $name);
+    }
+
+    /**
+     * PrestaShop Address address1 rule (Validate::isAddress).
+     */
+    public function validAddressLine(string $address): bool
+    {
+        if (class_exists(\Validate::class) && is_callable([\Validate::class, 'isAddress'])) {
+            return (bool) \Validate::isAddress($address);
+        }
+
+        return $address === '' || (bool) preg_match('/^[^!<>?=+@{}_$%]*$/u', $address);
     }
 
     /** @param mixed $value */

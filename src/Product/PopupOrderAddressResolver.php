@@ -160,7 +160,11 @@ final class PopupOrderAddressResolver
             if ($this->normalizeName((string) $address->lastname) !== $lastname) {
                 continue;
             }
-            if ($this->normalizePhone((string) $address->phone_mobile) !== $phoneMobile) {
+            $existingPhone = $this->normalizePhone(self::effectiveContactPhone(
+                (string) $address->phone_mobile,
+                (string) $address->phone
+            ));
+            if ($existingPhone !== $phoneMobile) {
                 continue;
             }
 
@@ -209,11 +213,34 @@ final class PopupOrderAddressResolver
         $address->alias = $this->nextAlias($customerId);
         $address->deleted = false;
 
-        if (!$address->add()) {
-            throw new \RuntimeException('The financing address could not be created.');
+        try {
+            if (!$address->add()) {
+                throw new ProductPopupValidationException([
+                    'address' => 'Личните данни не могат да бъдат записани. Моля, проверете въведената информация.',
+                ]);
+            }
+        } catch (ProductPopupValidationException $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw new ProductPopupValidationException([
+                'address' => 'Личните данни не могат да бъдат записани. Моля, проверете въведената информация.',
+            ]);
         }
 
         return (int) $address->id;
+    }
+
+    /**
+     * Prefill/exact-match phone parity: phone_mobile if non-empty, otherwise phone.
+     */
+    public static function effectiveContactPhone(string $phoneMobile, string $phone): string
+    {
+        $mobile = trim($phoneMobile);
+        if ($mobile !== '') {
+            return $mobile;
+        }
+
+        return trim($phone);
     }
 
     private function nextAlias(int $customerId): string

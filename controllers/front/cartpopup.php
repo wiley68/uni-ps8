@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
+use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
 use PrestaShop\Module\Unipayment\Cart\CartContextFactory;
 use PrestaShop\Module\Unipayment\Cart\CartPopupApplyService;
 use PrestaShop\Module\Unipayment\Cart\CartPopupCalculator;
@@ -99,12 +100,22 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
             return ['success' => true, 'calculation' => $calculation];
         } catch (ProductPopupValidationException $exception) {
             http_response_code(422);
+            $errors = $exception->errors();
 
-            return ['success' => false, 'message' => 'The customer details are invalid.', 'errors' => $exception->errors()];
-        } catch (Throwable $exception) {
-            PrestaShopLogger::addLog('UniPayment cart popup request failed: ' . get_class($exception), 2);
-
+            return [
+                'success' => false,
+                'message' => $this->customerValidationMessage($errors),
+                'errors' => $errors,
+            ];
+        } catch (UnavailableSchemeException $exception) {
             return $this->error(422, 'The financing selection is unavailable.');
+        } catch (Throwable $exception) {
+            PrestaShopLogger::addLog(
+                'UniPayment cart popup request failed: ' . get_class($exception) . ' ' . $this->sanitizeExceptionMessage($exception),
+                2
+            );
+
+            return $this->error(500, 'Заявката не може да бъде обработена. Моля, опитайте отново.');
         }
     }
 
@@ -231,19 +242,29 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
 
             return [
                 'success' => false,
-                'message' => $errors['consents'] ?? 'The customer details are invalid.',
+                'message' => $this->customerValidationMessage($errors),
                 'errors' => $errors,
             ];
+        } catch (UnavailableSchemeException $exception) {
+            http_response_code(422);
+
+            return ['success' => false, 'message' => 'The financing selection is unavailable.'];
         } catch (OrderOrchestrationException $exception) {
             PrestaShopLogger::addLog('UniPayment cart popup apply orchestration failed: ' . get_class($exception), 2);
             http_response_code(500);
 
             return ['success' => false, 'message' => 'The financing request could not be processed. Please try again.'];
         } catch (Throwable $exception) {
-            PrestaShopLogger::addLog('UniPayment cart popup apply failed: ' . get_class($exception) . ' ' . $exception->getMessage(), 2);
-            http_response_code(422);
+            PrestaShopLogger::addLog(
+                'UniPayment cart popup apply failed: ' . get_class($exception) . ' ' . $this->sanitizeExceptionMessage($exception),
+                2
+            );
+            http_response_code(500);
 
-            return ['success' => false, 'message' => 'The financing selection is unavailable.'];
+            return [
+                'success' => false,
+                'message' => 'Заявката не може да бъде обработена. Моля, опитайте отново.',
+            ];
         }
     }
 
@@ -317,5 +338,35 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
         http_response_code($status);
 
         return ['success' => false, 'message' => $message];
+    }
+
+    /**
+     * @param array<string, string> $errors
+     */
+    private function customerValidationMessage(array $errors): string
+    {
+        if (isset($errors['consents']) && $errors['consents'] !== '') {
+            return $errors['consents'];
+        }
+        foreach ($errors as $message) {
+            if (is_string($message) && $message !== '') {
+                return $message;
+            }
+        }
+
+        return 'Данните не могат да бъдат валидирани.';
+    }
+
+    private function sanitizeExceptionMessage(\Throwable $exception): string
+    {
+        $message = trim(strip_tags($exception->getMessage()));
+        $message = preg_replace('/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i', '[redacted-email]', $message) ?? $message;
+        $message = preg_replace(
+            '/\b(popup_submission_token|token|secret|passwd|password)=[^\s&]+/i',
+            '$1=[redacted]',
+            $message
+        ) ?? $message;
+
+        return mb_substr($message, 0, 500);
     }
 }

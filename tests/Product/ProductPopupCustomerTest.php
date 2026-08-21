@@ -42,12 +42,16 @@ assertProductCustomer($guest === ['first_name' => '', 'last_name' => '', 'addres
 $validator = new ProductPopupCustomerValidator();
 $valid = $validator->validate(['first_name' => ' Иван ', 'last_name' => ' Иванов ', 'address' => ' София ', 'phone' => '+359 (88) 123-45', 'email' => 'ivan@example.test']);
 assertProductCustomer($valid['first_name'] === 'Иван' && $valid['phone'] === '+359 (88) 123-45', 'valid customer data was not trimmed/sanitized');
+assertProductCustomer($validator->validName('Иван') && $validator->validName('Ivan'), 'Bulgarian/Latin first names must be accepted');
+assertProductCustomer($validator->validName('Иванов') && $validator->validName('Petrov'), 'Bulgarian/Latin last names must be accepted');
 
 foreach (
     [
         ['input' => ['first_name' => '', 'last_name' => 'B', 'address' => 'C', 'phone' => '123', 'email' => 'a@b.test'], 'field' => 'first_name'],
         ['input' => ['first_name' => 'A', 'last_name' => 'B', 'address' => 'C', 'phone' => '---', 'email' => 'a@b.test'], 'field' => 'phone'],
         ['input' => ['first_name' => 'A', 'last_name' => 'B', 'address' => 'C', 'phone' => '123', 'email' => 'invalid'], 'field' => 'email'],
+        ['input' => ['first_name' => 'Иван1', 'last_name' => 'Иванов', 'address' => 'София', 'phone' => '0888123456', 'email' => 'a@b.test'], 'field' => 'first_name', 'message' => 'Моля, въведете валидно име.'],
+        ['input' => ['first_name' => 'Иван', 'last_name' => 'Иванов2', 'address' => 'София', 'phone' => '0888123456', 'email' => 'a@b.test'], 'field' => 'last_name', 'message' => 'Моля, въведете валидна фамилия.'],
     ] as $case
 ) {
     try {
@@ -55,8 +59,18 @@ foreach (
         assertProductCustomer(false, 'invalid customer payload was accepted');
     } catch (ProductPopupValidationException $exception) {
         assertProductCustomer(isset($exception->errors()[$case['field']]), 'expected field validation error is missing');
+        if (isset($case['message'])) {
+            assertProductCustomer(
+                $exception->errors()[$case['field']] === $case['message'],
+                'expected customer-safe field message for ' . $case['field']
+            );
+        }
     }
 }
+
+assertProductCustomer(!$validator->validName('Иван1'), 'digit in first_name must fail isName parity');
+assertProductCustomer(!$validator->validName('Иванов2'), 'digit in last_name must fail isName parity');
+
 
 $process2Base = [
     'first_name' => 'Иван',

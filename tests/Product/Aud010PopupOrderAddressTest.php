@@ -78,6 +78,10 @@ assertAud010(strpos($resolverSrc, 'Never mutates existing') !== false
     || strpos($resolverSrc, 'Never mutates') !== false, 'resolver documents no mutation');
 assertAud010(strpos($resolverSrc, 'ALIAS_BASE') !== false, 'alias policy present');
 assertAud010(strpos($resolverSrc, 'phone_mobile') !== false, 'phone_mobile mapping');
+assertAud010(
+    strpos($resolverSrc, 'effectiveContactPhone') !== false,
+    'exact-match phone uses prefill-compatible effectiveContactPhone'
+);
 
 $prefillSrc = (string) file_get_contents($root . '/src/Product/ProductPopupCustomerPrefill.php');
 assertAud010(strpos($prefillSrc, 'PopupPreferredAddressSelector') !== false, '20: prefill shares preferred selector');
