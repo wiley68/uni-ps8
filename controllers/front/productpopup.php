@@ -131,6 +131,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                     (int) $productId,
                     (int) $attributeId,
                     (int) $quantity,
+                    trim((string) Tools::getValue('preselect_operation_token', '')),
                     $this->context,
                     $this->context->link
                 );

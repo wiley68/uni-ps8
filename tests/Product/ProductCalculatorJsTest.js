@@ -59,4 +59,16 @@ assert.strictEqual(
 );
 assert.strictEqual(resolveCheckoutRedirectUrl({}, 'https://fallback.test/order'), 'https://fallback.test/order');
 
-console.log('OK (Phase 6 product combination DOM source and Woo button label)');
+var createPreselectOperationToken = productCalculator.createPreselectOperationToken;
+var attachPreselectOperationToken = productCalculator.attachPreselectOperationToken;
+assert.match(createPreselectOperationToken(), /^[a-f0-9]{32}$/);
+var preselectPayload = new URLSearchParams();
+attachPreselectOperationToken(preselectPayload, 'preselect', 'abc123def4567890abc123def4567890');
+assert.strictEqual(preselectPayload.get('preselect_operation_token'), 'abc123def4567890abc123def4567890');
+attachPreselectOperationToken(preselectPayload, 'calculate', 'abc123def4567890abc123def4567890');
+assert.strictEqual(preselectPayload.get('preselect_operation_token'), 'abc123def4567890abc123def4567890');
+preselectPayload = new URLSearchParams();
+attachPreselectOperationToken(preselectPayload, 'calculate', 'ignored');
+assert.strictEqual(preselectPayload.get('preselect_operation_token'), null);
+
+sconsole.log('OK (Phase 6 product combination DOM source and Woo button label)');

@@ -79,6 +79,34 @@
         return fallbackUrl || "";
     }
 
+    function createPreselectOperationToken() {
+        var cryptoRef =
+            (typeof globalThis !== "undefined" && globalThis.crypto) ||
+            (typeof window !== "undefined" && window.crypto);
+        if (cryptoRef && typeof cryptoRef.getRandomValues === "function") {
+            var bytes = new Uint8Array(16);
+            cryptoRef.getRandomValues(bytes);
+            var hex = "";
+            var index;
+            for (index = 0; index < bytes.length; index += 1) {
+                hex += ("0" + bytes[index].toString(16)).slice(-2);
+            }
+            return hex;
+        }
+
+        return (
+            Date.now().toString(16) +
+            Math.floor(Math.random() * 1e9).toString(16)
+        );
+    }
+
+    function attachPreselectOperationToken(payload, action, operationToken) {
+        if (action === "preselect" && operationToken) {
+            payload.set("preselect_operation_token", operationToken);
+        }
+        return payload;
+    }
+
     if (typeof module === "object" && module.exports) {
         module.exports.productAttributeId = productAttributeId;
         module.exports.buttonInstallmentLabel = buttonInstallmentLabel;
@@ -88,6 +116,10 @@
         module.exports.secondaryActionUsesNativeAddToCart =
             secondaryActionUsesNativeAddToCart;
         module.exports.resolveCheckoutRedirectUrl = resolveCheckoutRedirectUrl;
+        module.exports.createPreselectOperationToken =
+            createPreselectOperationToken;
+        module.exports.attachPreselectOperationToken =
+            attachPreselectOperationToken;
         return;
     }
 
@@ -181,6 +213,7 @@
         var lastRequestKey = "";
         var redirectPending = false;
         var popupSubmissionToken = "";
+        var preselectOperationToken = "";
 
         function t(attribute, fallback) {
             return root.getAttribute(attribute) || fallback;
@@ -708,6 +741,7 @@
             lastCalculation = null;
             redirectPending = false;
             popupSubmissionToken = "";
+            preselectOperationToken = "";
             root.unipaymentPopupSubmissionToken = "";
             activeType = "";
             root.classList.remove("unipayment-product-calculator--error");
@@ -885,6 +919,11 @@
                         : first.value || "0",
                 ),
             );
+            attachPreselectOperationToken(
+                payload,
+                action || "calculate",
+                preselectOperationToken,
+            );
             return payload;
         }
 
@@ -1015,6 +1054,7 @@
                 return;
             }
             redirectPending = true;
+            preselectOperationToken = createPreselectOperationToken();
             requestCalculation("preselect")
                 .then(function (body) {
                     applyButton.disabled = true;

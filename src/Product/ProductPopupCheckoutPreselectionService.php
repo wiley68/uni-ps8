@@ -8,14 +8,17 @@ use PrestaShop\Module\Unipayment\Checkout\CheckoutPreferenceStore;
 
 final class ProductPopupCheckoutPreselectionService
 {
-    private const MUTATION_COOKIE = 'unipayment_preselect_mutation';
-
     /** @var CheckoutPreferenceStore */
     private $preferences;
+    /** @var ProductPopupPreselectOperationGuard */
+    private $operations;
 
-    public function __construct(?CheckoutPreferenceStore $preferences = null)
-    {
+    public function __construct(
+        ?CheckoutPreferenceStore $preferences = null,
+        ?ProductPopupPreselectOperationGuard $operations = null
+    ) {
         $this->preferences = $preferences ?? new CheckoutPreferenceStore();
+        $this->operations = $operations ?? new ProductPopupPreselectOperationGuard();
     }
 
     /**
@@ -27,6 +30,7 @@ final class ProductPopupCheckoutPreselectionService
         int $productId,
         int $productAttributeId,
         int $quantity,
+        string $operationToken,
         \Context $context,
         \Link $link
     ): array {
@@ -34,23 +38,46 @@ final class ProductPopupCheckoutPreselectionService
             throw new ProductPopupCheckoutPreselectionException('Продуктът не може да бъде добавен в количката.');
         }
 
+        $this->operations->validateOperationToken($operationToken);
+        $this->operations->clearLegacyMarker($context->cookie);
+
         $cart = $this->ensureCart($context);
-        $mutationHash = $this->mutationHash(
-            (int) $cart->id,
+        $cartId = (int) $cart->id;
+        $lineQtyBefore = $this->lineQuantity($cart, $productId, $productAttributeId);
+        $applied = $this->operations->readApplied($context->cookie);
+
+        if (!$this->operations->shouldSkipCartMutation(
+            $applied,
+            $operationToken,
+            $cartId,
             $productId,
             $productAttributeId,
-            $quantity,
-            $calculation
-        );
-
-        if ((string) $context->cookie->{self::MUTATION_COOKIE} !== $mutationHash) {
+            $lineQtyBefore
+        )) {
             $this->addProductToCart($cart, $productId, $productAttributeId, $quantity);
-            $context->cookie->{self::MUTATION_COOKIE} = $mutationHash;
+            $lineQtyAfter = $this->lineQuantity($cart, $productId, $productAttributeId);
+            if ($lineQtyAfter < $lineQtyBefore + $quantity) {
+                throw new ProductPopupCheckoutPreselectionException('Продуктът не може да бъде добавен в количката.');
+            }
+
+            $this->operations->persistApplied(
+                $context->cookie,
+                $operationToken,
+                $cartId,
+                $productId,
+                $productAttributeId,
+                $lineQtyAfter
+            );
             $context->cookie->write();
         }
 
+        $finalLineQty = $this->lineQuantity($cart, $productId, $productAttributeId);
+        if ($finalLineQty <= 0) {
+            throw new ProductPopupCheckoutPreselectionException('Продуктът не може да бъде добавен в количката.');
+        }
+
         $context->cart = $cart;
-        $context->cookie->id_cart = (int) $cart->id;
+        $context->cookie->id_cart = $cartId;
 
         $this->preferences->save($context->cookie, [
             'product_id' => $productId,
@@ -62,7 +89,7 @@ final class ProductPopupCheckoutPreselectionService
             'filter_id' => (int) ($calculation['filter_id'] ?? 0),
             'first_installment' => $calculation['first_installment'] ?? 0,
             'product_amount' => $calculation['price'] ?? 0,
-        ], (int) $cart->id, (int) $context->customer->id);
+        ], $cartId, (int) $context->customer->id);
 
         return [
             'checkout_url' => $link->getPageLink('order', true),
@@ -99,6 +126,16 @@ final class ProductPopupCheckoutPreselectionService
         return $cart;
     }
 
+    private function lineQuantity(\Cart $cart, int $productId, int $productAttributeId): int
+    {
+        $row = $cart->getProductQuantity(
+            $productId,
+            $productAttributeId > 0 ? $productAttributeId : 0
+        );
+
+        return (int) ($row['quantity'] ?? 0);
+    }
+
     private function addProductToCart(\Cart $cart, int $productId, int $productAttributeId, int $quantity): void
     {
         $updated = $cart->updateQty(
@@ -109,28 +146,5 @@ final class ProductPopupCheckoutPreselectionService
         if ($updated === false) {
             throw new ProductPopupCheckoutPreselectionException('Продуктът не може да бъде добавен в количката.');
         }
-    }
-
-    /** @param array<string, mixed> $calculation */
-    private function mutationHash(
-        int $cartId,
-        int $productId,
-        int $productAttributeId,
-        int $quantity,
-        array $calculation
-    ): string {
-        $payload = [
-            'cart_id' => $cartId,
-            'product_id' => $productId,
-            'product_attribute_id' => $productAttributeId,
-            'quantity' => $quantity,
-            'scheme_type' => (string) ($calculation['scheme_type'] ?? ''),
-            'kop_code' => (string) ($calculation['kop_code'] ?? ''),
-            'months' => (int) ($calculation['months'] ?? 0),
-            'filter_id' => (int) ($calculation['filter_id'] ?? 0),
-            'first_installment' => number_format(round((float) ($calculation['first_installment'] ?? 0), 2), 2, '.', ''),
-        ];
-
-        return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 }

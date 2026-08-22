@@ -28,7 +28,9 @@ $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 
 require $config;
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/Calculator/fixtures.php';
 
+use PrestaShop\Module\Unipayment\Api\Exception\AuthenticationException;
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Checkout\CheckoutPaymentPresenter;
 use PrestaShop\Module\Unipayment\Checkout\CheckoutPreferenceStore;
@@ -84,6 +86,11 @@ function cartLineQuantity(Cart $cart, int $productId, int $attributeId): int
     return (int) Db::getInstance()->getValue($query->build());
 }
 
+function operationToken(string $suffix = ''): string
+{
+    return hash('sha256', 'silent-buy-runtime' . $suffix);
+}
+
 function bootstrapGuestContext(Context $context): Cart
 {
     $context->customer = new Customer();
@@ -106,6 +113,24 @@ function bootstrapGuestContext(Context $context): Cart
     return $cart;
 }
 
+function removeCartLine(Cart $cart, int $productId, int $attributeId): void
+{
+    if (method_exists($cart, 'deleteProduct')) {
+        $cart->deleteProduct($productId, $attributeId > 0 ? $attributeId : 0);
+
+        return;
+    }
+
+    $current = cartLineQuantity($cart, $productId, $attributeId);
+    if ($current > 0) {
+        $cart->updateQty(
+            -$current,
+            $productId,
+            $attributeId > 0 ? $attributeId : null
+        );
+    }
+}
+
 /** @var Context $context */
 $context = Context::getContext();
 $context->shop = new Shop((int) Configuration::get('PS_SHOP_DEFAULT'));
@@ -119,7 +144,11 @@ if (!$module instanceof Unipayment || !$module->active) {
     exit(1);
 }
 
-$shop = $module->getShopConfigurationService()->get();
+try {
+    $shop = $module->getShopConfigurationService()->get();
+} catch (AuthenticationException $exception) {
+    $shop = calculatorFixture(['uni_eur' => 3]);
+}
 
 $productId = activeProductId((int) $context->shop->id);
 assertSilentBuy($productId > 0, 'active product required');
@@ -147,6 +176,7 @@ $calculation = $popup->calculate(
 
 $service = new ProductPopupCheckoutPreselectionService();
 $beforeQty = cartLineQuantity($guestCart, $productId, $attributeId);
+$tokenT1 = operationToken('guest-t1');
 
 try {
     $result = $service->execute(
@@ -154,6 +184,7 @@ try {
         $productId,
         $attributeId,
         2,
+        $tokenT1,
         $context,
         $context->link
     );
@@ -192,9 +223,33 @@ $checkoutView = (new CheckoutPaymentPresenter(
 assertSilentBuy(is_array($checkoutView) && !empty($checkoutView['preselect_payment']), 'checkout must preselect UniCredit for valid preference');
 
 $beforeRetryQty = cartLineQuantity($guestCart, $productId, $attributeId);
-$service->execute($calculation, $productId, $attributeId, 2, $context, $context->link);
+$service->execute($calculation, $productId, $attributeId, 2, $tokenT1, $context, $context->link);
 $afterRetryQty = cartLineQuantity($guestCart, $productId, $attributeId);
 assertSilentBuy($afterRetryQty === $beforeRetryQty, 'idempotent retry must not duplicate cart mutation');
+
+$cartIdBeforeRemove = (int) $guestCart->id;
+removeCartLine($guestCart, $productId, $attributeId);
+assertSilentBuy(cartLineQuantity($guestCart, $productId, $attributeId) === 0, 'removed product must leave empty cart line');
+assertSilentBuy((int) $guestCart->id === $cartIdBeforeRemove, 'empty cart must preserve cart id for regression scenario');
+
+$tokenT2 = operationToken('guest-t2-same-selection');
+$service->execute($calculation, $productId, $attributeId, 2, $tokenT2, $context, $context->link);
+assertSilentBuy(
+    cartLineQuantity($guestCart, $productId, $attributeId) === 2,
+    'new Buy after remove with same selection must add product again'
+);
+
+$tokenT3 = operationToken('guest-t3-increment');
+$guestCart->updateQty(1, $productId, $attributeId > 0 ? $attributeId : null);
+assertSilentBuy(cartLineQuantity($guestCart, $productId, $attributeId) === 3, 'pre-existing quantity fixture must start at 3');
+$service->execute($calculation, $productId, $attributeId, 1, $tokenT3, $context, $context->link);
+assertSilentBuy(cartLineQuantity($guestCart, $productId, $attributeId) === 4, 'new Buy must increment pre-existing quantity');
+$beforeExistingRetryQty = cartLineQuantity($guestCart, $productId, $attributeId);
+$service->execute($calculation, $productId, $attributeId, 1, $tokenT3, $context, $context->link);
+assertSilentBuy(
+    cartLineQuantity($guestCart, $productId, $attributeId) === $beforeExistingRetryQty,
+    'retry of increment operation must remain idempotent'
+);
 
 $guestCart->delete();
 

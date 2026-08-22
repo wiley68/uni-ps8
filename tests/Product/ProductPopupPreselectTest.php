@@ -35,6 +35,10 @@ assertProductPopupPreselect(
     'preselect must delegate to server-side checkout preselection service'
 );
 assertProductPopupPreselect(
+    strpos($controller, 'preselect_operation_token') !== false,
+    'preselect must accept per-operation token for silent buy idempotency'
+);
+assertProductPopupPreselect(
     strpos((string) file_get_contents($root . '/src/Product/ProductPopupCheckoutPreselectionService.php'), "'product_amount' =>") !== false,
     'preselect service must persist authoritative product amount for checkout preference matching'
 );
