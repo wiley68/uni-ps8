@@ -9,16 +9,91 @@ if (PHP_SAPI !== 'cli') {
 define('ABSPATH', '/tmp/');
 define('MTUC_SCHEME_MONTH_MIN', 3);
 define('MTUC_SCHEME_MONTH_MAX', 36);
-function __($text, $domain = null) { return $text; }
-function current_time($format) { return $format === 'Y-m-d' ? '2026-08-17' : gmdate($format); }
+function __(string $text, ?string $domain = null): string
+{
+    return $text;
+}
+function current_time(string $format): string
+{
+    return $format === 'Y-m-d' ? '2026-08-17' : gmdate($format);
+}
 
 class WC_Product
 {
+    /** @var int */
     private $id;
+
+    /** @var list<int> */
     private $categories;
-    public function __construct(int $id, array $categories) { $this->id = $id; $this->categories = $categories; }
-    public function get_id(): int { return $this->id; }
-    public function get_category_ids(): array { return $this->categories; }
+
+    /** @var string Woo product type (e.g. simple, variation). */
+    private $type;
+
+    /**
+     * @param list<int> $categories
+     */
+    public function __construct(int $id, array $categories, string $type = 'simple')
+    {
+        $this->id = $id;
+        $this->categories = $categories;
+        $this->type = $type;
+    }
+
+    public function get_id(): int
+    {
+        return $this->id;
+    }
+
+    /** @return list<int> */
+    public function get_category_ids(): array
+    {
+        return $this->categories;
+    }
+
+    public function get_type(): string
+    {
+        return $this->type;
+    }
+
+    /**
+     * @param string|list<string> $type
+     */
+    public function is_type($type): bool
+    {
+        if (is_array($type)) {
+            return in_array($this->type, $type, true);
+        }
+
+        return $this->type === $type;
+    }
+
+    public function get_parent_id(): int
+    {
+        return 0;
+    }
+}
+
+// IDE-only signatures; runtime definitions come from the Woo reference include below.
+if (false) {
+    /**
+     * @param array<string, mixed>             $shop
+     * @param array<int, array<string, mixed>> $coeff_list
+     * @return array<string, mixed>|null
+     */
+    function mtuc_resolve_standard_button_offer(array $shop, array $coeff_list, float $price, ?WC_Product $product = null): ?array
+    {
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed>             $shop
+     * @param array<int, array<string, mixed>> $coeff_list
+     * @return array<string, mixed>|null
+     */
+    function mtuc_resolve_promo_button_offer(array $shop, array $coeff_list, float $price, ?WC_Product $product = null): ?array
+    {
+        return null;
+    }
 }
 
 require '/var/www/woo.avalonbg.com/wp-content/plugins/mtunicredit/includes/functions.php';
@@ -38,7 +113,13 @@ function assertParity(bool $condition, string $message): void
 
 $shop = calculatorFixture();
 $price = 1000.0;
-$wooProduct = new WC_Product(42, [7, 9]);
+
+$stubSimple = new WC_Product(1, [], 'simple');
+assertParity($stubSimple->is_type('simple'), 'WC_Product stub: simple product is_type(simple)');
+assertParity(!$stubSimple->is_type('variable'), 'WC_Product stub: simple product is not variable');
+assertParity($stubSimple->is_type(['simple', 'variable']), 'WC_Product stub: simple product is_type([simple, variable])');
+
+$wooProduct = new WC_Product(42, [7, 9], 'simple');
 $calculator = new Calculator('2026-08-17');
 $product = new ProductContext(42, [7, 9], $price);
 
