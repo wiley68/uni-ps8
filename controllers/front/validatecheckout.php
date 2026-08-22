@@ -48,7 +48,8 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
         $idShop = (int) $this->context->shop->id;
         $idCart = (int) $this->context->cart->id;
         $lock = new CheckoutSubmitLock();
-        if (!$lock->acquire($idShop, $idCart)) {
+        $lockToken = $lock->acquire($idShop, $idCart);
+        if ($lockToken === null) {
             $this->showError($this->module->getTranslator()->trans(
                 'The request is already being processed. Please wait.',
                 [],
@@ -199,11 +200,11 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             ]]);
             $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
         } catch (CheckoutValidationException $exception) {
-            $lock->release($idShop, $idCart);
+            $lock->release($idShop, $idCart, $lockToken);
             $this->showError($exception->getMessage());
         } catch (OrderOrchestrationException $exception) {
             if ($exception->isRetryable()) {
-                $lock->release($idShop, $idCart);
+                $lock->release($idShop, $idCart, $lockToken);
             }
             PrestaShopLogger::addLog('UniPayment order orchestration failed: ' . get_class($exception) . '; retryable=' . ($exception->isRetryable() ? '1' : '0'), 2);
             $this->showError($this->module->getTranslator()->trans(
@@ -212,7 +213,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 'Modules.Unipayment.Shop'
             ));
         } catch (Throwable $exception) {
-            $lock->release($idShop, $idCart);
+            $lock->release($idShop, $idCart, $lockToken);
             PrestaShopLogger::addLog('UniPayment checkout validation failed: ' . get_class($exception), 2);
             $this->showError($this->module->getTranslator()->trans('Изборът на финансиране не може да бъде валидиран.', [], 'Modules.Unipayment.Shop'));
         }

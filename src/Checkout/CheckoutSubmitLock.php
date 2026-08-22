@@ -4,40 +4,42 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\Checkout;
 
+use PrestaShop\Module\Unipayment\Security\ClockInterface;
+use PrestaShop\Module\Unipayment\Security\SystemClock;
+
 /**
- * Short-lived server lock against double checkout submission (Woo mtuc_acquire_popup_submit_lock parity).
+ * Short-lived atomic checkout submit lock (secondary guard before OrderAttempt reservation).
  */
 final class CheckoutSubmitLock
 {
-    private const TTL_SECONDS = 45;
-    private const PREFIX = 'UNIPAYMENT_CHECKOUT_LOCK_';
+    /** @var CheckoutSubmitLockRepository */
+    private $repository;
 
-    public function acquire(int $idShop, int $idCart): bool
+    /** @var ClockInterface */
+    private $clock;
+
+    public function __construct(?CheckoutSubmitLockRepository $repository = null, ?ClockInterface $clock = null)
     {
-        if ($idShop <= 0 || $idCart <= 0) {
-            return false;
-        }
-        $key = $this->key($idShop, $idCart);
-        $now = time();
-        $expires = (int) \Configuration::get($key);
-        if ($expires > $now) {
-            return false;
-        }
-        \Configuration::updateValue($key, (string) ($now + self::TTL_SECONDS));
-
-        return true;
+        $this->repository = $repository ?? new CheckoutSubmitLockRepository();
+        $this->clock = $clock ?? new SystemClock();
     }
 
-    public function release(int $idShop, int $idCart): void
+    public function acquire(int $idShop, int $idCart): ?string
     {
         if ($idShop <= 0 || $idCart <= 0) {
-            return;
+            return null;
         }
-        \Configuration::updateValue($this->key($idShop, $idCart), '0');
+
+        $ownerToken = bin2hex(random_bytes(16));
+        if (!$this->repository->acquire($idShop, $idCart, $this->clock->now(), $ownerToken)) {
+            return null;
+        }
+
+        return $ownerToken;
     }
 
-    private function key(int $idShop, int $idCart): string
+    public function release(int $idShop, int $idCart, string $ownerToken): void
     {
-        return self::PREFIX . $idShop . '_' . $idCart;
+        $this->repository->release($idShop, $idCart, $ownerToken);
     }
 }

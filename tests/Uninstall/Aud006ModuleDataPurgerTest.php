@@ -67,7 +67,8 @@ assertAud006(
         && strpos($purgerSrc, 'OrderAttemptRepository') !== false
         && strpos($purgerSrc, 'PopupSubmissionRepository') !== false
         && strpos($purgerSrc, 'SmartUcfDebugLogRepository') !== false
-        && strpos($purgerSrc, 'OrderBankStatusRepository') !== false,
+        && strpos($purgerSrc, 'OrderBankStatusRepository') !== false
+        && strpos($purgerSrc, 'CheckoutSubmitLockRepository') !== false,
     '1: all module table owners listed'
 );
 

@@ -37,10 +37,12 @@ assertCheckoutUi(strpos($js, 'validateBeforeSubmit') !== false, 'checkout JS mus
 assertCheckoutUi(strpos($js, 'consentsOk') !== false, 'checkout JS must enforce consents');
 assertCheckoutUi(strpos($js, 'markSubmitting') !== false, 'checkout JS must block double submit');
 assertCheckoutUi(strpos($js, 'data-calculate-endpoint') !== false || strpos($js, 'calculate-endpoint') !== false, 'checkout JS must recalculate via endpoint');
-assertCheckoutUi(strpos($validate, 'CheckoutSubmitLock') !== false, 'validatecheckout must acquire submit lock');
+assertCheckoutUi(strpos($validate, '$lockToken = $lock->acquire($idShop, $idCart);') !== false, 'validatecheckout must store submit lock token');
+assertCheckoutUi(strpos($validate, '$lock->release($idShop, $idCart, $lockToken);') !== false, 'validatecheckout must release submit lock with owner token');
 assertCheckoutUi(strpos($validate, "'checkout'") !== false, 'orchestrate must persist submission_source=checkout');
 assertCheckoutUi(strpos($module, 'checkoutcalculate') !== false, 'module must expose checkout calculate endpoint');
 assertCheckoutUi(is_file($root . '/controllers/front/checkoutcalculate.php'), 'checkoutcalculate controller missing');
 assertCheckoutUi(is_file($root . '/src/Checkout/CheckoutSubmitLock.php'), 'CheckoutSubmitLock missing');
+assertCheckoutUi(is_file($root . '/src/Checkout/CheckoutSubmitLockRepository.php'), 'CheckoutSubmitLockRepository missing');
 
 fwrite(STDOUT, "OK (Checkout UI / Woo parity contract)\n");

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PrestaShop\Module\Unipayment\Uninstall;
 
 use PrestaShop\Module\Unipayment\Api\ControlPanelClient;
+use PrestaShop\Module\Unipayment\Checkout\CheckoutSubmitLockRepository;
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
@@ -99,6 +100,7 @@ final class ModuleDataPurger
             'order_attempts' => new OrderAttemptRepository($this->database),
             'order_bank_status' => new OrderBankStatusRepository($this->database),
             'api_nonce' => new ApiNonceRepository($this->database),
+            'checkout_lock' => new CheckoutSubmitLockRepository($this->database),
             'smartucf_debug_log' => new SmartUcfDebugLogRepository($this->database),
             'shop_cache' => new ShopConfigurationCache($this->database),
         ];
@@ -114,9 +116,8 @@ final class ModuleDataPurger
 
     private function deleteConfigurationByPrefix(string $prefix): bool
     {
-        $rows = $this->database->executeS(
-            'SELECT `name` FROM `' . _DB_PREFIX_ . "configuration` WHERE `name` LIKE '" . pSQL($prefix) . "%'"
-        );
+        $sql = 'SELECT `name` FROM `' . _DB_PREFIX_ . "configuration` WHERE `name` LIKE '" . pSQL($prefix) . "%'";
+        $rows = \call_user_func([$this->database, 'executeS'], $sql);
         if (!is_array($rows)) {
             return true;
         }
