@@ -1,5 +1,11 @@
 # UniCredit Credit Calculator for PrestaShop 8.x
+
 ## Implementation Plan
+
+> **Historical document.** This file records the original phased implementation plan.
+> It does **not** describe the current feature scope or supported capabilities.
+>
+> For current behavior, start with [`../README.md`](../README.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 **Repository:** `wiley68/uni-ps8`  
 **Module technical name:** `unipayment`  
