@@ -12,13 +12,32 @@ final class ModuleRequestAuthenticator
     /** @var ConfigurationRepository */
     private $configuration;
 
-    public function __construct(ConfigurationRepository $configuration)
-    {
+    /** @var ModuleRequestSignatureVerifier */
+    private $signatureVerifier;
+
+    /** @var ApiNonceRepository */
+    private $nonceRepository;
+
+    /** @var ClockInterface */
+    private $clock;
+
+    public function __construct(
+        ConfigurationRepository $configuration,
+        ?ModuleRequestSignatureVerifier $signatureVerifier = null,
+        ?ApiNonceRepository $nonceRepository = null,
+        ?ClockInterface $clock = null
+    ) {
         $this->configuration = $configuration;
+        $this->clock = $clock ?? new SystemClock();
+        $this->signatureVerifier = $signatureVerifier ?? new ModuleRequestSignatureVerifier($this->clock);
+        $this->nonceRepository = $nonceRepository ?? new ApiNonceRepository();
     }
 
-    /** @param array<string, mixed> $payload */
-    public function authenticate(array $payload): string
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, string> $headers
+     */
+    public function authenticate(array $payload, string $rawBody, array $headers): string
     {
         if (!$this->configuration->isEnabled()) {
             throw new ModuleApiException('The module is disabled.', 403);
@@ -26,23 +45,34 @@ final class ModuleRequestAuthenticator
 
         $storedUnicid = $this->configuration->getUnicid();
         $storedSecret = $this->configuration->getSecret();
-        $unicid = $payload['unicid'] ?? null;
-        $secret = $payload['secret'] ?? null;
-
         if ($storedUnicid === '' || $storedSecret === null) {
             throw new ModuleApiException('The module is not configured.', 401);
         }
 
-        if (!is_string($unicid) || $unicid === '' || !is_string($secret) || $secret === '') {
-            throw new ModuleApiException('Missing module credentials.', 401);
+        $unicid = $payload['unicid'] ?? null;
+        if (!is_string($unicid) || $unicid === '') {
+            throw $this->authFailure();
         }
 
-        $unicidMatches = hash_equals($storedUnicid, $unicid);
-        $secretMatches = hash_equals($storedSecret, $secret);
-        if (!$unicidMatches || !$secretMatches) {
-            throw new ModuleApiException('Invalid module credentials.', 401);
+        if (!hash_equals($storedUnicid, $unicid)) {
+            throw $this->authFailure();
+        }
+
+        $this->signatureVerifier->verify($storedSecret, $rawBody, $headers);
+
+        $nonce = $this->signatureVerifier->extractNonce($headers);
+        if (!$this->nonceRepository->claimNonce($unicid, $nonce, $this->clock->now())) {
+            if (class_exists('\PrestaShopLogger', false)) {
+                \PrestaShopLogger::addLog('UniPayment module API replay detected.', 2);
+            }
+            throw $this->authFailure();
         }
 
         return $unicid;
+    }
+
+    private function authFailure(): ModuleApiException
+    {
+        return new ModuleApiException(ModuleRequestSignatureProtocol::AUTH_FAILURE_MESSAGE, 401);
     }
 }

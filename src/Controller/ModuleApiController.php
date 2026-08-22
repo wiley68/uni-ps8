@@ -26,8 +26,9 @@ abstract class ModuleApiController extends \ModuleFrontController
                 throw new ModuleApiException('Only POST requests are allowed.', 405);
             }
 
-            $payload = $this->decodePayload();
-            $unicid = (new ModuleRequestAuthenticator(new ConfigurationRepository()))->authenticate($payload);
+            [$payload, $rawBody] = $this->readJsonRequest();
+            $headers = $this->extractRequestHeaders();
+            $unicid = (new ModuleRequestAuthenticator(new ConfigurationRepository()))->authenticate($payload, $rawBody, $headers);
             $response = $this->handleAuthenticatedRequest($payload, $unicid);
             $this->sendJson($response, 200);
         } catch (ModuleApiException $exception) {
@@ -60,11 +61,13 @@ abstract class ModuleApiController extends \ModuleFrontController
      */
     abstract protected function handleAuthenticatedRequest(array $payload, string $unicid): array;
 
-    /** @return array<string, mixed> */
-    private function decodePayload(): array
+    /**
+     * @return array{0: array<string, mixed>, 1: string}
+     */
+    private function readJsonRequest(): array
     {
         $rawBody = file_get_contents('php://input');
-        if (!is_string($rawBody) || trim($rawBody) === '') {
+        if (!is_string($rawBody) || $rawBody === '') {
             throw new ModuleApiException('A JSON request body is required.', 400);
         }
 
@@ -78,7 +81,35 @@ abstract class ModuleApiController extends \ModuleFrontController
             throw new ModuleApiException('The JSON request body must be an object.', 400);
         }
 
-        return $payload;
+        return [$payload, $rawBody];
+    }
+
+    /** @return array<string, string> */
+    private function extractRequestHeaders(): array
+    {
+        $headers = [];
+
+        if (function_exists('getallheaders')) {
+            $requestHeaders = getallheaders();
+            if (is_array($requestHeaders)) {
+                foreach ($requestHeaders as $name => $value) {
+                    if (is_string($name) && is_string($value)) {
+                        $headers[$name] = $value;
+                    }
+                }
+            }
+        }
+
+        foreach ($_SERVER as $key => $value) {
+            if (!is_string($value) || strpos($key, 'HTTP_') !== 0) {
+                continue;
+            }
+
+            $name = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5)))));
+            $headers[$name] = $value;
+        }
+
+        return $headers;
     }
 
     /** @param array<string, mixed> $payload */

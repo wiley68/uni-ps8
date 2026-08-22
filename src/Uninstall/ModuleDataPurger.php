@@ -12,6 +12,7 @@ use PrestaShop\Module\Unipayment\Order\OrderAttemptRepository;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
 use PrestaShop\Module\Unipayment\Order\OrderStateInstaller;
 use PrestaShop\Module\Unipayment\Product\PopupSubmissionRepository;
+use PrestaShop\Module\Unipayment\Security\ApiNonceRepository;
 use PrestaShop\Module\Unipayment\Security\TokenRepository;
 use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateLocalStore;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository;
@@ -97,6 +98,7 @@ final class ModuleDataPurger
             'financing_snapshots' => new FinancingSnapshotRepository($this->database),
             'order_attempts' => new OrderAttemptRepository($this->database),
             'order_bank_status' => new OrderBankStatusRepository($this->database),
+            'api_nonce' => new ApiNonceRepository($this->database),
             'smartucf_debug_log' => new SmartUcfDebugLogRepository($this->database),
             'shop_cache' => new ShopConfigurationCache($this->database),
         ];

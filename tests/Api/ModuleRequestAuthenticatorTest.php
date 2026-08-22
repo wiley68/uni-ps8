@@ -55,11 +55,43 @@ final class PhpEncryption
 
 require_once dirname(__DIR__, 2) . '/src/Configuration/ConfigurationRepository.php';
 require_once dirname(__DIR__, 2) . '/src/Api/Exception/ModuleApiException.php';
+require_once dirname(__DIR__, 2) . '/src/Security/ClockInterface.php';
+require_once dirname(__DIR__, 2) . '/src/Security/SystemClock.php';
+require_once dirname(__DIR__, 2) . '/src/Security/FixedClock.php';
+require_once dirname(__DIR__, 2) . '/src/Security/ModuleRequestSignatureProtocol.php';
+require_once dirname(__DIR__, 2) . '/src/Security/ModuleRequestSignatureVerifier.php';
+require_once dirname(__DIR__, 2) . '/src/Security/ApiNonceRepository.php';
 require_once dirname(__DIR__, 2) . '/src/Security/ModuleRequestAuthenticator.php';
+
+final class ModuleAuthTestFakeDb
+{
+    public function execute(string $sql): bool
+    {
+        unset($sql);
+
+        return true;
+    }
+
+    public function insert(string $table, array $data, $nullValues = false, $useCache = true, $type = 1): bool
+    {
+        unset($table, $data, $nullValues, $useCache, $type);
+
+        return true;
+    }
+
+    public function getMsgError(): string
+    {
+        return '';
+    }
+}
 
 use PrestaShop\Module\Unipayment\Api\Exception\ModuleApiException;
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
+use PrestaShop\Module\Unipayment\Security\ApiNonceRepository;
+use PrestaShop\Module\Unipayment\Security\FixedClock;
 use PrestaShop\Module\Unipayment\Security\ModuleRequestAuthenticator;
+use PrestaShop\Module\Unipayment\Security\ModuleRequestSignatureProtocol;
+use PrestaShop\Module\Unipayment\Security\ModuleRequestSignatureVerifier;
 
 function assertPhase4(bool $condition, string $message): void
 {
@@ -69,36 +101,43 @@ function assertPhase4(bool $condition, string $message): void
     }
 }
 
-function expectApiStatus(ModuleRequestAuthenticator $authenticator, array $payload, int $status): void
+function expectApiStatus(ModuleRequestAuthenticator $authenticator, array $payload, string $rawBody, array $headers, int $status): void
 {
     try {
-        $authenticator->authenticate($payload);
+        $authenticator->authenticate($payload, $rawBody, $headers);
         assertPhase4(false, "expected HTTP {$status} authentication error");
     } catch (ModuleApiException $exception) {
-        assertPhase4($exception->getStatusCode() === $status, "unexpected authentication error status");
+        assertPhase4($exception->getStatusCode() === $status, 'unexpected authentication error status');
     }
 }
 
 $configuration = new ConfigurationRepository();
 $configuration->save(true, '123e4567-e89b-12d3-a456-426614174000', 'test-secret');
-$authenticator = new ModuleRequestAuthenticator($configuration);
+$clock = new FixedClock(time());
+$authenticator = new ModuleRequestAuthenticator(
+    $configuration,
+    new ModuleRequestSignatureVerifier($clock),
+    new ApiNonceRepository(new ModuleAuthTestFakeDb()),
+    $clock
+);
 
-$unicid = $authenticator->authenticate([
-    'unicid' => '123e4567-e89b-12d3-a456-426614174000',
-    'secret' => 'test-secret',
-]);
-assertPhase4($unicid === '123e4567-e89b-12d3-a456-426614174000', 'valid credentials were rejected');
+$rawBody = '{"unicid":"123e4567-e89b-12d3-a456-426614174000"}';
+$payload = json_decode($rawBody, true);
+assertPhase4(is_array($payload), 'payload decode failed');
 
-expectApiStatus($authenticator, [], 401);
-expectApiStatus($authenticator, [
-    'unicid' => '123e4567-e89b-12d3-a456-426614174000',
-    'secret' => 'wrong-secret',
+expectApiStatus($authenticator, $payload, $rawBody, [], 401);
+expectApiStatus($authenticator, $payload, $rawBody, [
+    ModuleRequestSignatureProtocol::HEADER_TIMESTAMP => (string) time(),
+    ModuleRequestSignatureProtocol::HEADER_NONCE => str_repeat('a', 64),
+    ModuleRequestSignatureProtocol::HEADER_SIGNATURE => str_repeat('0', 64),
 ], 401);
 
-$configuration->save(false, '123e4567-e89b-12d3-a456-426614174000', null);
 expectApiStatus($authenticator, [
     'unicid' => '123e4567-e89b-12d3-a456-426614174000',
     'secret' => 'test-secret',
-], 403);
+], '{"unicid":"123e4567-e89b-12d3-a456-426614174000","secret":"test-secret"}', [], 401);
+
+$configuration->save(false, '123e4567-e89b-12d3-a456-426614174000', null);
+expectApiStatus($authenticator, $payload, $rawBody, [], 403);
 
 fwrite(STDOUT, "OK (Phase 4 centralized module request authentication)\n");

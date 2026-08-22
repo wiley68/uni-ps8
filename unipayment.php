@@ -78,6 +78,7 @@ class Unipayment extends PaymentModule
         $cache = new PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCache();
         $debugLog = new PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository();
         $bankStatus = new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository();
+        $apiNonce = new PrestaShop\Module\Unipayment\Security\ApiNonceRepository();
         $attempts = new PrestaShop\Module\Unipayment\Order\OrderAttemptRepository();
         $snapshots = new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository();
         $popupSubmissions = new PrestaShop\Module\Unipayment\Product\PopupSubmissionRepository();
@@ -92,6 +93,7 @@ class Unipayment extends PaymentModule
             && $cache->install()
             && $debugLog->install()
             && $bankStatus->install()
+            && $apiNonce->install()
             && $attempts->install()
             && $snapshots->install()
             && $popupSubmissions->install()
@@ -115,6 +117,8 @@ class Unipayment extends PaymentModule
         $popupSubmissions->uninstall();
         $snapshots->uninstall();
         $attempts->uninstall();
+        $apiNonce = new PrestaShop\Module\Unipayment\Security\ApiNonceRepository();
+        $apiNonce->uninstall();
         $bankStatus->uninstall();
         $debugLog->uninstall();
         $cache->uninstall();
