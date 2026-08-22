@@ -54,4 +54,8 @@ assertBankStatus(strpos($popup, 'createSession(') === false, 'popup must not cal
 assertBankStatus(strpos($checkout, 'createSession(') === false, 'checkout must not call createSession directly');
 assertBankStatus(strpos($cart, 'createSession(') === false, 'cart must not call createSession directly');
 
+$bankRepo = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/OrderBankStatusRepository.php');
+assertBankStatus(strpos($bankRepo, 'getRow(sprintf') !== false, 'bank status lookup must use Db::getRow');
+assertBankStatus(strpos($bankRepo, "LIMIT 1'") === false, 'getRow queries must not include LIMIT 1 (PrestaShop appends it)');
+
 fwrite(STDOUT, "OK (Bank status persistence for admin orders list)\n");

@@ -127,8 +127,7 @@ final class OrderBankStatusRepository implements BankStatusPersistencePort
              FROM `%1$sorders` o
              INNER JOIN `%2$s` s ON s.`id_order` = o.`id_order`
              WHERE o.`reference` = \'%3$s\'
-               AND o.`id_shop` = %4$d
-             LIMIT 1',
+               AND o.`id_shop` = %4$d',
             _DB_PREFIX_,
             _DB_PREFIX_ . FinancingSnapshotRepository::TABLE,
             pSQL($orderReference, true),
