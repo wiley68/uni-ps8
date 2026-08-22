@@ -14,20 +14,18 @@ use PrestaShop\Module\Unipayment\Checkout\CheckoutSubmitLock;
 use PrestaShop\Module\Unipayment\Checkout\CheckoutValidationException;
 use PrestaShop\Module\Unipayment\Checkout\ConsentResolver;
 use PrestaShop\Module\Unipayment\Checkout\CustomerFieldValidator;
-use PrestaShop\Module\Unipayment\Order\BankStatus;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderPayloadBuilder;
-use PrestaShop\Module\Unipayment\Order\FinancingOrderMailDispatcher;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotFactory;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
 use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
 use PrestaShop\Module\Unipayment\Order\OrderAttemptRepository;
-use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
 use PrestaShop\Module\Unipayment\Order\OrderConfirmationUrlBuilder;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
+use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleContext;
+use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleService;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfEndpointPolicy;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionCoordinator;
 
 final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontController
@@ -98,16 +96,15 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             );
             $result = $orchestrator->orchestrate($idShop, $idCart, $request, $shop, 'checkout');
             (new CheckoutPreferenceStore())->clear($this->context->cookie);
-            $snapshot = (new FinancingSnapshotRepository())->findByAttempt($result->attemptId);
-            $process2 = $this->isProcess2($shop);
-            $finalStatus = BankStatus::successfulSend($process2);
-            if ($snapshot !== null && $process2) {
-                $this->persistBankStatus($result->orderReference, $finalStatus);
-            }
 
-            if (!$process2 && $snapshot !== null) {
-                $shop['_currency_iso'] = (string) $this->context->currency->iso_code;
-                $coordinator = new SmartUcfSessionCoordinator(
+            $lifecycle = (new PostControlPanelLifecycleService())->handle(
+                $result,
+                $shop,
+                new PostControlPanelLifecycleContext(
+                    $idShop,
+                    (string) $this->context->currency->iso_code
+                ),
+                new SmartUcfSessionCoordinator(
                     null,
                     null,
                     null,
@@ -117,75 +114,10 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                     $module,
                     $this->context,
                     $cpApi
-                );
-                $smart = $coordinator->run($result->attemptId, $shop, false, $snapshot);
-                if ($smart->isCreated()) {
-                    $redirectUrl = $smart->redirectUrl();
-                    if (!(new SmartUcfEndpointPolicy())->isTrustedApplicationRedirect($redirectUrl)) {
-                        \PrestaShopLogger::addLog(
-                            'UniPayment blocked untrusted SmartUCF redirect after create.',
-                            3
-                        );
-                        (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
-                        $this->context->smarty->assign([
-                            'unipayment_order_result' => [
-                                'id_order' => $result->idOrder,
-                                'order_reference' => $result->orderReference,
-                                'control_panel_order_id' => $result->controlPanelOrderId,
-                            ],
-                            'unipayment_smartucf_outcome_unknown' => true,
-                            'unipayment_smartucf_message' => SmartUcfSessionCoordinator::CUSTOMER_OUTCOME_UNKNOWN,
-                        ]);
-                        $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
+                )
+            );
 
-                        return;
-                    }
-                    (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
-                    Tools::redirect($redirectUrl);
-
-                    return;
-                }
-                if ($smart->isProcessing()) {
-                    $this->context->smarty->assign([
-                        'unipayment_order_result' => [
-                            'id_order' => $result->idOrder,
-                            'order_reference' => $result->orderReference,
-                            'control_panel_order_id' => $result->controlPanelOrderId,
-                        ],
-                        'unipayment_smartucf_processing' => true,
-                        'unipayment_smartucf_message' => $smart->customerMessage(),
-                    ]);
-                    $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
-
-                    return;
-                }
-                if ($smart->isOutcomeUnknown()) {
-                    (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
-                    $this->context->smarty->assign([
-                        'unipayment_order_result' => [
-                            'id_order' => $result->idOrder,
-                            'order_reference' => $result->orderReference,
-                            'control_panel_order_id' => $result->controlPanelOrderId,
-                        ],
-                        'unipayment_smartucf_outcome_unknown' => true,
-                        'unipayment_smartucf_message' => $smart->customerMessage(),
-                    ]);
-                    $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
-
-                    return;
-                }
-                if ($smart->isFailed()) {
-                    $finalStatus = BankStatus::smartUcfFailure();
-                }
-            }
-
-            if ($snapshot !== null) {
-                (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
-            } else {
-                \PrestaShop\Module\Unipayment\Order\DeferredOrderMailQueue::flush();
-            }
-
-            if ($process2) {
+            if ($lifecycle->isProcess2()) {
                 Tools::redirect(
                     (new OrderConfirmationUrlBuilder())->build($this->context, $module, $result->idOrder)
                 );
@@ -193,11 +125,41 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 return;
             }
 
-            $this->context->smarty->assign(['unipayment_order_result' => [
+            if ($lifecycle->isCreated() && $lifecycle->redirectUrl() !== '') {
+                Tools::redirect($lifecycle->redirectUrl());
+
+                return;
+            }
+
+            $orderResult = [
                 'id_order' => $result->idOrder,
                 'order_reference' => $result->orderReference,
                 'control_panel_order_id' => $result->controlPanelOrderId,
-            ]]);
+            ];
+
+            if ($lifecycle->isProcessing()) {
+                $this->context->smarty->assign([
+                    'unipayment_order_result' => $orderResult,
+                    'unipayment_smartucf_processing' => true,
+                    'unipayment_smartucf_message' => $lifecycle->customerMessage(),
+                ]);
+                $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
+
+                return;
+            }
+
+            if ($lifecycle->isOutcomeUnknown()) {
+                $this->context->smarty->assign([
+                    'unipayment_order_result' => $orderResult,
+                    'unipayment_smartucf_outcome_unknown' => true,
+                    'unipayment_smartucf_message' => $lifecycle->customerMessage(),
+                ]);
+                $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
+
+                return;
+            }
+
+            $this->context->smarty->assign(['unipayment_order_result' => $orderResult]);
             $this->setTemplate('module:unipayment/views/templates/front/checkout_validated.tpl');
         } catch (CheckoutValidationException $exception) {
             $lock->release($idShop, $idCart, $lockToken);
@@ -233,24 +195,6 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
         ];
     }
 
-    /** @param array{status_id: string, status_label: string} $status */
-    private function persistBankStatus(string $orderReference, array $status): void
-    {
-        try {
-            (new OrderBankStatusRepository())->updateByOrderIdentifier(
-                (int) $this->context->shop->id,
-                $orderReference,
-                $status['status_id'],
-                $status['status_label']
-            );
-        } catch (\Throwable $exception) {
-            PrestaShopLogger::addLog(
-                'UniPayment local bank status update failed: ' . get_class($exception),
-                2
-            );
-        }
-    }
-
     private function showError(string $message): void
     {
         $this->context->smarty->assign([
@@ -258,14 +202,5 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             'unipayment_checkout_return_url' => $this->context->link->getPageLink('order', true),
         ]);
         $this->setTemplate('module:unipayment/views/templates/front/checkout_validation_error.tpl');
-    }
-
-    /**
-     * @param array<string, mixed> $shop
-     * @see productpopup.php::isProcess2()
-     */
-    private function isProcess2(array $shop): bool
-    {
-        return ((int) ($shop['uni_proces'] ?? 0)) === 1;
     }
 }

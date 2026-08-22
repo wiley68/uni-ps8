@@ -205,10 +205,11 @@ assertAud003(strpos($policySrc, 'uni_production_service') === false, 'policy doe
 // Controllers / coordinator gate redirects
 $coordSrc = (string) file_get_contents($root . '/src/SmartUcf/SmartUcfSessionCoordinator.php');
 assertAud003(strpos($coordSrc, 'isTrustedApplicationRedirect') !== false, '17: coordinator validates replay redirect');
-$checkout = (string) file_get_contents($root . '/controllers/front/validatecheckout.php');
-assertAud003(strpos($checkout, 'isTrustedApplicationRedirect') !== false, 'checkout blocks untrusted redirect');
+// Post-CP lifecycle service gates customer redirects (controllers stay transport-only)
+$lifecycleSrc = (string) file_get_contents($root . '/src/Order/PostControlPanelLifecycleService.php');
+assertAud003(strpos($lifecycleSrc, 'isTrustedApplicationRedirect') !== false, 'checkout blocks untrusted redirect');
 $popup = (string) file_get_contents($root . '/controllers/front/productpopup.php');
-assertAud003(strpos($popup, 'isTrustedApplicationRedirect') !== false, 'product popup blocks untrusted redirect');
+assertAud003(strpos($popup, 'PostControlPanelLifecycleService') !== false, 'product popup uses shared lifecycle redirect policy');
 
 // 18 legitimate happy-path URL wiring unchanged in shape
 assertAud003(

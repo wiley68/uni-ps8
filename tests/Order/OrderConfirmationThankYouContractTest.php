@@ -27,7 +27,7 @@ $presenter = (string) file_get_contents($root . '/src/Order/OrderLeasingDetailsP
 assertThankYou(strpos($urlBuilder, "'order-confirmation'") !== false, 'thank-you URL must use native order-confirmation');
 assertThankYou(strpos($urlBuilder, "'id_module'") !== false && strpos($urlBuilder, "'key'") !== false, 'confirmation URL must include module id and order key');
 assertThankYou(strpos($popup, 'OrderConfirmationUrlBuilder') !== false, 'popup Process 2 must redirect to thank-you');
-assertThankYou(strpos($popup, "if (\$this->isProcess2(\$shop))") !== false, 'popup thank-you redirect must be Process 2 only');
+assertThankYou(strpos($popup, 'ShopConfigurationFlags::isProcess2') !== false, 'popup thank-you redirect must be Process 2 only');
 assertThankYou(strpos($checkout, 'OrderConfirmationUrlBuilder') !== false, 'checkout Process 2 must redirect to thank-you');
 assertThankYou(strpos($javascript, 'body.redirect_url') !== false && strpos($javascript, 'window.location.assign(body.redirect_url)') !== false, 'popup JS must follow server thank-you URL');
 assertThankYou(strpos($module, 'hookDisplayPaymentReturn') !== false, 'native payment return hook missing');

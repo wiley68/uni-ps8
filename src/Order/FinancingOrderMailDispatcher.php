@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\Order;
 
-final class FinancingOrderMailDispatcher
+final class FinancingOrderMailDispatcher implements LeasingMailDispatchPort
 {
     private LeasingOrderEmailPresenter $presenter;
     private LeasingEmailNotifier $notifier;

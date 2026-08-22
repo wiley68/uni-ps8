@@ -123,8 +123,13 @@ assertAud002b(strpos($client, 'KIND_TRANSPORT') !== false, 'client marks transpo
 assertAud002b(strpos($client, 'KIND_PRE_SEND') !== false, 'client marks pre-send failures');
 
 $popup = (string) file_get_contents($root . '/controllers/front/productpopup.php');
+$popupMapper = (string) file_get_contents($root . '/src/Order/PostControlPanelLifecyclePopupMapper.php');
 assertAud002b(strpos($popup, 'existingOrderResponse') !== false && strpos($popup, 'SmartUcfSessionCoordinator') !== false, 'popup replay uses coordinator');
-assertAud002b(strpos($popup, "step'] = 'outcome_unknown'") !== false || strpos($popup, 'outcome_unknown') !== false, 'popup exposes outcome_unknown');
+assertAud002b(strpos($popup, 'PostControlPanelLifecyclePopupMapper') !== false, 'popup uses shared lifecycle mapper');
+assertAud002b(
+    strpos($popupMapper, "step'] = 'outcome_unknown'") !== false || strpos($popupMapper, 'outcome_unknown') !== false,
+    'popup exposes outcome_unknown'
+);
 
 $js = (string) file_get_contents($root . '/views/js/product-calculator.js');
 assertAud002b(strpos($js, 'outcome_unknown') !== false, 'JS handles outcome_unknown');

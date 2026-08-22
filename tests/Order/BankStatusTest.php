@@ -38,8 +38,11 @@ assertBankStatus(strpos($popup, 'SmartUcfSessionCoordinator') !== false, 'popup 
 assertBankStatus(strpos($checkout, 'SmartUcfSessionCoordinator') !== false, 'checkout must use shared SmartUCF coordinator');
 assertBankStatus(strpos($grid, 'unipayment_bs.status_label') !== false, 'orders grid must read persisted bank status labels');
 assertBankStatus(strpos($grid, "setName('UniCredit статус')") !== false, 'orders grid column name must match Woo UniCredit status');
-assertBankStatus(strpos($popup, 'FinancingOrderMailDispatcher') !== false && strpos($popup, 'BankStatus::smartUcfFailure') !== false, 'popup must send emails after the final bank status is known');
-assertBankStatus(strpos($checkout, 'FinancingOrderMailDispatcher') !== false && strpos($checkout, 'BankStatus::smartUcfFailure') !== false, 'checkout must send emails after the final bank status is known');
+$lifecycleService = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/PostControlPanelLifecycleService.php');
+assertBankStatus(strpos($popup, 'PostControlPanelLifecycleService') !== false, 'popup must use shared post-CP lifecycle service');
+assertBankStatus(strpos($checkout, 'PostControlPanelLifecycleService') !== false, 'checkout must use shared post-CP lifecycle service');
+assertBankStatus(strpos($lifecycleService, 'BankStatus::smartUcfFailure') !== false, 'lifecycle service must set final bank status before email');
+assertBankStatus(strpos($lifecycleService, 'LeasingMailDispatchPort') !== false || strpos($lifecycleService, 'FinancingOrderMailDispatcher') !== false, 'lifecycle service must dispatch leasing email centrally');
 assertBankStatus(strpos($gateway, 'DeferredOrderMailQueue::start') !== false, 'Process 1 order_conf must be deferred until SmartUCF');
 assertBankStatus(strpos($grid, 'hookActionEmailSendBefore') !== false, 'order_conf deferral hook must be registered');
 assertBankStatus(strpos($grid, 'hookDisplayPaymentReturn') !== false, 'Process 2 thank-you leasing block hook must be registered');

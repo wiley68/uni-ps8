@@ -8,24 +8,23 @@ use PrestaShop\Module\Unipayment\Cart\CartContextFactory;
 use PrestaShop\Module\Unipayment\Cart\CartPopupApplyService;
 use PrestaShop\Module\Unipayment\Cart\CartPopupCalculator;
 use PrestaShop\Module\Unipayment\Cart\CartSchemeResolver;
-use PrestaShop\Module\Unipayment\Order\BankStatus;
+use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderPayloadBuilder;
-use PrestaShop\Module\Unipayment\Order\FinancingOrderMailDispatcher;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotFactory;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
 use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
 use PrestaShop\Module\Unipayment\Order\OrderAttemptRepository;
-use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
 use PrestaShop\Module\Unipayment\Order\OrderConfirmationUrlBuilder;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
+use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleContext;
+use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecyclePopupMapper;
+use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleService;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 use PrestaShop\Module\Unipayment\Product\GuestCustomerFactory;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCustomerValidator;
 use PrestaShop\Module\Unipayment\Product\ProductPopupValidationException;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCoordinationResult;
-use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfEndpointPolicy;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionCoordinator;
 
 /**
@@ -180,60 +179,33 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
                 ],
             ];
 
-            try {
-                $snapshot = (new FinancingSnapshotRepository())->findByAttempt($result->attemptId);
-                if ($snapshot !== null) {
-                    $process2 = $this->isProcess2($shop);
-                    $finalStatus = BankStatus::successfulSend($process2);
-                    if ($process2) {
-                        $this->persistBankStatus($result->orderReference, $finalStatus);
-                        $response['redirect_url'] = (new OrderConfirmationUrlBuilder())->build(
-                            $this->context,
-                            $module,
-                            $result->idOrder
-                        );
-                    } else {
-                        $shop['_currency_iso'] = (string) $this->context->currency->iso_code;
-                        $coordinator = new SmartUcfSessionCoordinator(
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            $cpClient,
-                            $module,
-                            $this->context,
-                            $cpApi
-                        );
-                        $smart = $coordinator->run($result->attemptId, $shop, false, $snapshot);
-                        $this->applySmartUcfResultToResponse($response, $smart);
-                        if ($smart->isFailed()) {
-                            $finalStatus = BankStatus::smartUcfFailure();
-                        } elseif ($smart->isProcessing()) {
-                            return $response;
-                        }
-                    }
-
-                    try {
-                        (new FinancingOrderMailDispatcher())->send($snapshot, $result->attemptId, $shop, $finalStatus);
-                    } catch (\Throwable $emailException) {
-                        PrestaShopLogger::addLog(
-                            'UniPayment cart popup leasing email failed: ' . get_class($emailException) . ' ' . $emailException->getMessage(),
-                            2
-                        );
-                        $response['email_error'] = 'Leasing email could not be sent.';
-                    }
-                } else {
-                    \PrestaShop\Module\Unipayment\Order\DeferredOrderMailQueue::flush();
-                }
-            } catch (\Throwable $postOrderException) {
-                \PrestaShop\Module\Unipayment\Order\DeferredOrderMailQueue::flush();
-                PrestaShopLogger::addLog(
-                    'UniPayment cart popup post-order step failed: ' . get_class($postOrderException) . ' ' . $postOrderException->getMessage(),
-                    2
+            $lifecycle = (new PostControlPanelLifecycleService())->handle(
+                $result,
+                $shop,
+                new PostControlPanelLifecycleContext(
+                    (int) $this->context->shop->id,
+                    (string) $this->context->currency->iso_code
+                ),
+                new SmartUcfSessionCoordinator(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    $cpClient,
+                    $module,
+                    $this->context,
+                    $cpApi
+                )
+            );
+            if (ShopConfigurationFlags::isProcess2($shop)) {
+                $response['redirect_url'] = (new OrderConfirmationUrlBuilder())->build(
+                    $this->context,
+                    $module,
+                    $result->idOrder
                 );
-                $response['post_order_error'] = 'The order was created, but additional processing was not completed.';
             }
+            PostControlPanelLifecyclePopupMapper::apply($response, $lifecycle);
 
             return $response;
         } catch (ProductPopupValidationException $exception) {
@@ -265,71 +237,6 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
                 'success' => false,
                 'message' => 'Заявката не може да бъде обработена. Моля, опитайте отново.',
             ];
-        }
-    }
-
-    /**
-     * @param array<string, mixed> $response
-     */
-    private function applySmartUcfResultToResponse(array &$response, SmartUcfCoordinationResult $smart): void
-    {
-        if ($smart->isCreated()) {
-            $redirectUrl = $smart->redirectUrl();
-            if (!(new SmartUcfEndpointPolicy())->isTrustedApplicationRedirect($redirectUrl)) {
-                $response['step'] = 'outcome_unknown';
-                $response['smartucf_error'] = SmartUcfSessionCoordinator::CUSTOMER_OUTCOME_UNKNOWN;
-
-                return;
-            }
-            $response['redirect_url'] = $redirectUrl;
-            $response['step'] = 'order_created';
-
-            return;
-        }
-        if ($smart->isProcessing()) {
-            $response['step'] = 'processing';
-            $response['message'] = $smart->customerMessage() !== ''
-                ? $smart->customerMessage()
-                : SmartUcfSessionCoordinator::CUSTOMER_PROCESSING;
-
-            return;
-        }
-        if ($smart->isOutcomeUnknown()) {
-            $response['step'] = 'outcome_unknown';
-            $response['smartucf_error'] = $smart->customerMessage() !== ''
-                ? $smart->customerMessage()
-                : SmartUcfSessionCoordinator::CUSTOMER_OUTCOME_UNKNOWN;
-
-            return;
-        }
-        if ($smart->isFailed()) {
-            $response['smartucf_error'] = $smart->customerMessage() !== ''
-                ? $smart->customerMessage()
-                : SmartUcfSessionCoordinator::CUSTOMER_FAILED;
-        }
-    }
-
-    /** @param array<string, mixed> $shop */
-    private function isProcess2(array $shop): bool
-    {
-        return ((int) ($shop['uni_proces'] ?? 0)) === 1;
-    }
-
-    /** @param array{status_id: string, status_label: string} $status */
-    private function persistBankStatus(string $orderReference, array $status): void
-    {
-        try {
-            (new OrderBankStatusRepository())->updateByOrderIdentifier(
-                (int) $this->context->shop->id,
-                $orderReference,
-                $status['status_id'],
-                $status['status_label']
-            );
-        } catch (\Throwable $exception) {
-            PrestaShopLogger::addLog(
-                'UniPayment local bank status update failed: ' . get_class($exception),
-                2
-            );
         }
     }
 

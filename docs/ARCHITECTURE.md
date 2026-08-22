@@ -100,6 +100,19 @@ Helper: `ShopConfigurationFlags::isProcess2($shop)`.
 
 Entry: `OrderOrchestrator::orchestrate()`.
 
+### After successful CP order
+
+`PostControlPanelLifecycleService` centralizes post-CP behavior for product popup, cart popup, and checkout:
+
+- financing snapshot load;
+- Process 2 bank status + leasing email (no SmartUCF);
+- Process 1 SmartUCF run/resume via `SmartUcfSessionCoordinator`;
+- trusted redirect validation;
+- leasing email timing/status;
+- normalized `PostControlPanelLifecycleResult` for transport adapters.
+
+Controllers map the result to JSON, Smarty, or redirects. SmartUCF session creation remains inside `SmartUcfSessionCoordinator`.
+
 ### Attempt states (`unipayment_order_attempt.state`)
 
 | State                 | Meaning                                      |

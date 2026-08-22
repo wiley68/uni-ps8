@@ -21,7 +21,7 @@ use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateSyncException;
  *
  * Controllers must not call createSession() directly for Process 1 flows.
  */
-final class SmartUcfSessionCoordinator
+final class SmartUcfSessionCoordinator implements \PrestaShop\Module\Unipayment\Order\PostControlPanelSmartUcfPort
 {
     public const CUSTOMER_OUTCOME_UNKNOWN =
     'Поръчката е създадена, но потвърждението от банковата система не беше получено. Не изпращайте заявката повторно.';
