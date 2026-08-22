@@ -68,12 +68,26 @@
         };
     }
 
+    function secondaryActionUsesNativeAddToCart(buttonAction) {
+        return buttonAction !== "buy";
+    }
+
+    function resolveCheckoutRedirectUrl(body, fallbackUrl) {
+        if (body && body.checkout_url) {
+            return body.checkout_url;
+        }
+        return fallbackUrl || "";
+    }
+
     if (typeof module === "object" && module.exports) {
         module.exports.productAttributeId = productAttributeId;
         module.exports.buttonInstallmentLabel = buttonInstallmentLabel;
         module.exports.popupCalculationIdentity = popupCalculationIdentity;
         module.exports.popupCalculationSchemeFields =
             popupCalculationSchemeFields;
+        module.exports.secondaryActionUsesNativeAddToCart =
+            secondaryActionUsesNativeAddToCart;
+        module.exports.resolveCheckoutRedirectUrl = resolveCheckoutRedirectUrl;
         return;
     }
 
@@ -951,6 +965,18 @@
             );
         }
 
+        function redirectToCheckout(redirectUrl) {
+            if (!redirectUrl) {
+                errorBox.textContent = t(
+                    "data-add-to-cart-failed-message",
+                    "Не може да се добави в количката.",
+                );
+                redirectPending = false;
+                return;
+            }
+            window.location.assign(redirectUrl);
+        }
+
         function addToCart(redirectUrl) {
             var button = nativeAddButton();
             if (
@@ -982,7 +1008,9 @@
 
         function handleSecondary() {
             if (isCartSource || !lastCalculation || redirectPending) return;
-            if (root.getAttribute("data-button-action") !== "buy") {
+            if (secondaryActionUsesNativeAddToCart(
+                root.getAttribute("data-button-action"),
+            )) {
                 addToCart("");
                 return;
             }
@@ -991,9 +1019,11 @@
                 .then(function (body) {
                     applyButton.disabled = true;
                     setSecondaryDisabled(true);
-                    addToCart(
-                        body.checkout_url ||
+                    redirectToCheckout(
+                        resolveCheckoutRedirectUrl(
+                            body,
                             root.getAttribute("data-checkout-url"),
+                        ),
                     );
                 })
                 .catch(function () {

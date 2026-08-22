@@ -40,6 +40,8 @@ assert.strictEqual(buttonInstallmentLabel(null), '');
 
 var popupCalculationIdentity = productCalculator.popupCalculationIdentity;
 var popupCalculationSchemeFields = productCalculator.popupCalculationSchemeFields;
+var secondaryActionUsesNativeAddToCart = productCalculator.secondaryActionUsesNativeAddToCart;
+var resolveCheckoutRedirectUrl = productCalculator.resolveCheckoutRedirectUrl;
 var previous = { scheme_key: 'standard|STD|12|0', scheme_type: 'standard', kop_code: 'STD', months: 12, filter_id: 0 };
 var selected = { key: 'standard|STD|24|0', scheme_type: 'standard', kop_code: 'STD', months: 24, filter_id: 0 };
 var calculateIdentity = popupCalculationIdentity('calculate', selected, previous);
@@ -48,5 +50,13 @@ assert.strictEqual(popupCalculationSchemeFields(calculateIdentity, selected, 'st
 assert.strictEqual(popupCalculationSchemeFields(calculateIdentity, selected, 'standard').scheme_key, 'standard|STD|24|0');
 assert.strictEqual(popupCalculationSchemeFields(applyIdentity, selected, 'standard').months, 12);
 assert.strictEqual(popupCalculationSchemeFields(applyIdentity, selected, 'standard').scheme_key, 'standard|STD|12|0');
+
+assert.strictEqual(secondaryActionUsesNativeAddToCart('add_to_cart'), true);
+assert.strictEqual(secondaryActionUsesNativeAddToCart('buy'), false);
+assert.strictEqual(
+  resolveCheckoutRedirectUrl({ checkout_url: 'https://example.test/order' }, 'https://fallback.test/order'),
+  'https://example.test/order'
+);
+assert.strictEqual(resolveCheckoutRedirectUrl({}, 'https://fallback.test/order'), 'https://fallback.test/order');
 
 console.log('OK (Phase 6 product combination DOM source and Woo button label)');

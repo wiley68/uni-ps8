@@ -71,8 +71,15 @@ assertProductPopupContract(strpos($javascript, 'event.target.closest("[data-unip
 assertProductPopupContract(strpos($javascript, 'event.target.closest("[data-unipayment-overlay]")') === false, 'overlay must not close popup');
 assertProductPopupContract(strpos($javascript, 'event.key === "Escape"') !== false, 'Woo Escape close parity missing');
 assertProductPopupContract(strpos($javascript, '.product-add-to-cart button[data-button-action="add-to-cart"]') !== false, 'native PrestaShop add-to-cart integration missing');
-assertProductPopupContract(strpos($javascript, 'button.click()') !== false, 'native Product Page add-to-cart control must perform the mutation');
-assertProductPopupContract(strpos($javascript, 'requestCalculation("preselect")') !== false && strpos($javascript, 'window.prestashop.on("updatedCart"') !== false, 'Buy preselection/native-cart redirect flow missing');
+assertProductPopupContract(strpos($javascript, 'function addToCart(') !== false && strpos($javascript, 'button.click()') !== false, 'add-to-cart mode must still use native Product Page add-to-cart control');
+assertProductPopupContract(strpos($javascript, 'secondaryActionUsesNativeAddToCart') !== false, 'secondary action mode must be explicit');
+assertProductPopupContract(strpos($javascript, 'requestCalculation("preselect")') !== false && strpos($javascript, 'redirectToCheckout(') !== false, 'Buy preselection must redirect directly after server-side silent cart add');
+assertProductPopupContract(
+    (bool) preg_match('/handleSecondary\\([\\s\\S]*?requestCalculation\\("preselect"\\)[\\s\\S]*?redirectToCheckout\\(/', $javascript)
+        && !preg_match('/handleSecondary\\([\\s\\S]*?requestCalculation\\("preselect"\\)[\\s\\S]*?addToCart\\(/', $javascript),
+    'Buy preselection must not invoke native add-to-cart click flow'
+);
+assertProductPopupContract(strpos($controller, 'ProductPopupCheckoutPreselectionService') !== false, 'preselect must use server-side silent cart mutation service');
 assertProductPopupContract(strpos($javascript, 'setStep(2)') !== false && strpos($javascript, 'unipaymentSelectedFinancing') !== false, 'Apply Step 1 transition state missing');
 assertProductPopupContract(strpos($javascript, 'productAttributeId(document)') !== false && strpos($javascript, 'quantity()') !== false, 'dynamic Product context integration missing');
 assertProductPopupContract(strpos($javascript, 'unipaymentInvalidatePopup') !== false, 'dynamic Product changes must invalidate stale open-popup state immediately');

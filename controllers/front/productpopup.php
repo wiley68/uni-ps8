@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
-use PrestaShop\Module\Unipayment\Checkout\CheckoutPreferenceStore;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderPayloadBuilder;
@@ -28,6 +27,8 @@ use PrestaShop\Module\Unipayment\Product\ProductContextFactory;
 use PrestaShop\Module\Unipayment\Product\ProductPopupApplyService;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCustomerValidator;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCalculator;
+use PrestaShop\Module\Unipayment\Product\ProductPopupCheckoutPreselectionException;
+use PrestaShop\Module\Unipayment\Product\ProductPopupCheckoutPreselectionService;
 use PrestaShop\Module\Unipayment\Product\ProductPopupValidationException;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionCoordinator;
 
@@ -125,23 +126,19 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             }
 
             if ($action === 'preselect') {
-                $cart = $this->ensureCart();
-                (new CheckoutPreferenceStore())->save($this->context->cookie, [
-                    'product_id' => (int) $productId,
-                    'product_attribute_id' => (int) $attributeId,
-                    'quantity' => (int) $quantity,
-                    'scheme_type' => $calculation['scheme_type'],
-                    'kop_code' => $calculation['kop_code'],
-                    'months' => $calculation['months'],
-                    'filter_id' => $calculation['filter_id'],
-                    'first_installment' => $calculation['first_installment'],
-                    'product_amount' => $calculation['price'],
-                ], (int) $cart->id, (int) $this->context->customer->id);
+                $preselection = (new ProductPopupCheckoutPreselectionService())->execute(
+                    $calculation,
+                    (int) $productId,
+                    (int) $attributeId,
+                    (int) $quantity,
+                    $this->context,
+                    $this->context->link
+                );
 
                 return [
                     'success' => true,
                     'calculation' => $calculation,
-                    'checkout_url' => $this->context->link->getPageLink('order', true),
+                    'checkout_url' => $preselection['checkout_url'],
                 ];
             }
 
@@ -159,6 +156,13 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             $this->logPopupSelectionFailure($exception);
 
             return $this->error(422, 'The financing selection is unavailable.');
+        } catch (ProductPopupCheckoutPreselectionException $exception) {
+            PrestaShopLogger::addLog(
+                'UniPayment product popup preselect cart failed: ' . $this->sanitizeExceptionMessage($exception),
+                2
+            );
+
+            return $this->error(422, $exception->customerMessage());
         } catch (Throwable $exception) {
             PrestaShopLogger::addLog(
                 'UniPayment product popup request failed: ' . get_class($exception) . ' ' . $this->sanitizeExceptionMessage($exception),
@@ -602,30 +606,6 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             $this->context,
             $module->getControlPanelClient()
         );
-    }
-
-    private function ensureCart(): Cart
-    {
-        $cart = $this->context->cart;
-        if ($cart instanceof Cart && (int) $cart->id > 0) {
-            return $cart;
-        }
-        $cart = new Cart();
-        $cart->id_shop_group = (int) $this->context->shop->id_shop_group;
-        $cart->id_shop = (int) $this->context->shop->id;
-        $cart->id_lang = (int) $this->context->language->id;
-        $cart->id_currency = (int) $this->context->currency->id;
-        $cart->id_customer = (int) $this->context->customer->id;
-        $cart->id_guest = (int) $this->context->cookie->id_guest;
-        $cart->secure_key = (string) $this->context->customer->secure_key;
-        if (!$cart->add()) {
-            throw new RuntimeException('The cart could not be initialized.');
-        }
-        $this->context->cart = $cart;
-        $this->context->cookie->id_cart = (int) $cart->id;
-        $this->context->cookie->write();
-
-        return $cart;
     }
 
     private function logPopupSelectionFailure(\Throwable $exception): void

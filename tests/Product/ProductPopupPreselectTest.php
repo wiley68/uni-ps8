@@ -26,17 +26,17 @@ if (
         "/if \\(\\\$action === 'preselect'\\)[\\s\\S]*?CheckoutPreferenceStore\\(\\)\\)->save\\(\\\$this->context->cookie, \\[(.*?)\\], \\(int\\) \\\$cart->id/s",
         $controller,
         $matches
-    ) !== 1
+    ) === 1
 ) {
-    assertProductPopupPreselect(false, 'preselect CheckoutPreferenceStore save block missing');
+    assertProductPopupPreselect(false, 'preselect must not save checkout preference directly in controller');
 }
 assertProductPopupPreselect(
-    strpos($matches[1], "'calculation'") === false,
-    'preselect must not persist full calculation blob in checkout preference cookie'
+    strpos($controller, 'ProductPopupCheckoutPreselectionService') !== false,
+    'preselect must delegate to server-side checkout preselection service'
 );
 assertProductPopupPreselect(
-    strpos($controller, "'product_amount' => \$calculation['price']") !== false,
-    'preselect must persist authoritative product amount for checkout preference matching'
+    strpos((string) file_get_contents($root . '/src/Product/ProductPopupCheckoutPreselectionService.php'), "'product_amount' =>") !== false,
+    'preselect service must persist authoritative product amount for checkout preference matching'
 );
 
 require dirname(__DIR__) . '/Calculator/fixtures.php';
