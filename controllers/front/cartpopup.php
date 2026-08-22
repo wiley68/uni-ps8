@@ -320,6 +320,7 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
     {
         try {
             (new OrderBankStatusRepository())->updateByOrderIdentifier(
+                (int) $this->context->shop->id,
                 $orderReference,
                 $status['status_id'],
                 $status['status_label']

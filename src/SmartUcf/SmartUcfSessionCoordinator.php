@@ -361,6 +361,7 @@ final class SmartUcfSessionCoordinator
         $status = BankStatus::successfulSend(false);
         try {
             (new OrderBankStatusRepository())->updateByOrderIdentifier(
+                $this->authorizedShopId(),
                 $orderReference,
                 $status['status_id'],
                 $status['status_label']
@@ -391,6 +392,7 @@ final class SmartUcfSessionCoordinator
         if ($orderReference !== '') {
             try {
                 (new OrderBankStatusRepository())->updateByOrderIdentifier(
+                    $this->authorizedShopId(),
                     $orderReference,
                     $failedStatus['status_id'],
                     $failedStatus['status_label']
@@ -430,6 +432,13 @@ final class SmartUcfSessionCoordinator
         } catch (\Throwable $e) {
             // Diagnostic only.
         }
+    }
+
+    private function authorizedShopId(): int
+    {
+        return $this->context instanceof \Context && isset($this->context->shop)
+            ? (int) $this->context->shop->id
+            : 0;
     }
 
     /** @param mixed $request */

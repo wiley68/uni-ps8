@@ -237,6 +237,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
     {
         try {
             (new OrderBankStatusRepository())->updateByOrderIdentifier(
+                (int) $this->context->shop->id,
                 $orderReference,
                 $status['status_id'],
                 $status['status_label']

@@ -41,17 +41,18 @@ final class OrderBankStatusRepository
     }
 
     /** @return array<string, mixed>|null */
-    public function updateByOrderIdentifier(string $orderId, string $statusId, string $statusLabel): ?array
+    public function updateByOrderIdentifier(int $idShop, string $orderReference, string $statusId, string $statusLabel): ?array
     {
-        $order = $this->findOrder($orderId);
+        $order = $this->findAuthorizedFinancingOrder($idShop, $orderReference);
         if ($order === null) {
             return null;
         }
 
+        $resolvedReference = (string) $order['order_reference'];
         $values = [
             'id_order' => (string) $order['id_order'],
             'id_shop' => (string) $order['id_shop'],
-            'order_id' => $orderId,
+            'order_id' => $resolvedReference,
             'status_id' => $statusId,
             'status_label' => $statusLabel,
             'updated_at' => gmdate('Y-m-d H:i:s'),
@@ -79,7 +80,7 @@ final class OrderBankStatusRepository
         }
 
         return [
-            'order_id' => $orderId,
+            'order_id' => $resolvedReference,
             'ps_order_id' => (int) $order['id_order'],
             'status' => $statusLabel,
             'status_id' => $statusId,
@@ -102,21 +103,36 @@ final class OrderBankStatusRepository
         return is_array($row) ? $row : null;
     }
 
-    /** @return array{id_order: int, id_shop: int}|null */
-    private function findOrder(string $orderId): ?array
+    /**
+     * Resolve a UniPayment financing order in the authorized shop by shop order reference.
+     *
+     * Incoming order_id from Control Panel is always ps_orders.reference, never id_order,
+     * even when the reference consists only of digits.
+     *
+     * @return array{id_order: int, id_shop: int, order_reference: string}|null
+     */
+    private function findAuthorizedFinancingOrder(int $idShop, string $orderReference): ?array
     {
-        $orderId = trim($orderId);
-        if ($orderId === '') {
+        if ($idShop <= 0) {
             return null;
         }
 
-        $where = ctype_digit($orderId)
-            ? '`id_order` = ' . (int) $orderId
-            : "`reference` = '" . pSQL($orderId) . "'";
+        $orderReference = trim($orderReference);
+        if ($orderReference === '') {
+            return null;
+        }
+
         $row = $this->database->getRow(sprintf(
-            'SELECT `id_order`, `id_shop` FROM `%sorders` WHERE %s ORDER BY `id_order` DESC',
+            'SELECT o.`id_order`, o.`id_shop`, o.`reference`
+             FROM `%1$sorders` o
+             INNER JOIN `%2$s` s ON s.`id_order` = o.`id_order`
+             WHERE o.`reference` = \'%3$s\'
+               AND o.`id_shop` = %4$d
+             LIMIT 1',
             _DB_PREFIX_,
-            $where
+            _DB_PREFIX_ . FinancingSnapshotRepository::TABLE,
+            pSQL($orderReference, true),
+            $idShop
         ));
         if (!is_array($row)) {
             return null;
@@ -125,6 +141,7 @@ final class OrderBankStatusRepository
         return [
             'id_order' => (int) $row['id_order'],
             'id_shop' => (int) $row['id_shop'],
+            'order_reference' => (string) $row['reference'],
         ];
     }
 

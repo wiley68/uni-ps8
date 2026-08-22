@@ -13,6 +13,11 @@ final class UnipaymentOrderbankstatusModuleFrontController extends ModuleApiCont
     protected function handleAuthenticatedRequest(array $payload, string $unicid): array
     {
         unset($unicid);
+        $idShop = (int) ($this->context->shop->id ?? 0);
+        if ($idShop <= 0) {
+            throw new ModuleApiException('The shop context is invalid.', 400);
+        }
+
         $orderId = $this->requiredString($payload, 'order_id', 64);
         $statusId = $this->requiredString($payload, 'status_id', 255);
         $status = $payload['status'] ?? '';
@@ -21,6 +26,7 @@ final class UnipaymentOrderbankstatusModuleFrontController extends ModuleApiCont
         }
 
         $result = (new OrderBankStatusRepository())->updateByOrderIdentifier(
+            $idShop,
             $orderId,
             $statusId,
             trim($status)
