@@ -128,6 +128,11 @@
         root.dataset.unipaymentReady = "1";
         var config = parseConfig(root);
         var modal = root.querySelector("[data-unipayment-modal]");
+        var dialog = modal ? modal.querySelector('[role="dialog"]') : null;
+        var backgroundInertRecords = [];
+        var modalFocusInGuard = null;
+        var FOCUSABLE_SELECTOR =
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
         var select = root.querySelector("[data-unipayment-schemes]");
         var first = root.querySelector("[data-unipayment-first]");
         var firstRow = root.querySelector("[data-unipayment-first-row]");
@@ -165,6 +170,183 @@
 
         function t(attribute, fallback) {
             return root.getAttribute(attribute) || fallback;
+        }
+
+        function isModalOpen() {
+            return !!modal && modal.hidden === false;
+        }
+
+        function supportsInert() {
+            return "inert" in HTMLElement.prototype;
+        }
+
+        function getDialogContainer() {
+            return dialog || modal;
+        }
+
+        function isElementHidden(element, stopAt) {
+            var node = element;
+            while (node && node !== stopAt) {
+                if (
+                    node.hidden ||
+                    node.getAttribute("aria-hidden") === "true"
+                ) {
+                    return true;
+                }
+                node = node.parentElement;
+            }
+            return false;
+        }
+
+        function getFocusableElements(container) {
+            if (!container) return [];
+            var nodes = container.querySelectorAll(FOCUSABLE_SELECTOR);
+            var focusables = [];
+            var index;
+            for (index = 0; index < nodes.length; index += 1) {
+                var element = nodes[index];
+                if (element.disabled) continue;
+                if (isElementHidden(element, container)) continue;
+                var style = window.getComputedStyle(element);
+                if (style.visibility === "hidden" || style.display === "none") {
+                    continue;
+                }
+                focusables.push(element);
+            }
+            return focusables;
+        }
+
+        function focusDialogContainer() {
+            var container = getDialogContainer();
+            if (!container || typeof container.focus !== "function") return;
+            if (!container.hasAttribute("tabindex")) {
+                container.setAttribute("tabindex", "-1");
+            }
+            container.focus();
+        }
+
+        function focusInitialInModal() {
+            if (
+                select &&
+                !select.disabled &&
+                !isElementHidden(select, getDialogContainer())
+            ) {
+                select.focus();
+                return;
+            }
+            var focusables = getFocusableElements(getDialogContainer());
+            if (focusables.length) {
+                focusables[0].focus();
+                return;
+            }
+            focusDialogContainer();
+        }
+
+        function applyBackgroundInert() {
+            if (!supportsInert() || !modal) return;
+            backgroundInertRecords = [];
+            var seen = [];
+            function remember(element) {
+                if (
+                    !element ||
+                    element === modal ||
+                    seen.indexOf(element) !== -1
+                ) {
+                    return;
+                }
+                seen.push(element);
+                backgroundInertRecords.push({
+                    el: element,
+                    inert: element.inert,
+                });
+                element.inert = true;
+            }
+            var index;
+            var child;
+            if (document.body) {
+                for (
+                    index = 0;
+                    index < document.body.children.length;
+                    index += 1
+                ) {
+                    child = document.body.children[index];
+                    if (!child.contains(modal)) remember(child);
+                }
+            }
+            var anchor = modal;
+            while (anchor && anchor !== document.body) {
+                var parent = anchor.parentElement;
+                if (parent) {
+                    for (
+                        index = 0;
+                        index < parent.children.length;
+                        index += 1
+                    ) {
+                        child = parent.children[index];
+                        if (child !== anchor && !child.contains(modal)) {
+                            remember(child);
+                        }
+                    }
+                }
+                anchor = parent;
+            }
+        }
+
+        function restoreBackgroundInert() {
+            backgroundInertRecords.forEach(function (record) {
+                if (record.el && supportsInert()) {
+                    record.el.inert = record.inert;
+                }
+            });
+            backgroundInertRecords = [];
+        }
+
+        function enableModalFocusGuard() {
+            if (modalFocusInGuard) return;
+            modalFocusInGuard = function (event) {
+                if (!isModalOpen()) return;
+                var container = getDialogContainer();
+                if (!container || container.contains(event.target)) return;
+                event.stopPropagation();
+                var focusables = getFocusableElements(container);
+                if (focusables.length) focusables[0].focus();
+                else focusDialogContainer();
+            };
+            document.addEventListener("focusin", modalFocusInGuard, true);
+        }
+
+        function disableModalFocusGuard() {
+            if (!modalFocusInGuard) return;
+            document.removeEventListener("focusin", modalFocusInGuard, true);
+            modalFocusInGuard = null;
+        }
+
+        function handleModalTabKey(event) {
+            if (!isModalOpen()) return;
+            var container = getDialogContainer();
+            var focusables = getFocusableElements(container);
+            if (!focusables.length) {
+                event.preventDefault();
+                focusDialogContainer();
+                return;
+            }
+            var first = focusables[0];
+            var last = focusables[focusables.length - 1];
+            var active = document.activeElement;
+            if (!container.contains(active)) {
+                event.preventDefault();
+                (event.shiftKey ? last : first).focus();
+                return;
+            }
+            if (event.shiftKey && active === first) {
+                event.preventDefault();
+                last.focus();
+                return;
+            }
+            if (!event.shiftKey && active === last) {
+                event.preventDefault();
+                first.focus();
+            }
         }
 
         var STEP_TRANSITION_MS = 600;
@@ -531,6 +713,8 @@
             modal.hidden = true;
             modal.setAttribute("aria-hidden", "true");
             document.body.classList.remove("unipayment-modal-open");
+            disableModalFocusGuard();
+            restoreBackgroundInert();
             setProcessingState(false);
             resetPopup();
             if (lastOpenTrigger && document.body.contains(lastOpenTrigger))
@@ -755,8 +939,10 @@
             modal.hidden = false;
             modal.setAttribute("aria-hidden", "false");
             document.body.classList.add("unipayment-modal-open");
+            applyBackgroundInert();
+            enableModalFocusGuard();
             calculateNow();
-            select.focus();
+            focusInitialInModal();
         }
 
         function nativeAddButton() {
@@ -1247,7 +1433,12 @@
             calculateNow();
         });
         root.addEventListener("keydown", function (event) {
-            if (event.key === "Escape" && !modal.hidden) close();
+            if (modal.hidden) return;
+            if (event.key === "Escape") {
+                close();
+                return;
+            }
+            if (event.key === "Tab") handleModalTabKey(event);
         });
 
         root.unipaymentUpdate = function (next) {

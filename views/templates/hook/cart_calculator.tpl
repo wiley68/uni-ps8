@@ -60,7 +60,7 @@
         <div class="unipayment-product-calculator__modal" data-unipayment-modal hidden aria-hidden="true">
             <div class="unipayment-product-calculator__overlay" aria-hidden="true"></div>
             <div class="unipayment-product-calculator__modal-scroll">
-                <div class="unipayment-product-calculator__dialog" role="dialog" aria-modal="true"
+                <div class="unipayment-product-calculator__dialog" role="dialog" aria-modal="true" tabindex="-1"
                     aria-labelledby="unipayment-cart-calculator-title">
                     {if $unipayment_popup.banner_url || $unipayment_popup.banner_url_mobile}
                         <div class="unipayment-product-calculator__banner">
