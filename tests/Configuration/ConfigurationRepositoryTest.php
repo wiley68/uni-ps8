@@ -66,7 +66,7 @@ final class PhpEncryption
     }
 }
 
-require_once dirname(__DIR__, 2) . '/src/Configuration/ConfigurationRepository.php';
+require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
 
