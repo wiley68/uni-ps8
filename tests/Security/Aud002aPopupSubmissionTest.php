@@ -68,6 +68,12 @@ if (!is_file($config)) {
     exit(0);
 }
 
+require dirname(__DIR__) . '/Support/TestSuiteGuard.php';
+
+use PrestaShop\Module\Unipayment\Tests\Support\TestSuiteGuard;
+
+TestSuiteGuard::skipUnlessRuntimeIntegration('AUD-002A repository integration');
+
 require $config;
 
 $repo = new PopupSubmissionRepository();

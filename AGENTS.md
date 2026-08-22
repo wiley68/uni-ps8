@@ -698,9 +698,33 @@ Schema changes трябва да са съвместими с бъдещ module 
 - LCM behavior;
 - coefficient selection.
 
-Integration поведението трябва да бъде проверявано и в реалния PrestaShop test shop.
+Integration поведението трябва да бъде проверявано и в реалния PrestaShop test shop, но без да се унищожава dev installation state.
 
-Не променяй production-like data само за да улесниш тест.
+## Safe default verification
+
+След нормални code changes използвай:
+
+```bash
+composer test
+```
+
+Това е safe default suite (`php tests/run.php safe` + JS). Не използвай legacy командата:
+
+```bash
+find tests -name '*Test.php' -exec php {} \;
+```
+
+Тя изпълнява и destructive runtime тестове срещу live dev DB.
+
+## Runtime / destructive suites
+
+- `composer test:runtime` — non-destructive PrestaShop integration
+- `composer test:destructive` — само с explicit env flags и isolated test DB
+- `composer test:verify-dev-state` — safe suite + fingerprint preservation check
+
+Пълни правила: `docs/TESTING.md`.
+
+Не променяй production-like module configuration/tables само за да улесниш тест.
 
 ---
 

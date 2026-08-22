@@ -17,8 +17,14 @@ if (!is_file($config)) {
     exit(0);
 }
 
-require $config;
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/Support/TestSuiteGuard.php';
+
+use PrestaShop\Module\Unipayment\Tests\Support\TestSuiteGuard;
+
+TestSuiteGuard::skipUnlessRuntimeIntegration('order bank status runtime persistence');
+
+require $config;
 
 use PrestaShop\Module\Unipayment\Order\BankStatus;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;

@@ -11,6 +11,23 @@
       "PrestaShop\\Module\\Unipayment\\": "src/"
     }
   },
+  "autoload-dev": {
+    "psr-4": {
+      "PrestaShop\\Module\\Unipayment\\Tests\\Support\\": "tests/Support/"
+    }
+  },
+  "scripts": {
+    "test": [
+      "@test:php:safe",
+      "@test:js"
+    ],
+    "test:php:safe": "php tests/run.php safe",
+    "test:runtime": "php tests/run.php runtime",
+    "test:destructive": "UNIPAYMENT_ALLOW_DESTRUCTIVE_DB_TESTS=1 UNIPAYMENT_TEST_DATABASE=1 php tests/run.php destructive",
+    "test:all": "php tests/run.php all",
+    "test:verify-dev-state": "php tests/Infrastructure/DevStatePreservationTest.php",
+    "test:js": "node tests/Product/ProductCalculatorJsTest.js"
+  },
   "config": {
     "optimize-autoloader": true,
     "preferred-install": "dist",

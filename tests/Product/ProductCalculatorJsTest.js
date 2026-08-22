@@ -71,4 +71,4 @@ preselectPayload = new URLSearchParams();
 attachPreselectOperationToken(preselectPayload, 'calculate', 'ignored');
 assert.strictEqual(preselectPayload.get('preselect_operation_token'), null);
 
-sconsole.log('OK (Phase 6 product combination DOM source and Woo button label)');
+console.log('OK (Phase 6 product combination DOM source and Woo button label)');

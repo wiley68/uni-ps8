@@ -17,6 +17,14 @@ if (!is_file($config)) {
     exit(1);
 }
 
+require dirname(__DIR__, 2) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/Support/TestSuiteGuard.php';
+require dirname(__DIR__) . '/Calculator/fixtures.php';
+
+use PrestaShop\Module\Unipayment\Tests\Support\TestSuiteGuard;
+
+TestSuiteGuard::skipUnlessRuntimeIntegration('silent Product Buy checkout preselection runtime');
+
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['HTTP_HOST'] = 'presta8.avalonbg.com';
 $_SERVER['SERVER_NAME'] = 'presta8.avalonbg.com';
@@ -27,8 +35,6 @@ $_SERVER['SCRIPT_NAME'] = '/index.php';
 $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 
 require $config;
-require dirname(__DIR__, 2) . '/vendor/autoload.php';
-require dirname(__DIR__) . '/Calculator/fixtures.php';
 
 use PrestaShop\Module\Unipayment\Api\Exception\AuthenticationException;
 use PrestaShop\Module\Unipayment\Calculator\Calculator;

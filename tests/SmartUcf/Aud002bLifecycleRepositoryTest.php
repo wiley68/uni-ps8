@@ -18,8 +18,14 @@ if (!is_file($config)) {
     exit(0);
 }
 
-require $config;
 require $root . '/vendor/autoload.php';
+require dirname(__DIR__) . '/Support/TestSuiteGuard.php';
+
+use PrestaShop\Module\Unipayment\Tests\Support\TestSuiteGuard;
+
+TestSuiteGuard::skipUnlessRuntimeIntegration('AUD-002B lifecycle repository');
+
+require $config;
 
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfFailureClassification;
@@ -34,10 +40,35 @@ function assertAud002bRepo(bool $condition, string $message): void
     }
 }
 
+/** @internal IDE/runtime helper for PrestaShop Db methods used in this test */
+interface Aud002bDbConnection
+{
+    public function execute(string $sql): bool;
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function insert(
+        string $table,
+        array $data,
+        bool $null_values = false,
+        bool $use_cache = true,
+        int $type = 1,
+        bool $add_prefix = true
+    ): bool;
+}
+
+/** @return Aud002bDbConnection */
+function aud002bDb()
+{
+    /** @var Aud002bDbConnection */
+    return Db::getInstance();
+}
+
 $snapshots = new FinancingSnapshotRepository();
 assertAud002bRepo($snapshots->install(), 'snapshot table install');
 
-$db = Db::getInstance();
+$db = aud002bDb();
 $attemptId = 900000 + random_int(1, 99999);
 $orderId = $attemptId;
 $now = gmdate('Y-m-d H:i:s');

@@ -20,11 +20,16 @@ if (!is_file($config)) {
     exit(1);
 }
 
-require $config;
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/Support/TestSuiteGuard.php';
 
 use PrestaShop\Module\Unipayment\Product\GuestCustomerFactory;
 use PrestaShop\Module\Unipayment\Product\PopupCustomerIdentityGate;
+use PrestaShop\Module\Unipayment\Tests\Support\TestSuiteGuard;
+
+TestSuiteGuard::skipUnlessRuntimeIntegration('AUD-001 GuestCustomerFactory runtime');
+
+require $config;
 
 function assertAud001Runtime(bool $condition, string $message): void
 {
@@ -34,12 +39,28 @@ function assertAud001Runtime(bool $condition, string $message): void
     }
 }
 
+/** @internal IDE/runtime helper for PrestaShop Db methods used in this test */
+interface Aud001DbConnection
+{
+    /** @return array<int, array<string, mixed>>|false|null */
+    public function executeS(string $sql);
+
+    public function getValue(string $sql, bool $useCache = true);
+}
+
+/** @return Aud001DbConnection */
+function aud001Db()
+{
+    /** @var Aud001DbConnection */
+    return Db::getInstance();
+}
+
 function aud001DeleteCustomer(int $idCustomer): void
 {
     if ($idCustomer <= 0) {
         return;
     }
-    $addresses = Db::getInstance()->executeS(
+    $addresses = aud001Db()->executeS(
         'SELECT `id_address` FROM `' . _DB_PREFIX_ . 'address` WHERE `id_customer` = ' . (int) $idCustomer
     );
     if (is_array($addresses)) {
@@ -111,7 +132,7 @@ try {
     $registeredReload = new Customer($registeredId);
     assertAud001Runtime(Validate::isLoadedObject($registeredReload), 'registered fixture must remain');
     assertAud001Runtime((int) $registeredReload->is_guest === 0, 'registered customer must stay non-guest');
-    $registeredAddressCount = (int) Db::getInstance()->getValue(
+    $registeredAddressCount = (int) aud001Db()->getValue(
         'SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'address` WHERE `id_customer` = ' . $registeredId
     );
     assertAud001Runtime($registeredAddressCount === 0, 'registered account must receive no new address');
