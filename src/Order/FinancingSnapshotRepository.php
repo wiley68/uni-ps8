@@ -7,8 +7,15 @@ namespace PrestaShop\Module\Unipayment\Order;
 final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterface
 {
     public const TABLE = 'unipayment_financing_snapshot';
-    private \Db $database;
-    public function __construct(?\Db $database = null)
+    /** Matches PrestaShop {@see \Db}::INSERT_IGNORE for idempotent snapshot persistence. */
+    private const INSERT_IGNORE = 2;
+    /** @var \Db|object */
+    private $database;
+
+    /**
+     * @param \Db|object|null $database
+     */
+    public function __construct($database = null)
     {
         $this->database = $database ?? \Db::getInstance();
     }
@@ -51,7 +58,7 @@ final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterfa
         foreach (['customer_json', 'address_json', 'lines_json', 'consents_json'] as $key) $values[$key] = json_encode($values[$key] ?? [], JSON_THROW_ON_ERROR);
         $values['created_at'] = $values['created_at'] ?? gmdate('Y-m-d H:i:s');
         $values['updated_at'] = gmdate('Y-m-d H:i:s');
-        if (!$this->database->insert(self::TABLE, $values, false, true, \Db::INSERT_IGNORE) && $this->findByAttempt($attemptId) === null) throw new \RuntimeException('The financing snapshot could not be stored.');
+        if (!$this->database->insert(self::TABLE, $values, false, true, self::INSERT_IGNORE) && $this->findByAttempt($attemptId) === null) throw new \RuntimeException('The financing snapshot could not be stored.');
     }
 
     public function findByAttempt(int $attemptId): ?array
@@ -88,5 +95,30 @@ final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterfa
         foreach ($changes as $key => $value) if (in_array($key, $allowed, true)) $data[$key] = $value;
         $data['updated_at'] = gmdate('Y-m-d H:i:s');
         if (!$this->database->update(self::TABLE, $data, '`id_attempt`=' . $attemptId)) throw new \RuntimeException('The financing snapshot could not be updated.');
+    }
+
+    public function redactExpiredPii(string $cutoffDatetime, int $limit): int
+    {
+        $limit = max(1, min(500, $limit));
+        $table = _DB_PREFIX_ . self::TABLE;
+        $emptyJson = '{}';
+        $updatedAt = gmdate('Y-m-d H:i:s');
+
+        $this->database->execute(
+            'UPDATE `' . $table . '`
+            SET `customer_json` = \'' . pSQL($emptyJson) . '\',
+                `address_json` = \'' . pSQL($emptyJson) . '\',
+                `sensitive_payload` = NULL,
+                `updated_at` = \'' . pSQL($updatedAt) . '\'
+            WHERE `created_at` < \'' . pSQL($cutoffDatetime) . '\'
+              AND (
+                `customer_json` NOT IN (\'' . pSQL($emptyJson) . '\', \'[]\', \'\')
+                OR `address_json` NOT IN (\'' . pSQL($emptyJson) . '\', \'[]\', \'\')
+                OR `sensitive_payload` IS NOT NULL
+              )
+            LIMIT ' . (int) $limit
+        );
+
+        return (int) $this->database->Affected_Rows();
     }
 }

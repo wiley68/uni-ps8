@@ -19,8 +19,7 @@ final class LeasingEmailNotifier
     }
 
     /**
-     * Sends leasing-information email to customer and admin — once per attempt.
-     * Assumes current install schema (incl. leasing_email_sent); does not mutate DDL.
+     * Sends audience-specific leasing emails — once per attempt.
      *
      * @param array<string, mixed> $snapshot
      * @param array<string, mixed> $shop
@@ -39,16 +38,13 @@ final class LeasingEmailNotifier
             return;
         }
 
-        $rows = $this->presenter->rowsFromSnapshot($snapshot, $shop);
-        if ($rows === []) {
+        $customerRows = $this->presenter->customerRowsFromSnapshot($snapshot, $shop);
+        $adminRows = $this->presenter->adminRowsFromSnapshot($snapshot, $shop);
+        if ($customerRows === [] && $adminRows === []) {
             return;
         }
 
         $subject = sprintf('УниКредит лизинг — %s', (string) ($snapshot['order_reference'] ?? ''));
-        $textBody = $this->presenter->renderText($rows);
-        $htmlBody = $this->presenter->renderHtml($rows);
-
-        $to = array_unique(array_filter([$customerEmail, $adminEmail]));
         $languageId = (int) \Configuration::get('PS_LANG_DEFAULT');
         if ($languageId <= 0) {
             $languageId = 1;
@@ -57,29 +53,18 @@ final class LeasingEmailNotifier
         $fromEmail = (string) \Configuration::get('PS_SHOP_EMAIL');
         $moduleMailsDir = _PS_MODULE_DIR_ . 'unipayment/mails';
 
-        foreach ($to as $email) {
-            try {
-                \Mail::Send(
-                    $languageId,
-                    'ordersend',
-                    $subject,
-                    [
-                        '{message}' => trim($textBody),
-                        '{message_html}' => $htmlBody,
-                    ],
-                    $email,
-                    null,
-                    $fromEmail,
-                    $fromName,
-                    null,
-                    null,
-                    $moduleMailsDir
-                );
-            } catch (\Throwable $exception) {
-                \PrestaShopLogger::addLog(
-                    'UniPayment leasing email could not be sent: ' . $exception->getMessage(),
-                    2
-                );
+        $sameRecipient = $customerEmail !== ''
+            && $adminEmail !== ''
+            && strcasecmp($customerEmail, $adminEmail) === 0;
+
+        if ($sameRecipient) {
+            $this->sendLeasingMail($adminEmail, $subject, $adminRows, $languageId, $fromEmail, $fromName, $moduleMailsDir);
+        } else {
+            if ($customerEmail !== '' && $customerRows !== []) {
+                $this->sendLeasingMail($customerEmail, $subject, $customerRows, $languageId, $fromEmail, $fromName, $moduleMailsDir);
+            }
+            if ($adminEmail !== '' && $adminRows !== []) {
+                $this->sendLeasingMail($adminEmail, $subject, $adminRows, $languageId, $fromEmail, $fromName, $moduleMailsDir);
             }
         }
 
@@ -87,7 +72,51 @@ final class LeasingEmailNotifier
             $this->snapshots->update($attemptId, ['leasing_email_sent' => 1]);
         } catch (\Throwable $exception) {
             \PrestaShopLogger::addLog(
-                'UniPayment leasing email marker could not be stored: ' . $exception->getMessage(),
+                'UniPayment leasing email marker could not be stored.',
+                2
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $rows
+     */
+    private function sendLeasingMail(
+        string $to,
+        string $subject,
+        array $rows,
+        int $languageId,
+        string $fromEmail,
+        string $fromName,
+        string $moduleMailsDir
+    ): void {
+        if ($rows === []) {
+            return;
+        }
+
+        $textBody = $this->presenter->renderText($rows);
+        $htmlBody = $this->presenter->renderHtml($rows);
+
+        try {
+            \Mail::Send(
+                $languageId,
+                'ordersend',
+                $subject,
+                [
+                    '{message}' => trim($textBody),
+                    '{message_html}' => $htmlBody,
+                ],
+                $to,
+                null,
+                $fromEmail,
+                $fromName,
+                null,
+                null,
+                $moduleMailsDir
+            );
+        } catch (\Throwable $exception) {
+            \PrestaShopLogger::addLog(
+                'UniPayment leasing email could not be sent.',
                 2
             );
         }

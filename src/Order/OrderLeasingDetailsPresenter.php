@@ -49,7 +49,7 @@ final class OrderLeasingDetailsPresenter
         }
 
         $shop = $this->shop();
-        $leasingRows = $this->rows->rowsFromSnapshot($snapshot, $shop);
+        $leasingRows = $this->rows->adminRowsFromSnapshot($snapshot, $shop);
         if ($leasingRows === []) {
             return [];
         }

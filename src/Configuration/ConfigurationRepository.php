@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\Configuration;
 
+use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRetentionService;
+
 final class ConfigurationRepository
 {
     public const ENABLED = 'UNIPAYMENT_ENABLED';
@@ -54,6 +56,7 @@ final class ConfigurationRepository
                 'UNIPAYMENT_CP_ACCESS_TOKEN',
                 'UNIPAYMENT_CP_TOKEN_TYPE',
                 'UNIPAYMENT_CP_TOKEN_EXPIRES_AT',
+                FinancingSnapshotRetentionService::LAST_CLEANUP_KEY,
             ] as $key
         ) {
             $result = \Configuration::deleteByName($key) && $result;

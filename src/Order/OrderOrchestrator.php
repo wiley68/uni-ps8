@@ -62,7 +62,7 @@ final class OrderOrchestrator
                     throw new OrderOrchestrationException('The created order total does not match the validated cart total.');
                 }
                 $snapshot = $this->snapshotFactory->create($request, $order, $submissionSource);
-                $this->snapshots->save($attemptId, $snapshot);
+                $this->saveSnapshot($attemptId, $snapshot);
             }
         } else {
             $order = $this->orders->create($request, $shop);
@@ -73,7 +73,7 @@ final class OrderOrchestrator
                 throw new OrderOrchestrationException('The created order total does not match the validated cart total.');
             }
             $snapshot = $this->snapshotFactory->create($request, $order, $submissionSource);
-            $this->snapshots->save($attemptId, $snapshot);
+            $this->saveSnapshot($attemptId, $snapshot);
         }
 
         $payload = isset($attempt['cp_payload']) && is_string($attempt['cp_payload']) && $attempt['cp_payload'] !== '' ? json_decode($attempt['cp_payload'], true) : null;
@@ -109,5 +109,16 @@ final class OrderOrchestrator
     private function result(array $attempt): OrderOrchestrationResult
     {
         return new OrderOrchestrationResult((int)$attempt['id_attempt'], (string)$attempt['state'], (int)$attempt['id_order'], (string)$attempt['order_reference'], (int)($attempt['control_panel_order_id'] ?? 0));
+    }
+
+    /** @param array<string, mixed> $snapshot */
+    private function saveSnapshot(int $attemptId, array $snapshot): void
+    {
+        $this->snapshots->save($attemptId, $snapshot);
+        try {
+            (new FinancingSnapshotRetentionService())->maybeRun();
+        } catch (\Throwable $exception) {
+            // Opportunistic privacy cleanup must not block financing submission.
+        }
     }
 }

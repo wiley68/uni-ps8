@@ -18,7 +18,7 @@ final class LeasingOrderEmailPresenter
     }
 
     /**
-     * Extra template vars for PrestaShop validateOrder() / order_conf injection.
+     * Extra template vars for PrestaShop validateOrder() / order_conf injection (customer audience).
      *
      * @param array<string, mixed> $shop
      *
@@ -26,7 +26,7 @@ final class LeasingOrderEmailPresenter
      */
     public function mailExtraVarsFromRequest(ValidatedPaymentRequest $request, array $shop): array
     {
-        return $this->mailExtraVarsFromRows($this->rowsFromRequest($request, $shop));
+        return $this->mailExtraVarsFromRows($this->customerRowsFromRequest($request, $shop));
     }
 
     /**
@@ -37,7 +37,7 @@ final class LeasingOrderEmailPresenter
      */
     public function mailExtraVarsFromSnapshot(array $snapshot, array $shop): array
     {
-        return $this->mailExtraVarsFromRows($this->rowsFromSnapshot($snapshot, $shop));
+        return $this->mailExtraVarsFromRows($this->customerRowsFromSnapshot($snapshot, $shop));
     }
 
     /**
@@ -63,7 +63,29 @@ final class LeasingOrderEmailPresenter
      *
      * @return array<string, string>
      */
-    public function rowsFromSnapshot(array $snapshot, array $shop): array
+    public function customerRowsFromSnapshot(array $snapshot, array $shop): array
+    {
+        return $this->rowsFromSnapshot($snapshot, $shop, EmailAudience::CUSTOMER);
+    }
+
+    /**
+     * @param array<string, mixed> $snapshot
+     * @param array<string, mixed> $shop
+     *
+     * @return array<string, string>
+     */
+    public function adminRowsFromSnapshot(array $snapshot, array $shop): array
+    {
+        return $this->rowsFromSnapshot($snapshot, $shop, EmailAudience::ADMIN);
+    }
+
+    /**
+     * @param array<string, mixed> $snapshot
+     * @param array<string, mixed> $shop
+     *
+     * @return array<string, string>
+     */
+    public function rowsFromSnapshot(array $snapshot, array $shop, string $audience = EmailAudience::ADMIN): array
     {
         $process2 = ShopConfigurationFlags::isProcess2($shop);
         $statusLabel = trim((string) ($snapshot['status_label'] ?? ''));
@@ -71,9 +93,9 @@ final class LeasingOrderEmailPresenter
             $statusLabel = $process2 ? 'Изпратен Банка - Процес 2' : 'Изпратен Банка - Процес 1';
         }
 
-        $customerExtras = [];
-        if ($process2) {
-            $customerExtras = $this->decryptSensitive($snapshot);
+        $adminSensitive = [];
+        if ($process2 && $audience === EmailAudience::ADMIN) {
+            $adminSensitive = $this->decryptSensitive($snapshot);
         }
 
         return $this->buildRows(
@@ -87,7 +109,8 @@ final class LeasingOrderEmailPresenter
             (float) ($snapshot['glp'] ?? 0),
             (float) ($snapshot['gpr'] ?? 0),
             $process2,
-            $customerExtras
+            $audience,
+            $adminSensitive
         );
     }
 
@@ -115,11 +138,28 @@ final class LeasingOrderEmailPresenter
      *
      * @return array<string, string>
      */
-    public function rowsFromRequest(ValidatedPaymentRequest $request, array $shop): array
+    public function customerRowsFromRequest(ValidatedPaymentRequest $request, array $shop): array
+    {
+        return $this->rowsFromRequest($request, $shop, EmailAudience::CUSTOMER);
+    }
+
+    /**
+     * @param array<string, mixed> $shop
+     *
+     * @return array<string, string>
+     */
+    public function rowsFromRequest(ValidatedPaymentRequest $request, array $shop, string $audience = EmailAudience::CUSTOMER): array
     {
         $process2 = ShopConfigurationFlags::isProcess2($shop);
         $statusLabel = $process2 ? 'Изпратен Банка - Процес 2' : 'Изпратен Банка - Процес 1';
         $calculation = $request->calculation;
+        $adminSensitive = [];
+        if ($process2 && $audience === EmailAudience::ADMIN) {
+            $adminSensitive = [
+                'egn' => (string) ($request->customer['egn'] ?? ''),
+                'phone2' => (string) ($request->customer['phone2'] ?? ''),
+            ];
+        }
 
         return $this->buildRows(
             $statusLabel,
@@ -132,10 +172,8 @@ final class LeasingOrderEmailPresenter
             $calculation->glp,
             $calculation->gpr,
             $process2,
-            [
-                'egn' => (string) ($request->customer['egn'] ?? ''),
-                'phone2' => (string) ($request->customer['phone2'] ?? ''),
-            ]
+            $audience,
+            $adminSensitive
         );
     }
 
@@ -186,7 +224,7 @@ final class LeasingOrderEmailPresenter
     }
 
     /**
-     * @param array<string, string> $customerExtras
+     * @param array<string, string> $adminSensitive
      *
      * @return array<string, string>
      */
@@ -201,7 +239,8 @@ final class LeasingOrderEmailPresenter
         float $glp,
         float $gpr,
         bool $process2,
-        array $customerExtras
+        string $audience,
+        array $adminSensitive
     ): array {
         if ($statusLabel === '') {
             return [];
@@ -225,17 +264,19 @@ final class LeasingOrderEmailPresenter
         $rows['Обща дължима сума'] = number_format($totalPayable, 2, '.', '');
         $rows['ГЛП / ГПР'] = number_format($glp, 2, '.', '') . '% / ' . number_format($gpr, 2, '.', '') . '%';
 
-        if ($process2) {
-            $egn = trim((string) ($customerExtras['egn'] ?? ''));
+        if ($process2 && $audience === EmailAudience::ADMIN) {
+            $egn = trim((string) ($adminSensitive['egn'] ?? ''));
             if ($egn !== '') {
                 $rows['ЕГН'] = $egn;
             }
 
-            $phone2 = trim((string) ($customerExtras['phone2'] ?? ''));
+            $phone2 = trim((string) ($adminSensitive['phone2'] ?? ''));
             if ($phone2 !== '') {
                 $rows['Втори телефон'] = $phone2;
             }
+        }
 
+        if ($process2 && $audience === EmailAudience::CUSTOMER) {
             $rows['Съобщение'] = self::process2ConfirmationMessage();
         }
 
