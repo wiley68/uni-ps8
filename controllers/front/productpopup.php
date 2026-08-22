@@ -136,7 +136,6 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                     'filter_id' => $calculation['filter_id'],
                     'first_installment' => $calculation['first_installment'],
                     'product_amount' => $calculation['price'],
-                    'calculation' => $calculation,
                 ], (int) $cart->id, (int) $this->context->customer->id);
 
                 return [
