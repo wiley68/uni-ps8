@@ -131,6 +131,14 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 return;
             }
 
+            if ($lifecycle->isFailed()) {
+                Tools::redirect(
+                    (new OrderConfirmationUrlBuilder())->build($this->context, $module, $result->idOrder)
+                );
+
+                return;
+            }
+
             $orderResult = [
                 'id_order' => $result->idOrder,
                 'order_reference' => $result->orderReference,

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\Order;
 
-final class OrderBankStatusRepository implements BankStatusPersistencePort
+final class OrderBankStatusRepository implements BankStatusPersistencePort, BankStatusReaderPort
 {
     public const TABLE = 'unipayment_order_bank_status';
 

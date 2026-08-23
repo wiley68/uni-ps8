@@ -138,7 +138,7 @@ class Unipayment extends PaymentModule
     }
 
     /**
-     * Process 2 thank-you block on the native order-confirmation page (Woo order-received parity).
+     * Native order-confirmation extras: Process 2 leasing table or SmartUCF failure notice.
      *
      * @param array<string, mixed> $params
      */
@@ -148,6 +148,10 @@ class Unipayment extends PaymentModule
         $idOrder = $order instanceof Order ? (int) $order->id : (int) ($params['id_order'] ?? 0);
         if ($idOrder <= 0) {
             return '';
+        }
+
+        if ((new PrestaShop\Module\Unipayment\Order\OrderConfirmationSmartUcfFailurePresenter())->shouldDisplay($idOrder)) {
+            return $this->display(__FILE__, 'views/templates/hook/order_confirmation_smartucf_failure.tpl');
         }
 
         $leasingRows = (new PrestaShop\Module\Unipayment\Order\OrderLeasingDetailsPresenter())
