@@ -21,6 +21,7 @@ use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleContext;
 use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecyclePopupMapper;
 use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleService;
+use PrestaShop\Module\Unipayment\Order\PostOrderPopupFailureResponse;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 use PrestaShop\Module\Unipayment\Product\GuestCustomerFactory;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCustomerValidator;
@@ -224,6 +225,9 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
             return ['success' => false, 'message' => 'The financing selection is unavailable.'];
         } catch (OrderOrchestrationException $exception) {
             PrestaShopLogger::addLog('UniPayment cart popup apply orchestration failed: ' . get_class($exception), 2);
+            if ($exception->isPostOrder()) {
+                return PostOrderPopupFailureResponse::fromException($exception);
+            }
             http_response_code(500);
 
             return ['success' => false, 'message' => 'The financing request could not be processed. Please try again.'];

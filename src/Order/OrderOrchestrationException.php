@@ -21,6 +21,9 @@ final class OrderOrchestrationException extends \RuntimeException
     /** @var bool */
     private $outcomeUnknown;
 
+    /** @var string */
+    private $orderReference;
+
     public function __construct(
         string $message,
         bool $retryable = false,
@@ -28,7 +31,8 @@ final class OrderOrchestrationException extends \RuntimeException
         int $idOrder = 0,
         int $attemptId = 0,
         string $state = '',
-        bool $outcomeUnknown = false
+        bool $outcomeUnknown = false,
+        string $orderReference = ''
     ) {
         parent::__construct($message, 0, $previous);
         $this->retryable = $retryable;
@@ -36,6 +40,7 @@ final class OrderOrchestrationException extends \RuntimeException
         $this->attemptId = $attemptId;
         $this->state = $state;
         $this->outcomeUnknown = $outcomeUnknown;
+        $this->orderReference = $orderReference;
     }
 
     public function isRetryable(): bool
@@ -66,5 +71,10 @@ final class OrderOrchestrationException extends \RuntimeException
     public function isPostOrder(): bool
     {
         return $this->idOrder > 0;
+    }
+
+    public function orderReference(): string
+    {
+        return $this->orderReference;
     }
 }

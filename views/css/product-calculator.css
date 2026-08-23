@@ -360,6 +360,7 @@
   font-size: 1.0625rem;
   font-weight: 600;
   line-height: 1.45;
+  white-space: pre-line;
 }
 
 [data-unipayment-calculator] .unipayment-product-calculator__popup-actions--centered {

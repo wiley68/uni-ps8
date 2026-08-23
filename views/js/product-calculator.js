@@ -1278,12 +1278,14 @@
                         if (body.step === "outcome_unknown") {
                             setProcessingState(false);
                             showSmartUcfError(
-                                body.smartucf_error ||
+                                body.cp_error ||
+                                    body.smartucf_error ||
                                     body.message ||
                                     t(
                                         "data-smartucf-error-default",
                                         "Възникна грешка при обработката на заявката.",
                                     ),
+                                { omitRetry: !!(body.final || body.cp_error) },
                             );
                             setStep(3);
                             return;
@@ -1294,8 +1296,10 @@
                             return;
                         }
                         setProcessingState(false);
-                        if (body.smartucf_error) {
-                            showSmartUcfError(body.smartucf_error);
+                        if (body.cp_error || body.smartucf_error) {
+                            showSmartUcfError(body.cp_error || body.smartucf_error, {
+                                omitRetry: !!(body.final || body.cp_error),
+                            });
                             setStep(3);
                             return;
                         }
@@ -1335,8 +1339,10 @@
                 "</div>";
         }
 
-        function showSmartUcfError(errorMessage) {
+        function showSmartUcfError(errorMessage, options) {
             if (!processing) return;
+            options = options || {};
+            var omitRetry = options.omitRetry === true;
             var errorDefaultMessage = t(
                 "data-smartucf-error-default",
                 "Възникна грешка при обработката на заявката.",
@@ -1355,9 +1361,11 @@
                 '<p class="unipayment-product-calculator__processing-error">' +
                 (errorMessage || errorDefaultMessage) +
                 "</p>" +
-                '<p class="unipayment-product-calculator__processing-text">' +
-                errorRetryMessage +
-                "</p>" +
+                (omitRetry
+                    ? ""
+                    : '<p class="unipayment-product-calculator__processing-text">' +
+                      errorRetryMessage +
+                      "</p>") +
                 '<div class="unipayment-product-calculator__popup-actions unipayment-product-calculator__popup-actions--centered">' +
                 '<button type="button" class="unipayment-product-calculator__popup-button unipayment-product-calculator__popup-button--primary" data-unipayment-close>' +
                 "<span><b>" +

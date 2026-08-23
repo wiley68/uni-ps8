@@ -66,7 +66,9 @@ final class OrderOrchestrator
                 null,
                 (int) ($attempt['id_order'] ?? 0),
                 $attemptId,
-                self::TERMINAL_FAILED
+                self::TERMINAL_FAILED,
+                false,
+                (string) ($attempt['order_reference'] ?? '')
             );
         }
         if (empty($attempt['_reservation_created']) && (int) ($attempt['id_order'] ?? 0) <= 0) {
@@ -86,7 +88,9 @@ final class OrderOrchestrator
                         null,
                         $order->idOrder,
                         $attemptId,
-                        self::TERMINAL_FAILED
+                        self::TERMINAL_FAILED,
+                        false,
+                        $order->reference
                     );
                 }
                 $snapshot = $this->snapshotFactory->create($request, $order, $submissionSource);
@@ -104,7 +108,9 @@ final class OrderOrchestrator
                     null,
                     $order->idOrder,
                     $attemptId,
-                    self::TERMINAL_FAILED
+                    self::TERMINAL_FAILED,
+                    false,
+                    $order->reference
                 );
             }
             $snapshot = $this->snapshotFactory->create($request, $order, $submissionSource);
@@ -135,7 +141,9 @@ final class OrderOrchestrator
                     null,
                     $order->idOrder,
                     $attemptId,
-                    self::TERMINAL_FAILED
+                    self::TERMINAL_FAILED,
+                    false,
+                    $order->reference
                 );
             }
             $attempt = $this->attempts->update($attemptId, ['state' => self::CP_CREATED, 'control_panel_order_id' => $cpId]);
@@ -159,7 +167,8 @@ final class OrderOrchestrator
                 $order->idOrder,
                 $attemptId,
                 self::CP_OUTCOME_UNKNOWN,
-                true
+                true,
+                $order->reference
             );
         } catch (HttpException $exception) {
             $retryable = $exception->getStatusCode() >= 500;
@@ -178,7 +187,9 @@ final class OrderOrchestrator
                 $exception,
                 $order->idOrder,
                 $attemptId,
-                $state
+                $state,
+                false,
+                $order->reference
             );
         }
     }

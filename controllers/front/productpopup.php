@@ -18,6 +18,7 @@ use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleContext;
 use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecyclePopupMapper;
 use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleService;
+use PrestaShop\Module\Unipayment\Order\PostOrderPopupFailureResponse;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 use PrestaShop\Module\Unipayment\Product\GuestCustomerFactory;
 use PrestaShop\Module\Unipayment\Product\PopupSubmissionBindingFactory;
@@ -324,6 +325,17 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             return ['success' => false, 'message' => 'The financing selection is unavailable.'];
         } catch (OrderOrchestrationException $exception) {
             PrestaShopLogger::addLog('UniPayment popup apply orchestration failed: ' . get_class($exception), 2);
+            if ($exception->isPostOrder()) {
+                $submissions->markOrderCreated(
+                    $submissionId,
+                    $exception->attemptId(),
+                    $exception->idOrder(),
+                    $exception->orderReference(),
+                    0
+                );
+
+                return PostOrderPopupFailureResponse::fromException($exception);
+            }
             if ($exception->isRetryable()) {
                 return $this->processingResponse($token);
             }
@@ -481,6 +493,13 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                 'id_attempt' => (int) ($row['id_attempt'] ?? 0),
             ],
         ];
+
+        if ((int) ($row['control_panel_order_id'] ?? 0) <= 0 && (int) ($row['id_order'] ?? 0) > 0) {
+            return PostOrderPopupFailureResponse::fromPersistedOrder(
+                (int) $row['id_order'],
+                (string) $row['order_reference']
+            );
+        }
 
         $attemptId = (int) ($row['id_attempt'] ?? 0);
         if ($attemptId <= 0) {
