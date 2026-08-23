@@ -18,6 +18,7 @@ First production release of this development line. There are no historical upgra
 - Control Panel shop-configuration cache, pull, and signed push replacement
 - Admin UniCredit status column and order leasing details
 - Customer-safe failure handling after a PrestaShop order exists (no resubmit)
+- Process 2 native `order_conf` does not claim bank-sent status before Control Panel create succeeds
 
 ### Security
 

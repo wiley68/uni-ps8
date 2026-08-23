@@ -170,6 +170,8 @@ EGN decryption occurs only for Process 2 admin rendering paths.
 
 Process 1 native `order_conf` is deferred until SmartUCF completes and is **discarded** if Control Panel create-order fails after the PrestaShop order exists, so success-bank wording is not sent for that failure.
 
+Process 2 native `order_conf` is sent at PrestaShop order creation and must **not** include leasing extra vars with `Изпратен Банка - Процес 2`. Dedicated customer/admin leasing mail is sent only after a successful Control Panel create.
+
 ### Post-order customer boundary
 
 Once a PrestaShop financing order exists, the customer must not submit a fresh financing attempt. Checkout uses native Thank You; Product/Cart popup uses a final informational Step 3. Correction/retry is allowed only for **pre-order** validation errors.

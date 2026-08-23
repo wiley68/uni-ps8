@@ -27,9 +27,10 @@ final class NativePrestaShopOrderGateway implements PrestaShopOrderGatewayInterf
             return $this->load($existingOrderId);
         }
 
-        $extraVars = $shop !== [] ? (new LeasingOrderEmailPresenter())->mailExtraVarsFromRequest($request, $shop) : [];
-        $deferProcess1Mail = $shop !== [] && !ShopConfigurationFlags::isProcess2($shop);
-        if ($deferProcess1Mail) {
+        $process2 = $shop !== [] && ShopConfigurationFlags::isProcess2($shop);
+        $extraVars = [];
+        if ($shop !== [] && !$process2) {
+            $extraVars = (new LeasingOrderEmailPresenter())->mailExtraVarsFromRequest($request, $shop);
             DeferredOrderMailQueue::start();
         }
 
