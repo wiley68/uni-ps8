@@ -52,6 +52,8 @@ assertBankStatus(strpos($checkout, 'PostControlPanelLifecycleService') !== false
 assertBankStatus(strpos($lifecycleService, 'BankStatus::smartUcfFailure') !== false, 'lifecycle service must set final bank status before email');
 assertBankStatus(strpos($lifecycleService, 'LeasingMailDispatchPort') !== false || strpos($lifecycleService, 'FinancingOrderMailDispatcher') !== false, 'lifecycle service must dispatch leasing email centrally');
 assertBankStatus(strpos($gateway, 'DeferredOrderMailQueue::start') !== false, 'Process 1 order_conf must be deferred until SmartUCF');
+$orchestratorSrc = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/OrderOrchestrator.php');
+assertBankStatus(strpos($orchestratorSrc, 'DeferredOrderMailQueue::discard()') !== false, 'Process 1 deferred order_conf must be discarded when CP create fails');
 assertBankStatus(strpos($grid, 'hookActionEmailSendBefore') !== false, 'order_conf deferral hook must be registered');
 assertBankStatus(strpos($grid, 'hookDisplayPaymentReturn') !== false, 'Process 2 thank-you leasing block hook must be registered');
 $leasingPresenter = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/OrderLeasingDetailsPresenter.php');

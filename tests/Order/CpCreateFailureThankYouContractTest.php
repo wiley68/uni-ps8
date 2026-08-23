@@ -242,6 +242,10 @@ assertCpFailureThankYou(
     'L: CP failure notice must not use bank-sent or SmartUCF wording'
 );
 assertCpFailureThankYou(
+    strpos($orchestrator, 'DeferredOrderMailQueue::discard()') !== false,
+    'L: Process 1 deferred order_conf must be discarded on CP create failure'
+);
+assertCpFailureThankYou(
     BankStatus::SEND_FAILED_CP !== BankStatus::SEND_FAILED_SMARTUCF,
     'L: CP failure status must not reuse SmartUCF status id'
 );

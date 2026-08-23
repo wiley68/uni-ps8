@@ -4,7 +4,7 @@ UniPayment CLI tests run directly against the module checkout in the PrestaShop 
 
 ## Safe default verification
 
-Use this after normal code changes:
+Use this after normal code changes and as the **canonical release verification** command:
 
 ```bash
 composer test

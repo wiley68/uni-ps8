@@ -78,13 +78,27 @@ Presentation uses Smarty/Twig templates and module assets; business rules live i
 
 Distinction comes from CP shop snapshot field **`uni_proces`**:
 
-|                    | Process 1                               | Process 2                      |
-| ------------------ | --------------------------------------- | ------------------------------ |
-| `uni_proces`       | `0` (default)                           | `1`                            |
-| EGN / second phone | Not required                            | Required at checkout/popup     |
-| SmartUCF           | Session started after CP order          | Skipped                        |
-| Post-submit UX     | SmartUCF redirect or validated template | Redirect to order confirmation |
-| Bank status marker | `bank_sent_process1`                    | `bank_sent_process2`           |
+|                    | Process 1                                | Process 2                  |
+| ------------------ | ---------------------------------------- | -------------------------- |
+| `uni_proces`       | `0` (default)                            | `1`                        |
+| EGN / second phone | Not required                             | Required at checkout/popup |
+| SmartUCF           | Session started after CP order           | Skipped                    |
+| Post-submit UX     | SmartUCF redirect or native confirmation | Native order confirmation  |
+| Success status     | `bank_sent_process1`                     | `bank_sent_process2`       |
+| CP create failure  | `bank_send_failed_cp`                    | `bank_send_failed`         |
+| SmartUCF failure   | `bank_send_failed_smartucf`              | n/a                        |
+
+Canonical Woo-compatible status vocabulary (`BankStatus`):
+
+| status_id                   | label                               |
+| --------------------------- | ----------------------------------- |
+| `bank_sent_process1`        | Изпратен Банка - Процес 1           |
+| `bank_sent_process2`        | Изпратен Банка - Процес 2           |
+| `bank_send_failed`          | Неуспешно изпратен Банка            |
+| `bank_send_failed_cp`       | Неуспешно изпратен Банка - КП       |
+| `bank_send_failed_smartucf` | Неуспешно изпратен Банка - SmartUCF |
+
+After a PrestaShop order exists, the customer must not submit a fresh financing attempt. Checkout post-order failures use native Thank You; Product/Cart popup post-order failures use a final informational Step 3. Pre-order validation errors may still offer correction.
 
 Helper: `ShopConfigurationFlags::isProcess2($shop)`.
 

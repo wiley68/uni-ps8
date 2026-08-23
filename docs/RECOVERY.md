@@ -14,9 +14,9 @@ Related: [`SECURITY-OPERATIONS.md`](SECURITY-OPERATIONS.md), [`ARCHITECTURE.md`]
 
 **Symptoms**
 
-- Checkout fails after PrestaShop order creation
-- Attempt state `cp_outcome_unknown` or `cp_failed_retryable`
-- Customer may see retryable error message
+- Checkout or popup fails after PrestaShop order creation
+- Attempt state `cp_outcome_unknown`, `cp_failed_retryable`, or `terminal_failed`
+- Customer sees native Thank You (checkout) or final popup Step 3 — not a resubmit form
 
 **Checks**
 
@@ -27,9 +27,9 @@ Related: [`SECURITY-OPERATIONS.md`](SECURITY-OPERATIONS.md), [`ARCHITECTURE.md`]
 
 **Safe actions**
 
-- Retry checkout **only** if attempt is retryable (`cp_outcome_unknown`, `cp_failed_retryable`) and no duplicate order was created
-- Verify CP status recovers; use admin order view for attempt/snapshot linkage
-- After CP recovery, customer retry may complete idempotently if attempt not terminal
+- Do **not** ask the customer to submit a new financing attempt once a PrestaShop order exists
+- Same-attempt server retry may be used by operators/developers only when the attempt is `cp_failed_retryable` or `cp_outcome_unknown` and CP confirms it is safe
+- Verify CP status; use admin order view for attempt/snapshot linkage and UniCredit status
 
 **Do not do**
 
@@ -196,7 +196,7 @@ Related: [`SECURITY-OPERATIONS.md`](SECURITY-OPERATIONS.md), [`ARCHITECTURE.md`]
 **Symptoms**
 
 - PrestaShop order exists; attempt `cp_outcome_unknown`
-- Customer told outcome unknown / retryable
+- Customer sees outcome-unknown wording and is told not to resubmit
 
 **Checks**
 
@@ -206,7 +206,7 @@ Related: [`SECURITY-OPERATIONS.md`](SECURITY-OPERATIONS.md), [`ARCHITECTURE.md`]
 **Safe actions**
 
 - If CP confirms order exists: update operational records via supported paths (may require dev/CP reconciliation — not automated in module)
-- If CP confirms no order: safe customer retry while attempt remains retryable
+- If CP confirms no order: reconcile from admin/CP; do not instruct the customer to place a second financing order
 
 **Do not do**
 

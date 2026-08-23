@@ -7,7 +7,7 @@ Native PrestaShop 8 module for **UniCredit financing** (credit calculator, check
 | Module technical name | `unipayment`                 |
 | Current version       | `2.0.0`                      |
 | Repository root       | Module root (this directory) |
-| Current state         | Development / pre-production |
+| Current state         | First production release     |
 
 The repository is a working PrestaShop module, not a skeleton. Install, calculators, checkout, order orchestration, configuration cache, SmartUCF, signed inbound APIs, and persistence are implemented.
 
@@ -123,6 +123,8 @@ See [`docs/RELEASE.md`](docs/RELEASE.md) for release and artifact review.
 | [`docs/INSTALLATION.md`](docs/INSTALLATION.md)               | Install, deploy, CP setup, verification         |
 | [`docs/SECURITY-OPERATIONS.md`](docs/SECURITY-OPERATIONS.md) | Secrets, signed API, PII, logging               |
 | [`docs/RECOVERY.md`](docs/RECOVERY.md)                       | Operational troubleshooting runbook             |
-| [`docs/RELEASE.md`](docs/RELEASE.md)                         | Release state and first production checklist    |
+| [`CHANGELOG.md`](CHANGELOG.md)                               | 2.0.0 release notes                             |
+| [`docs/RELEASE.md`](docs/RELEASE.md)                         | Release packaging and version policy            |
+| [`docs/TESTING.md`](docs/TESTING.md)                         | Safe vs destructive test commands               |
 | [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Historical development plan (not current scope) |
 | [`docs/TRANSLATIONS.md`](docs/TRANSLATIONS.md)               | Translation conventions                         |

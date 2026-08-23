@@ -3,6 +3,7 @@
 /.phpunit.cache/
 /composer.phar
 /vendor/
+/dist/
 
 *.log
 /keys/

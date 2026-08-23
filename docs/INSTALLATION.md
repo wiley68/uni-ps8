@@ -56,20 +56,21 @@ Do not commit `vendor/` secrets, local `keys/` private material, or environment-
 
 ## 3. Packaged installation
 
-There is **no automated packaging script** in this repository. A distributable module ZIP should contain at minimum:
+A distributable module ZIP must extract as `unipayment/` (not loose files at archive root). Minimum contents:
 
 ```text
-unipayment.php
-composer.json
-vendor/                 ← required (run composer install --no-dev --optimize-autoloader)
-src/
-controllers/
-views/
-mails/
-translations/
-config/
-index.php
-logo.png (if present)
+unipayment/
+  unipayment.php
+  composer.json
+  composer.lock
+  vendor/                 ← required (composer install --no-dev --optimize-autoloader)
+  src/
+  controllers/
+  views/
+  mails/
+  translations/
+  config.xml
+  index.php
 ```
 
 Before packaging:
@@ -158,14 +159,10 @@ Use test data only. Do not use real customer EGN in non-production logs.
 
 ---
 
-## 8. Current development upgrade policy
+## 8. Upgrade policy
 
-> **Current development version remains `2.0.0`.**
->
-> **No upgrade scripts are maintained before the first production release.**
->
-> During development, schema changes are applied through **reinstall** on the controlled test environment.
+`2.0.0` is the **first production release** of this development line.
 
-This is **temporary development policy only**. It is **not** the intended production upgrade strategy.
+There are **no** historical `upgrade/upgrade-*.php` scripts. Development used uninstall/reinstall; those iterations were never published.
 
-After the first production release, schema and configuration changes must use explicit versioned upgrade procedures (see [`RELEASE.md`](RELEASE.md)).
+After this release, schema and configuration changes must use explicit versioned upgrade procedures (see [`RELEASE.md`](RELEASE.md)). Do not rely on reinstall in production.

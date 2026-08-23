@@ -168,6 +168,12 @@ If customer email equals shop email → **admin variant only**, sent once.
 
 EGN decryption occurs only for Process 2 admin rendering paths.
 
+Process 1 native `order_conf` is deferred until SmartUCF completes and is **discarded** if Control Panel create-order fails after the PrestaShop order exists, so success-bank wording is not sent for that failure.
+
+### Post-order customer boundary
+
+Once a PrestaShop financing order exists, the customer must not submit a fresh financing attempt. Checkout uses native Thank You; Product/Cart popup uses a final informational Step 3. Correction/retry is allowed only for **pre-order** validation errors.
+
 ### Snapshot retention (local)
 
 | Parameter       | Value                                                                         |

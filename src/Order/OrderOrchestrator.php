@@ -82,6 +82,7 @@ final class OrderOrchestrator
                 if (abs($order->total - $request->calculation->price) > 0.01) {
                     $this->attempts->update($attemptId, ['state' => self::TERMINAL_FAILED, 'last_error_class' => 'OrderTotalMismatch']);
                     $this->orders->markFailed($order->idOrder);
+                    DeferredOrderMailQueue::discard();
                     throw new OrderOrchestrationException(
                         'The created order total does not match the validated cart total.',
                         false,
@@ -102,6 +103,7 @@ final class OrderOrchestrator
             if (abs($order->total - $request->calculation->price) > 0.01) {
                 $this->attempts->update($attemptId, ['state' => self::TERMINAL_FAILED, 'last_error_class' => 'OrderTotalMismatch']);
                 $this->orders->markFailed($order->idOrder);
+                DeferredOrderMailQueue::discard();
                 throw new OrderOrchestrationException(
                     'The created order total does not match the validated cart total.',
                     false,
@@ -216,6 +218,7 @@ final class OrderOrchestrator
         $this->attempts->update($attemptId, ['state' => $state, 'last_error_class' => $errorClass]);
         $this->orders->markFailed($order->idOrder);
         $this->snapshots->update($attemptId, ['lifecycle_status' => $state]);
+        DeferredOrderMailQueue::discard();
         if ($this->bankStatus === null || $order->reference === '') {
             return;
         }

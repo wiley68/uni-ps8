@@ -6,70 +6,51 @@ Release and packaging checklist for the UniPayment PrestaShop module.
 
 ## 1. Current release state
 
-| Item               | Value                            |
-| ------------------ | -------------------------------- |
-| Module version     | **2.0.0** (`unipayment.php`)     |
-| Project status     | **Development / pre-production** |
-| Production release | **None yet**                     |
+| Item           | Value                                      |
+| -------------- | ------------------------------------------ |
+| Module version | **2.0.0** (`unipayment.php`, `config.xml`) |
+| Project status | **First production release**               |
+| Release notes  | [`../CHANGELOG.md`](../CHANGELOG.md)       |
 
-There is no published changelog for production releases in this repository.
+`2.0.0` is the first production version of this development line. Do not increment to `2.0.1` unless a post-release defect requires a new version.
 
 ---
 
-## 2. Development version policy
+## 2. Version policy
 
-During active development:
-
-- Module version remains **`2.0.0`**
-- **No upgrade scripts** are maintained
-- Schema changes on the controlled test environment are applied via **module reinstall**
+- Module version remains **`2.0.0`** for this release
+- Version metadata must stay consistent in `unipayment.php` and `config.xml`
+- **No historical upgrade scripts** for development-only schema iterations
+- After this release, future schema/configuration changes **must** use versioned PrestaShop upgrade files (`upgrade/upgrade-x.y.z.php`)
 
 See [`INSTALLATION.md`](INSTALLATION.md) §8.
 
 ---
 
-## 3. First production release preparation
-
-Before tagging the first production release:
+## 3. Production release verification
 
 ### Version and packaging
 
-- [ ] Finalize semantic version (bump from `2.0.0`)
-- [ ] Update version in `unipayment.php` and any version constants
-- [ ] `composer install --no-dev --optimize-autoloader`
-- [ ] Package includes `vendor/`, all module assets, translations
-- [ ] Artifact review (§6) — no secrets, tests, or IDE files
-
-### Clean install test
-
-- [ ] Fresh PrestaShop install → module install
-- [ ] Configure UNICID/secret
-- [ ] All 8 module tables created
-- [ ] Custom order states installed
-
-### Functional checklist
-
-- [ ] Process 1 order (SmartUCF if configured)
-- [ ] Process 2 order (EGN validation, confirmation flow)
-- [ ] Customer email: no EGN (both processes)
-- [ ] Process 2 admin email: full EGN present
-- [ ] CP create order
-- [ ] Shop-cache push/pull
-- [ ] Signed callbacks (shop-cache, bank status, SmartUCF debug log)
-- [ ] Replay rejection for duplicate nonce
-- [ ] SmartUCF session + certificate sync
-- [ ] Bank status display + optional rejection sync
-- [ ] Multishop bank-status scoping (if applicable)
-- [ ] Checkout double-submit / lock behavior
-- [ ] PII retention redaction (180-day policy)
-- [ ] Uninstall purge (`ModuleDataPurger`)
+- [x] Production version is **2.0.0** (not a post-release bump)
+- [x] Version in `unipayment.php` and `config.xml`
+- [ ] `composer install --no-dev --optimize-autoloader` in the package staging tree
+- [ ] Package includes `vendor/`, module assets, translations, operator docs
+- [ ] Artifact review (§6) — no secrets, `keys/`, tests, or IDE files
 
 ### Quality gates
 
-- [ ] PHP syntax check on changed files: `php -l`
-- [ ] Test suite (module `tests/` scripts)
+- [ ] Canonical safe suite: `composer test`
+- [ ] Dev-state preservation: `composer test:verify-dev-state` (when run on the live checkout)
+- [ ] PHP syntax check: `php -l`
+- [ ] `composer validate`
 - [ ] `git diff --check`
-- [ ] Search diff for accidental secret/EGN leakage
+- [ ] Search release tree for accidental secret/EGN/private-key leakage
+
+Do **not** use `find tests -name '*Test.php' -exec php {} \;`. That legacy pattern can run destructive tests against the live shop database. See [`TESTING.md`](TESTING.md).
+
+### Functional acceptance
+
+Manual storefront acceptance for 2.0.0 is recorded as passed (product/cart/checkout, Process 1/2, popup flows, guest and logged customers, CP and SmartUCF failure UX, asynchronous bank-status sync). Re-run only when a release-blocking defect is fixed.
 
 ---
 
@@ -84,56 +65,72 @@ A PS module release that changes inbound signature rules, header names, canonica
 
 Outbound CP API contract (`/api/v1/auth/*`, `/shop`, `/orders`, `/orders/status`, SSL certificate endpoints) must remain compatible with the deployed Control Panel.
 
+Canonical bank status IDs and labels must stay Woo-compatible. Do not invent PS8-only status IDs.
+
 Do not treat unrelated repository SHAs as permanent compatibility pins in documentation or code comments.
 
 ---
 
 ## 5. Upgrade procedure after first production release
 
-**Future rule (not yet implemented):**
+**Future rule:**
 
 > After the first production release, schema and configuration changes **must** use explicit versioned upgrade procedures (`upgrade/upgrade-x.y.z.php` or equivalent PrestaShop mechanism) and **must not** rely on reinstall in production.
 
-Current repository contains **no** upgrade scripts by design (development-only).
+This 2.0.0 tree contains **no** upgrade scripts. That is intentional: development used uninstall/reinstall, and there is no released prior version to migrate from.
 
 ---
 
 ## 6. Release artifact review
 
+Distributable archive name:
+
+```text
+unipayment-2.0.0.zip
+```
+
+Archive root must be:
+
+```text
+unipayment/
+  unipayment.php
+  ...
+```
+
 Exclude from distributable ZIP:
 
-- `.git/`, `.github/`, `.vscode/`, `.idea/`
-- `tests/`, development fixtures
-- `.env`, local secrets, real `keys/*.pem` private material
-- Log files, temporary files
-- `AGENTS.md` or internal-only docs (optional — include if desired for partner handover)
+- `.git/`, `.github/`, `.cursor/`, `.vscode/`, `.idea/`
+- `tests/`, development fixtures (including `tests/fixtures/ssl/`)
+- `.env`, local secrets, runtime `keys/` private material
+- Log files, temporary files, coverage, `dist/`
+- `AGENTS.md` (internal agent instructions)
 
 Include:
 
-- `vendor/` (production autoload)
+- `vendor/` (production autoload from `composer install --no-dev --optimize-autoloader`)
+- `src/`, `controllers/`, `views/`, `mails/`, `config.xml`, `composer.json`, `composer.lock`
+- Operator docs: `README.md`, `CHANGELOG.md`, `docs/` except historical-only files if omitted for size
 - `translations/` export if shipping XLIFF
-- `mails/` templates
+
+`composer.json` declares **no third-party runtime packages**. `vendor/` is still required because the module loads `vendor/autoload.php` for the PSR-4 `src/` autoloader.
 
 ---
 
 ## 7. Tag / release checklist
 
-Generic Git release steps (execute manually when ready):
-
-1. Ensure working tree clean and tests pass
-2. Bump version in `unipayment.php`
-3. Commit with release message
-4. Create annotated tag: `git tag -a vX.Y.Z -m "Release X.Y.Z"`
-5. Push tag to remote
-6. Attach packaged `unipayment-X.Y.Z.zip` to release artifact storage
-7. Document CP minimum version compatibility in release notes (operational, not hardcoded SHA)
-
-**AUD-015 does not execute tagging.**
+1. Working tree contains only intentional release files
+2. Safe tests pass
+3. Create **one** release-preparation commit
+4. Create annotated local tag: `git tag -a v2.0.0 -m "UniPayment 2.0.0"`
+5. Do **not** push, publish a GitHub Release, or upload the package unless explicitly requested
+6. Attach packaged `unipayment-2.0.0.zip` when distribution is approved
 
 ---
 
 ## Related documents
 
+- [`../CHANGELOG.md`](../CHANGELOG.md) — operator-facing release notes
 - [`INSTALLATION.md`](INSTALLATION.md) — deploy and verify
+- [`TESTING.md`](TESTING.md) — safe vs destructive suites
 - [`SECURITY-OPERATIONS.md`](SECURITY-OPERATIONS.md) — security checklist context
 - [`../README.md`](../README.md) — entry point
