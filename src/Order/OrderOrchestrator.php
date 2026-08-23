@@ -7,6 +7,7 @@ namespace PrestaShop\Module\Unipayment\Order;
 use PrestaShop\Module\Unipayment\Api\Exception\ConnectionException;
 use PrestaShop\Module\Unipayment\Api\Exception\HttpException;
 use PrestaShop\Module\Unipayment\Checkout\ValidatedPaymentRequest;
+use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
 
 final class OrderOrchestrator
 {
@@ -31,14 +32,25 @@ final class OrderOrchestrator
     /** @var ControlPanelOrderPayloadBuilder */
     private $payloads;
 
-    public function __construct(OrderAttemptStoreInterface $attempts, FinancingSnapshotStoreInterface $snapshots, PrestaShopOrderGatewayInterface $orders, ControlPanelOrderClientInterface $cp, FinancingSnapshotFactory $snapshotFactory, ControlPanelOrderPayloadBuilder $payloads)
-    {
+    /** @var BankStatusPersistencePort|null */
+    private $bankStatus;
+
+    public function __construct(
+        OrderAttemptStoreInterface $attempts,
+        FinancingSnapshotStoreInterface $snapshots,
+        PrestaShopOrderGatewayInterface $orders,
+        ControlPanelOrderClientInterface $cp,
+        FinancingSnapshotFactory $snapshotFactory,
+        ControlPanelOrderPayloadBuilder $payloads,
+        ?BankStatusPersistencePort $bankStatus = null
+    ) {
         $this->attempts = $attempts;
         $this->snapshots = $snapshots;
         $this->orders = $orders;
         $this->cp = $cp;
         $this->snapshotFactory = $snapshotFactory;
         $this->payloads = $payloads;
+        $this->bankStatus = $bankStatus;
     }
 
     /** @param array<string, mixed> $shop */
@@ -47,7 +59,16 @@ final class OrderOrchestrator
         $attempt = $this->attempts->reserve($idShop, $idCart, $request->cartFingerprint);
         $attemptId = (int) $attempt['id_attempt'];
         if ((string) $attempt['state'] === self::CP_CREATED) return $this->result($attempt);
-        if ((string) $attempt['state'] === self::TERMINAL_FAILED) throw new OrderOrchestrationException('The financing attempt cannot be retried.');
+        if ((string) $attempt['state'] === self::TERMINAL_FAILED) {
+            throw new OrderOrchestrationException(
+                'The financing attempt cannot be retried.',
+                false,
+                null,
+                (int) ($attempt['id_order'] ?? 0),
+                $attemptId,
+                self::TERMINAL_FAILED
+            );
+        }
         if (empty($attempt['_reservation_created']) && (int) ($attempt['id_order'] ?? 0) <= 0) {
             throw new OrderOrchestrationException('The financing attempt is already being processed.', true);
         }
@@ -59,7 +80,14 @@ final class OrderOrchestrator
                 if (abs($order->total - $request->calculation->price) > 0.01) {
                     $this->attempts->update($attemptId, ['state' => self::TERMINAL_FAILED, 'last_error_class' => 'OrderTotalMismatch']);
                     $this->orders->markFailed($order->idOrder);
-                    throw new OrderOrchestrationException('The created order total does not match the validated cart total.');
+                    throw new OrderOrchestrationException(
+                        'The created order total does not match the validated cart total.',
+                        false,
+                        null,
+                        $order->idOrder,
+                        $attemptId,
+                        self::TERMINAL_FAILED
+                    );
                 }
                 $snapshot = $this->snapshotFactory->create($request, $order, $submissionSource);
                 $this->saveSnapshot($attemptId, $snapshot);
@@ -70,7 +98,14 @@ final class OrderOrchestrator
             if (abs($order->total - $request->calculation->price) > 0.01) {
                 $this->attempts->update($attemptId, ['state' => self::TERMINAL_FAILED, 'last_error_class' => 'OrderTotalMismatch']);
                 $this->orders->markFailed($order->idOrder);
-                throw new OrderOrchestrationException('The created order total does not match the validated cart total.');
+                throw new OrderOrchestrationException(
+                    'The created order total does not match the validated cart total.',
+                    false,
+                    null,
+                    $order->idOrder,
+                    $attemptId,
+                    self::TERMINAL_FAILED
+                );
             }
             $snapshot = $this->snapshotFactory->create($request, $order, $submissionSource);
             $this->saveSnapshot($attemptId, $snapshot);
@@ -85,23 +120,66 @@ final class OrderOrchestrator
         try {
             $response = $this->cp->createOrder($payload);
             $cpId = (int) ($response['data']['id'] ?? 0);
-            if ($cpId <= 0) throw new OrderOrchestrationException('The Control Panel did not return an order identifier.');
+            if ($cpId <= 0) {
+                $this->recordControlPanelFailure(
+                    $attemptId,
+                    $order,
+                    $idShop,
+                    $shop,
+                    self::TERMINAL_FAILED,
+                    'MissingControlPanelOrderId'
+                );
+                throw new OrderOrchestrationException(
+                    'The Control Panel did not return an order identifier.',
+                    false,
+                    null,
+                    $order->idOrder,
+                    $attemptId,
+                    self::TERMINAL_FAILED
+                );
+            }
             $attempt = $this->attempts->update($attemptId, ['state' => self::CP_CREATED, 'control_panel_order_id' => $cpId]);
             $this->snapshots->update($attemptId, ['control_panel_order_id' => $cpId, 'lifecycle_status' => self::CP_CREATED]);
             $this->orders->markAwaiting($order->idOrder);
 
             return $this->result($attempt);
         } catch (ConnectionException $exception) {
-            $this->attempts->update($attemptId, ['state' => self::CP_OUTCOME_UNKNOWN, 'last_error_class' => get_class($exception)]);
-            $this->orders->markFailed($order->idOrder);
-            throw new OrderOrchestrationException('The Control Panel result is unknown and can be retried safely.', true, $exception);
+            $this->recordControlPanelFailure(
+                $attemptId,
+                $order,
+                $idShop,
+                $shop,
+                self::CP_OUTCOME_UNKNOWN,
+                get_class($exception)
+            );
+            throw new OrderOrchestrationException(
+                'The Control Panel result is unknown and can be retried safely.',
+                true,
+                $exception,
+                $order->idOrder,
+                $attemptId,
+                self::CP_OUTCOME_UNKNOWN,
+                true
+            );
         } catch (HttpException $exception) {
             $retryable = $exception->getStatusCode() >= 500;
             $state = $retryable ? self::CP_FAILED_RETRYABLE : self::TERMINAL_FAILED;
-            $this->attempts->update($attemptId, ['state' => $state, 'last_error_class' => get_class($exception)]);
-            $this->orders->markFailed($order->idOrder);
-            $this->snapshots->update($attemptId, ['lifecycle_status' => $state]);
-            throw new OrderOrchestrationException('The Control Panel rejected the financing order.', $retryable, $exception);
+            $this->recordControlPanelFailure(
+                $attemptId,
+                $order,
+                $idShop,
+                $shop,
+                $state,
+                get_class($exception)
+            );
+            throw new OrderOrchestrationException(
+                'The Control Panel rejected the financing order.',
+                $retryable,
+                $exception,
+                $order->idOrder,
+                $attemptId,
+                $state
+            );
         }
     }
 
@@ -109,6 +187,42 @@ final class OrderOrchestrator
     private function result(array $attempt): OrderOrchestrationResult
     {
         return new OrderOrchestrationResult((int)$attempt['id_attempt'], (string)$attempt['state'], (int)$attempt['id_order'], (string)$attempt['order_reference'], (int)($attempt['control_panel_order_id'] ?? 0));
+    }
+
+    /**
+     * Persist attempt/snapshot/admin UniCredit status after PS order exists and CP create failed.
+     *
+     * @param array<string, mixed> $shop
+     */
+    private function recordControlPanelFailure(
+        int $attemptId,
+        CreatedOrder $order,
+        int $idShop,
+        array $shop,
+        string $state,
+        string $errorClass
+    ): void {
+        $this->attempts->update($attemptId, ['state' => $state, 'last_error_class' => $errorClass]);
+        $this->orders->markFailed($order->idOrder);
+        $this->snapshots->update($attemptId, ['lifecycle_status' => $state]);
+        if ($this->bankStatus === null || $order->reference === '') {
+            return;
+        }
+
+        $status = BankStatus::controlPanelFailure(ShopConfigurationFlags::isProcess2($shop));
+        try {
+            $this->bankStatus->updateByOrderIdentifier(
+                $idShop,
+                $order->reference,
+                $status['status_id'],
+                $status['status_label']
+            );
+        } catch (\Throwable $exception) {
+            \PrestaShopLogger::addLog(
+                'UniPayment local CP-failure status update failed: ' . get_class($exception),
+                2
+            );
+        }
     }
 
     /** @param array<string, mixed> $snapshot */

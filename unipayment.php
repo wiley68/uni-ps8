@@ -138,7 +138,7 @@ class Unipayment extends PaymentModule
     }
 
     /**
-     * Native order-confirmation extras: Process 2 leasing table or SmartUCF failure notice.
+     * Native order-confirmation extras: Process 2 leasing table or financing failure notice.
      *
      * @param array<string, mixed> $params
      */
@@ -150,8 +150,18 @@ class Unipayment extends PaymentModule
             return '';
         }
 
-        if ((new PrestaShop\Module\Unipayment\Order\OrderConfirmationSmartUcfFailurePresenter())->shouldDisplay($idOrder)) {
+        $outcome = (new PrestaShop\Module\Unipayment\Order\OrderConfirmationFinancingOutcomePresenter(
+            new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository(),
+            new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository()
+        ))->outcome($idOrder);
+        if ($outcome === PrestaShop\Module\Unipayment\Order\OrderConfirmationFinancingOutcomePresenter::SMARTUCF_FAILED) {
             return $this->display(__FILE__, 'views/templates/hook/order_confirmation_smartucf_failure.tpl');
+        }
+        if ($outcome === PrestaShop\Module\Unipayment\Order\OrderConfirmationFinancingOutcomePresenter::CP_FAILED) {
+            return $this->display(__FILE__, 'views/templates/hook/order_confirmation_cp_failure.tpl');
+        }
+        if ($outcome === PrestaShop\Module\Unipayment\Order\OrderConfirmationFinancingOutcomePresenter::CP_OUTCOME_UNKNOWN) {
+            return $this->display(__FILE__, 'views/templates/hook/order_confirmation_cp_outcome_unknown.tpl');
         }
 
         $leasingRows = (new PrestaShop\Module\Unipayment\Order\OrderLeasingDetailsPresenter())

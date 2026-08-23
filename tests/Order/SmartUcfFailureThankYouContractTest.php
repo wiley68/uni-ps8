@@ -81,7 +81,8 @@ assertSmartUcfFailureThankYou(
     'C: dedicated presenter must use persisted SEND_FAILED_SMARTUCF'
 );
 assertSmartUcfFailureThankYou(
-    strpos($module, 'OrderConfirmationSmartUcfFailurePresenter') !== false,
+    strpos($module, 'OrderConfirmationFinancingOutcomePresenter') !== false
+        || strpos($module, 'OrderConfirmationSmartUcfFailurePresenter') !== false,
     'C: displayPaymentReturn must consult persisted SmartUCF failure state'
 );
 assertSmartUcfFailureThankYou(

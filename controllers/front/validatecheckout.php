@@ -92,7 +92,8 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 new NativePrestaShopOrderGateway($module, $this->context),
                 $cpClient,
                 new FinancingSnapshotFactory(new SensitiveDataCipher()),
-                new ControlPanelOrderPayloadBuilder()
+                new ControlPanelOrderPayloadBuilder(),
+                new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository()
             );
             $result = $orchestrator->orchestrate($idShop, $idCart, $request, $shop, 'checkout');
             (new CheckoutPreferenceStore())->clear($this->context->cookie);
@@ -177,6 +178,15 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 $lock->release($idShop, $idCart, $lockToken);
             }
             PrestaShopLogger::addLog('UniPayment order orchestration failed: ' . get_class($exception) . '; retryable=' . ($exception->isRetryable() ? '1' : '0'), 2);
+            if ($exception->isPostOrder()) {
+                /** @var Unipayment $module */
+                $module = $this->module;
+                Tools::redirect(
+                    (new OrderConfirmationUrlBuilder())->build($this->context, $module, $exception->idOrder())
+                );
+
+                return;
+            }
             $this->showError($this->module->getTranslator()->trans(
                 $exception->isRetryable() ? 'The financing order could not be submitted. You can safely try again.' : 'The financing order could not be completed.',
                 [],

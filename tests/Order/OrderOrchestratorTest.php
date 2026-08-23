@@ -36,6 +36,7 @@ use PrestaShop\Module\Unipayment\Order\CreatedOrder;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotFactory;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotStoreInterface;
 use PrestaShop\Module\Unipayment\Order\OrderAttemptStoreInterface;
+use PrestaShop\Module\Unipayment\Order\BankStatus;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\PrestaShopOrderGatewayInterface;
@@ -133,6 +134,23 @@ final class FakeCp implements ControlPanelOrderClientInterface
         return ['ok' => true];
     }
 }
+final class MemoryBankStatus implements \PrestaShop\Module\Unipayment\Order\BankStatusPersistencePort
+{
+    /** @var list<array{idShop: int, orderReference: string, statusId: string, statusLabel: string}> */
+    public $updates = [];
+
+    public function updateByOrderIdentifier(int $idShop, string $orderReference, string $statusId, string $statusLabel): ?array
+    {
+        $this->updates[] = [
+            'idShop' => $idShop,
+            'orderReference' => $orderReference,
+            'statusId' => $statusId,
+            'statusLabel' => $statusLabel,
+        ];
+
+        return ['order_id' => $orderReference, 'status_id' => $statusId];
+    }
+}
 
 $calculator = new Calculator('2026-08-17');
 $shop = calculatorFixture(['uni_eur' => 0]);
@@ -179,34 +197,62 @@ $o2 = new FakeOrders($created);
 $c2 = new FakeCp();
 $c2->queue[] = new ConnectionException('timeout');
 $c2->queue[] = ['data' => ['id' => 902]];
-$flow2 = new OrderOrchestrator($a2, $s2, $o2, $c2, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder());
+$bank2 = new MemoryBankStatus();
+$flow2 = new OrderOrchestrator($a2, $s2, $o2, $c2, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder(), $bank2);
 try {
     $flow2->orchestrate(1, 10, $request, $shop);
     assertOrder(false, 'timeout accepted');
 } catch (OrderOrchestrationException $e) {
     assertOrder($e->isRetryable(), 'timeout not retryable');
+    assertOrder($e->isPostOrder() && $e->idOrder() === 55, 'timeout must expose existing PS order');
+    assertOrder($e->isOutcomeUnknown() && $e->state() === OrderOrchestrator::CP_OUTCOME_UNKNOWN, 'timeout must be outcome unknown');
 }
+assertOrder(($s2->rows[1]['lifecycle_status'] ?? '') === OrderOrchestrator::CP_OUTCOME_UNKNOWN, 'timeout must persist snapshot outcome unknown');
+assertOrder($bank2->updates !== [] && $bank2->updates[0]['statusId'] === BankStatus::SEND_FAILED_CP, 'timeout must persist Woo bank_send_failed_cp');
 $recovered = $flow2->orchestrate(1, 10, $request, $shop);
 assertOrder($recovered->controlPanelOrderId === 902, 'ambiguous retry did not recover CP ID');
 assertOrder($o2->created === 1, 'ambiguous retry created another PS order');
 assertOrder(json_encode($c2->calls[0]) === json_encode($c2->calls[1]), 'ambiguous retry changed CP payload');
 
-foreach ([[409, false], [422, false], [500, true]] as [$status, $retryable]) {
+foreach ([[404, false, OrderOrchestrator::TERMINAL_FAILED], [409, false, OrderOrchestrator::TERMINAL_FAILED], [422, false, OrderOrchestrator::TERMINAL_FAILED], [500, true, OrderOrchestrator::CP_FAILED_RETRYABLE]] as [$status, $retryable, $state]) {
     $a = new MemoryAttempts();
     $s = new MemorySnapshots();
     $o = new FakeOrders($created);
     $c = new FakeCp();
+    $bank = new MemoryBankStatus();
     $c->queue[] = new HttpException($status, []);
-    $flow = new OrderOrchestrator($a, $s, $o, $c, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder());
+    $flow = new OrderOrchestrator($a, $s, $o, $c, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder(), $bank);
     try {
         $flow->orchestrate(2, $status, $request, $shop);
         assertOrder(false, "HTTP $status accepted");
     } catch (OrderOrchestrationException $e) {
         assertOrder($e->isRetryable() === $retryable, "HTTP $status classification differs");
+        assertOrder($e->isPostOrder() && $e->idOrder() === 55, "HTTP $status must expose existing PS order");
+        assertOrder($e->state() === $state, "HTTP $status attempt state differs");
+        assertOrder(!$e->isOutcomeUnknown(), "HTTP $status must not be collapsed into outcome unknown");
     }
     assertOrder($o->created === 1, "HTTP $status created duplicate");
-    if (!$retryable) assertOrder($o->failed === [55], "HTTP $status did not mark failed");
+    assertOrder($o->failed === [55], "HTTP $status did not mark failed");
+    assertOrder(($s->rows[1]['lifecycle_status'] ?? '') === $state, "HTTP $status snapshot lifecycle differs");
+    assertOrder($bank->updates !== [] && $bank->updates[0]['statusId'] === BankStatus::SEND_FAILED_CP, "HTTP $status must persist bank_send_failed_cp");
+    assertOrder((int) ($s->rows[1]['control_panel_order_id'] ?? 0) === 0, "HTTP $status must not fabricate a CP id");
 }
+
+$missingIdAttempts = new MemoryAttempts();
+$missingIdSnapshots = new MemorySnapshots();
+$missingIdOrders = new FakeOrders($created);
+$missingIdCp = new FakeCp();
+$missingIdBank = new MemoryBankStatus();
+$missingIdCp->queue[] = ['data' => []];
+$missingIdFlow = new OrderOrchestrator($missingIdAttempts, $missingIdSnapshots, $missingIdOrders, $missingIdCp, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder(), $missingIdBank);
+try {
+    $missingIdFlow->orchestrate(4, 12, $request, $shop);
+    assertOrder(false, 'missing CP id accepted');
+} catch (OrderOrchestrationException $e) {
+    assertOrder(!$e->isRetryable() && $e->state() === OrderOrchestrator::TERMINAL_FAILED, 'missing CP id must be terminal');
+    assertOrder($e->isPostOrder(), 'missing CP id is post-order');
+}
+assertOrder($missingIdBank->updates !== [] && $missingIdBank->updates[0]['statusId'] === BankStatus::SEND_FAILED_CP, 'missing CP id must persist bank_send_failed_cp');
 
 $badOrder = new CreatedOrder(56, 'BADTOTAL', 1049, 'BGN', 1, $created->customer, $created->addresses, $created->lines);
 $badOrders = new FakeOrders($badOrder);

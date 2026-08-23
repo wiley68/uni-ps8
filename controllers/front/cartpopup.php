@@ -156,7 +156,8 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
             new NativePrestaShopOrderGateway($module, $this->context),
             $cpClient,
             new FinancingSnapshotFactory(new SensitiveDataCipher()),
-            new ControlPanelOrderPayloadBuilder()
+            new ControlPanelOrderPayloadBuilder(),
+            new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository()
         );
         $service = new CartPopupApplyService(
             $calculator,

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\Order;
 
-final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterface
+final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterface, FinancingSnapshotByOrderReaderPort
 {
     public const TABLE = 'unipayment_financing_snapshot';
     /** Matches PrestaShop {@see \Db}::INSERT_IGNORE for idempotent snapshot persistence. */

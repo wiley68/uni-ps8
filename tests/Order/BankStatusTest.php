@@ -30,6 +30,14 @@ $failed = BankStatus::smartUcfFailure();
 assertBankStatus($failed['status_id'] === 'bank_send_failed_smartucf', 'SmartUCF failure status id mismatch');
 assertBankStatus($failed['status_label'] === 'Неуспешно изпратен Банка - SmartUCF', 'SmartUCF failure label mismatch');
 
+$cpFailed = BankStatus::controlPanelFailure(false);
+assertBankStatus($cpFailed['status_id'] === 'bank_send_failed_cp', 'Process 1 CP failure status id must match Woo bank_send_failed_cp');
+assertBankStatus($cpFailed['status_label'] === 'Неуспешно изпратен Банка - КП', 'Process 1 CP failure label mismatch');
+
+$process2Failed = BankStatus::controlPanelFailure(true);
+assertBankStatus($process2Failed['status_id'] === 'bank_send_failed', 'Process 2 CP failure status id must match Woo bank_send_failed');
+assertBankStatus($process2Failed['status_label'] === 'Неуспешно изпратен Банка', 'Process 2 CP failure label mismatch');
+
 $popup = (string) file_get_contents(dirname(__DIR__, 2) . '/controllers/front/productpopup.php');
 $checkout = (string) file_get_contents(dirname(__DIR__, 2) . '/controllers/front/validatecheckout.php');
 $grid = (string) file_get_contents(dirname(__DIR__, 2) . '/unipayment.php');

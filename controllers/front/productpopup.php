@@ -269,7 +269,8 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             new NativePrestaShopOrderGateway($module, $this->context),
             $cpClient,
             new FinancingSnapshotFactory(new SensitiveDataCipher()),
-            new ControlPanelOrderPayloadBuilder()
+            new ControlPanelOrderPayloadBuilder(),
+            new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository()
         );
         $service = new ProductPopupApplyService(
             new Calculator(),
