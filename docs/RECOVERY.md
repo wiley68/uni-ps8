@@ -143,7 +143,7 @@ Related: [`SECURITY-OPERATIONS.md`](SECURITY-OPERATIONS.md), [`ARCHITECTURE.md`]
 - Payload `order_id` is **PrestaShop order reference**, not `id_order`
 - Financing snapshot exists for that order in the same shop
 - `unipayment_order_bank_status` row
-- Optional: `UNIPAYMENT_SYNC_BANK_REJECTION_STATE` for PS order-state change
+- Bank statuses are persisted separately; subsequent bank events do not change the native PS order state
 
 **Safe actions**
 

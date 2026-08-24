@@ -11,18 +11,14 @@ final class CartContextFactory
     public function create(\Cart $cart): CartContext
     {
         $products = $cart->getProducts(true);
-        $total = 0.0;
-        foreach (is_array($products) ? $products : [] as $row) {
-            $total += (float) ($row['total_wt'] ?? 0);
-        }
-        $total = round($total, 2);
+        $total = $this->payableTotal($cart);
         return $this->createContext($products, $total);
     }
 
     public function createForCheckout(\Cart $cart): CartContext
     {
         $products = $cart->getProducts(true);
-        $total = (float) $cart->getOrderTotal(true, \Cart::BOTH);
+        $total = $this->payableTotal($cart);
         $rules = [];
         foreach ($cart->getCartRules() as $rule) {
             $rules[] = [
@@ -42,6 +38,11 @@ final class CartContextFactory
         ];
 
         return $this->createContext(is_array($products) ? $products : [], $total, $checkoutState);
+    }
+
+    private function payableTotal(\Cart $cart): float
+    {
+        return round((float) $cart->getOrderTotal(true, \Cart::BOTH), 2);
     }
 
     /** @param array<int, array<string, mixed>> $products @param array<string, mixed> $checkoutState */

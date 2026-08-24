@@ -131,8 +131,6 @@ final class CartPopupApplyService
             throw new \RuntimeException('The cart could not be prepared for the popup order.');
         }
 
-        $this->neutralizeShipping($cart);
-
         $cartFingerprint = md5((int) $cart->id . ':' . $cartContext->total . ':' . $schemeKey);
         $request = new ValidatedPaymentRequest($calcResult, $customerData, $accepted, $cartFingerprint, $acceptedConsents);
 
@@ -192,16 +190,6 @@ final class CartPopupApplyService
         $context->cart = $cart;
         $context->cookie->id_cart = (int) $cart->id;
         $context->cookie->write();
-    }
-
-    /**
-     * Woo cart_popup finances cart contents only (no shipping). Keep PS order total aligned.
-     */
-    private function neutralizeShipping(Cart $cart): void
-    {
-        $cart->id_carrier = 0;
-        $cart->delivery_option = '';
-        $cart->update();
     }
 
     /** @param AvailableScheme[] $schemes */

@@ -310,7 +310,8 @@ assertAud018($resultE->emailSent() === true, 'E: email sent for outcome_unknown'
 $storeF = new Aud018MemorySnapshotStore();
 $storeF->seed(10, $snapshot);
 $smartFailed = new Aud018FakeSmartUcfPort(SmartUcfCoordinationResult::failed('failed msg'));
-$resultF = (new PostControlPanelLifecycleService($storeF, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
+$failedBankSpy = new Aud018BankStatusSpy();
+$resultF = (new PostControlPanelLifecycleService($storeF, new Aud018NoopMailDispatcher(), $failedBankSpy))->handle(
     $order,
     $shopProcess1,
     $context,
@@ -318,6 +319,7 @@ $resultF = (new PostControlPanelLifecycleService($storeF, new Aud018NoopMailDisp
 );
 assertAud018($resultF->isFailed(), 'F: failed outcome');
 assertAud018($resultF->finalBankStatus()['status_id'] === BankStatus::SEND_FAILED_SMARTUCF, 'F: smartUcfFailure status');
+assertAud018($failedBankSpy->updates !== [] && $failedBankSpy->updates[0]['id'] === BankStatus::SEND_FAILED_SMARTUCF, 'F: SmartUCF failure status persisted');
 assertAud018($resultF->emailSent() === true, 'F: email sent on failed');
 
 // Test G — snapshot missing

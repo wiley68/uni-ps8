@@ -2,6 +2,14 @@
 
 All notable production releases of the UniPayment PrestaShop 8 module are documented here.
 
+## 2.0.1 — 2026-08-24
+
+- Finance the complete authoritative tax-inclusive PrestaShop payable total in cart and checkout flows.
+- Keep eligibility, calculation, snapshot, CP order price, and SmartUCF total on the same canonical amount.
+- Keep subsequent CP/SmartUCF bank statuses independent from the native PrestaShop order status.
+- Persist and patch Process 1 success only after SmartUCF session creation; Process 2 success remains assigned after CP order creation.
+- No database schema change and no upgrade script.
+
 ## 2.0.0 — 2026-08-23
 
 First production release of this development line. There are no historical upgrade scripts from earlier development builds.

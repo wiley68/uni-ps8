@@ -98,6 +98,13 @@ final class PostControlPanelLifecycleService
 
         $result = $this->normalizeSmartUcfResult($smart, $finalStatus);
 
+        if ($result->isFailed()) {
+            $failedStatus = $result->finalBankStatus();
+            if ($failedStatus !== null) {
+                $this->persistBankStatus($context->idShop, $order->orderReference, $failedStatus);
+            }
+        }
+
         if ($result->isProcessing() || !$context->sendLeasingEmail) {
             return $result;
         }

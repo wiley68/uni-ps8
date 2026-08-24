@@ -28,7 +28,7 @@ final class ControlPanelOrderPayloadBuilder
         if ($address2 === '') $address2 = $address;
         if ($address2 === '') $address2 = '-';
 
-        return [
+        $payload = [
             'order_id' => substr((string) $snapshot['order_reference'], 0, 13),
             'name' => substr($name, 0, 65),
             'phone' => substr((string) ($customer['phone'] ?? ''), 0, 45),
@@ -40,8 +40,6 @@ final class ControlPanelOrderPayloadBuilder
             'gpr' => round((float) $snapshot['gpr'], 2),
             'vnoski' => (int) $snapshot['months'],
             'parva' => round((float) $snapshot['first_installment'], 2),
-            'status' => $process2 ? 'Изпратен Банка - Процес 2' : 'Изпратен Банка - Процес 1',
-            'status_id' => $process2 ? 'bank_sent_process2' : 'bank_sent_process1',
             'products_id' => implode('_', $ids),
             'products_name' => substr(implode('_', $names), 0, 255),
             'products_q' => implode('_', $quantities),
@@ -49,6 +47,13 @@ final class ControlPanelOrderPayloadBuilder
             'currency' => (string) $snapshot['currency_iso'],
             'version' => (string) $snapshot['module_version'],
         ];
+
+        if ($process2) {
+            $payload['status'] = 'Изпратен Банка - Процес 2';
+            $payload['status_id'] = 'bank_sent_process2';
+        }
+
+        return $payload;
     }
 
     /** @param array<string, mixed> $address */

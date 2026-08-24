@@ -151,7 +151,7 @@ assertAud011(
     preg_match('/if \(\$result === null\)[\s\S]*404/', $ctrlSrc) === 1,
     '404 path preserved for not found'
 );
-assertAud011(strpos($moduleSrc = (string) file_get_contents($root . '/unipayment.php'), "version = '2.0.0'") !== false, 'version 2.0.0');
+assertAud011(strpos($moduleSrc = (string) file_get_contents($root . '/unipayment.php'), "version = '2.0.1'") !== false, 'version 2.0.1');
 
 function makeAud011Repo(Aud011FakeDb $db): OrderBankStatusRepository
 {
@@ -237,15 +237,15 @@ assertAud011($dbF->bankRows[0]['id_order'] === '701', 'F: id_order persisted');
 assertAud011($dbF->bankRows[0]['id_shop'] === '3', 'F: id_shop persisted');
 assertAud011($dbF->bankRows[0]['order_id'] === 'SHOP3REF', 'F: shop reference persisted');
 
-// Test G — foreign order not updated (mapper would only run after successful resolve in controller)
+// Test G — foreign order not updated and callback has no native order-state mapper
 assertAud011(
     $repoC->updateByOrderIdentifier(1, 'FOREIGN', 'fixture-reject-01', 'Rejected') === null,
-    'G: foreign reference cannot be resolved for mapper input'
+    'G: foreign reference cannot be resolved for persistence'
 );
 assertAud011(
-    strpos($ctrlSrc, '(int) $result[\'ps_order_id\']') !== false
+    strpos($ctrlSrc, 'BankStatusOrderStateMapper') === false
         && strpos($ctrlSrc, 'if ($result === null)') !== false,
-    'G: mapper receives only authorized ps_order_id after successful resolve'
+    'G: callback preserves authorization without native order-state mapping'
 );
 
 fwrite(STDOUT, "OK (AUD-011 order-bank-status multishop authorization)\n");

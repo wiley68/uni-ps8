@@ -72,16 +72,6 @@
       </div>
     </div>
 
-    <div class="form-group">
-      <label class="control-label col-lg-3" for="UNIPAYMENT_SYNC_BANK_REJECTION_STATE_on">{l s='При банков отказ промени статуса на поръчката' d='Modules.Unipayment.Admin'}</label>
-      <div class="col-lg-9">
-        <span class="switch prestashop-switch fixed-width-lg">
-          <input type="radio" name="UNIPAYMENT_SYNC_BANK_REJECTION_STATE" id="UNIPAYMENT_SYNC_BANK_REJECTION_STATE_on" value="1"{if $unipayment_sync_bank_rejection_state} checked="checked"{/if}><label for="UNIPAYMENT_SYNC_BANK_REJECTION_STATE_on">{l s='Yes' d='Admin.Global'}</label>
-          <input type="radio" name="UNIPAYMENT_SYNC_BANK_REJECTION_STATE" id="UNIPAYMENT_SYNC_BANK_REJECTION_STATE_off" value="0"{if !$unipayment_sync_bank_rejection_state} checked="checked"{/if}><label for="UNIPAYMENT_SYNC_BANK_REJECTION_STATE_off">{l s='No' d='Admin.Global'}</label><a class="slide-button btn"></a>
-        </span>
-        <p class="help-block">{l s='Когато опцията е включена и банката върне окончателен статус за отказ, статусът на поръчката в PrestaShop ще бъде променен на „Отказано финансиране от УниКредит“.' d='Modules.Unipayment.Admin'}</p>
-      </div>
-    </div>
   </form>
 
   <div class="panel-footer" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">

@@ -149,7 +149,7 @@ reserve attempt
   → save financing snapshot (+ opportunistic PII cleanup)
   → build CP payload
   → CP POST /orders
-  → cp_created + markAwaiting PS order state
+  → cp_created (native PS order state remains merchant-controlled)
 ```
 
 Concurrent duplicate submission without a new reservation and without `id_order` → retryable “already being processed”.

@@ -36,6 +36,6 @@ assertCartPopupContract(strpos($module, 'product-calculator.js') !== false && st
 assertCartPopupContract(strpos($jsProduct, 'isCartSource') !== false, 'product popup JS must detect cart source');
 assertCartPopupContract(strpos($controller, 'CartPopupApplyService') !== false, 'cartpopup controller must apply via CartPopupApplyService');
 assertCartPopupContract(strpos($apply, "'cart_popup'") !== false, 'apply must persist submission_source=cart_popup');
-assertCartPopupContract(strpos($apply, 'neutralizeShipping') !== false, 'apply must align order total with contents-only financing');
+assertCartPopupContract(strpos($apply, 'neutralizeShipping') === false, 'cart popup must preserve shipping in the payable order total');
 
 fwrite(STDOUT, "OK (Cart popup contract)\n");

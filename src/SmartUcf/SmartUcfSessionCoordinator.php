@@ -10,7 +10,6 @@ use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
 use PrestaShop\Module\Unipayment\Order\BankStatus;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
-use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
 use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateConsumerLease;
 use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateSynchronizer;
@@ -48,7 +47,7 @@ final class SmartUcfSessionCoordinator implements \PrestaShop\Module\Unipayment\
     private $controlPanelApi;
     /** @var CertificateSynchronizer|null */
     private $certificateSynchronizer;
-    /** @var object|null Module instance for PS markFailed */
+    /** @var object|null Module instance retained for constructor compatibility */
     private $module;
     /** @var \Context|null */
     private $context;
@@ -359,6 +358,20 @@ final class SmartUcfSessionCoordinator implements \PrestaShop\Module\Unipayment\
             return;
         }
         $status = BankStatus::successfulSend(false);
+        if ($this->cpClient !== null) {
+            try {
+                $this->cpClient->updateOrderStatus(
+                    substr($orderReference, 0, 13),
+                    $status['status_label'],
+                    $status['status_id']
+                );
+            } catch (\Throwable $exception) {
+                \PrestaShopLogger::addLog(
+                    'UniPayment CP status update failed after SmartUCF created: ' . get_class($exception),
+                    2
+                );
+            }
+        }
         try {
             (new OrderBankStatusRepository())->updateByOrderIdentifier(
                 $this->authorizedShopId(),
@@ -405,13 +418,6 @@ final class SmartUcfSessionCoordinator implements \PrestaShop\Module\Unipayment\
             }
         }
 
-        if ($this->module !== null && $this->context !== null && $idOrder > 0) {
-            try {
-                (new NativePrestaShopOrderGateway($this->module, $this->context))->markFailed($idOrder);
-            } catch (\Throwable $e) {
-                \PrestaShopLogger::addLog('UniPayment order mark failed after SmartUCF error failed: ' . get_class($e), 2);
-            }
-        }
     }
 
     /** @param array<string, mixed> $session */

@@ -56,6 +56,10 @@ $orchestratorSrc = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/
 assertBankStatus(strpos($orchestratorSrc, 'DeferredOrderMailQueue::discard()') !== false, 'Process 1 deferred order_conf must be discarded when CP create fails');
 assertBankStatus(strpos($grid, 'hookActionEmailSendBefore') !== false, 'order_conf deferral hook must be registered');
 assertBankStatus(strpos($grid, 'hookDisplayPaymentReturn') !== false, 'Process 2 thank-you leasing block hook must be registered');
+$payloadBuilder = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/ControlPanelOrderPayloadBuilder.php');
+$coordinator = (string) file_get_contents(dirname(__DIR__, 2) . '/src/SmartUcf/SmartUcfSessionCoordinator.php');
+assertBankStatus(strpos($payloadBuilder, 'if ($process2)') !== false, 'Process 1 CP create must not claim bank_sent_process1 before SmartUCF');
+assertBankStatus(strpos($coordinator, 'CP status update failed after SmartUCF created') !== false, 'Process 1 success must update CP only after SmartUCF creation');
 $leasingPresenter = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/OrderLeasingDetailsPresenter.php');
 assertBankStatus(strpos($leasingPresenter, 'applyBankStatusLabel') !== false, 'admin/thank-you leasing rows must overlay live bank status like Woo');
 $cart = (string) file_get_contents(dirname(__DIR__, 2) . '/controllers/front/cartpopup.php');

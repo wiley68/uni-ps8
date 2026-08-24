@@ -3,9 +3,7 @@
 declare(strict_types=1);
 
 use PrestaShop\Module\Unipayment\Api\Exception\ModuleApiException;
-use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
 use PrestaShop\Module\Unipayment\Controller\ModuleApiController;
-use PrestaShop\Module\Unipayment\Order\BankStatusOrderStateMapper;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
 
 final class UnipaymentOrderbankstatusModuleFrontController extends ModuleApiController
@@ -35,23 +33,7 @@ final class UnipaymentOrderbankstatusModuleFrontController extends ModuleApiCont
             throw new ModuleApiException('The order was not found in the shop.', 404);
         }
 
-        $stateChanged = false;
-        try {
-            $syncEnabled = (new ConfigurationRepository())->isSyncBankRejectionStateEnabled();
-            $stateChanged = (new BankStatusOrderStateMapper())->apply(
-                (int) $result['ps_order_id'],
-                $statusId,
-                $syncEnabled
-            );
-        } catch (\Throwable $exception) {
-            \PrestaShopLogger::addLog(
-                'UniPayment bank-status PS order-state sync failed (' . get_class($exception) . ')',
-                3
-            );
-            $stateChanged = false;
-        }
-
-        $result['ps_order_state_changed'] = $stateChanged;
+        $result['ps_order_state_changed'] = false;
 
         return [
             'success' => true,

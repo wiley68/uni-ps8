@@ -5,7 +5,7 @@ Native PrestaShop 8 module for **UniCredit financing** (credit calculator, check
 | Item                  | Value                        |
 | --------------------- | ---------------------------- |
 | Module technical name | `unipayment`                 |
-| Current version       | `2.0.0`                      |
+| Current version       | `2.0.1`                      |
 | Repository root       | Module root (this directory) |
 | Current state         | First production release     |
 
@@ -25,7 +25,7 @@ Verified against the current codebase:
 - **Shop configuration cache** — local snapshot with TTL and CP push replacement
 - **Financing order creation** — PrestaShop order + financing snapshot + CP order submission
 - **SmartUCF integration** — direct module → SmartUCF session (Process 1, when configured)
-- **Bank status callbacks** — signed CP → module push; optional PrestaShop order-state sync for rejection
+- **Bank status callbacks** — signed CP → module push with bank status persistence independent of native order status
 - **Merchant order admin** — financing details on order view and order grid column
 - **Financing emails** — audience-specific customer/admin leasing application emails
 - **Signed inbound module API** — HMAC-signed CP callbacks with replay protection
@@ -84,7 +84,6 @@ Merchant-facing module settings (Back Office → Modules → UniPayment → Conf
 | Debug enabled             | Diagnostic behavior (see code for current scope)         |
 | Product button action     | Add to cart vs buy (`add_to_cart` / `buy`)               |
 | Button top spacing        | Product page button offset (0–200 px)                    |
-| Sync bank rejection state | Optional PrestaShop order-state change on bank rejection |
 
 Business financing rules (KOP, coefficients, Process 1/2 flag, SmartUCF endpoints, consents, etc.) come from the **Control Panel shop configuration snapshot**, not from editable duplicate settings in the module.
 

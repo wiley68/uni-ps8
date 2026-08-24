@@ -176,7 +176,7 @@ assertOrder((new SensitiveDataCipher())->decrypt($snapshots->rows[1]['sensitive_
 $again = $orchestrator->orchestrate(1, 9, $request, array_replace($shop, ['uni_shema_current' => 24]));
 assertOrder($again->idOrder === 55 && $orders->created === 1 && count($cp->calls) === 1, 'double submit created duplicates');
 assertOrder($snapshots->rows[1]['months'] === $calculation->scheme->months && $snapshots->rows[1]['kop_code'] === $calculation->scheme->kopCode, 'configuration change altered immutable snapshot');
-assertOrder(array_keys($cp->calls[0]) === ['order_id', 'name', 'phone', 'email', 'address', 'address2', 'price', 'vnoska', 'gpr', 'vnoski', 'parva', 'status', 'status_id', 'products_id', 'products_name', 'products_q', 'type_client', 'currency', 'version'], 'CP contract fields differ');
+assertOrder(array_keys($cp->calls[0]) === ['order_id', 'name', 'phone', 'email', 'address', 'address2', 'price', 'vnoska', 'gpr', 'vnoski', 'parva', 'products_id', 'products_name', 'products_q', 'type_client', 'currency', 'version'], 'Process 1 CP create must not claim SmartUCF success');
 assertOrder($cp->calls[0]['products_id'] === '3' && $cp->calls[0]['products_name'] === 'Product-Name' && $cp->calls[0]['products_q'] === '2', 'Woo product formatting differs');
 
 $lockedAttempts = new MemoryAttempts();
@@ -232,7 +232,7 @@ foreach ([[404, false, OrderOrchestrator::TERMINAL_FAILED], [409, false, OrderOr
         assertOrder(!$e->isOutcomeUnknown(), "HTTP $status must not be collapsed into outcome unknown");
     }
     assertOrder($o->created === 1, "HTTP $status created duplicate");
-    assertOrder($o->failed === [55], "HTTP $status did not mark failed");
+    assertOrder($o->failed === [], "HTTP $status changed the native order state");
     assertOrder(($s->rows[1]['lifecycle_status'] ?? '') === $state, "HTTP $status snapshot lifecycle differs");
     assertOrder($bank->updates !== [] && $bank->updates[0]['statusId'] === BankStatus::SEND_FAILED_CP, "HTTP $status must persist bank_send_failed_cp");
     assertOrder((int) ($s->rows[1]['control_panel_order_id'] ?? 0) === 0, "HTTP $status must not fabricate a CP id");
@@ -263,5 +263,5 @@ try {
     assertOrder(false, 'total mismatch accepted');
 } catch (OrderOrchestrationException $e) {
 }
-assertOrder($badCp->calls === [] && $badOrders->failed === [56], 'total mismatch reached CP');
+assertOrder($badCp->calls === [] && $badOrders->failed === [], 'total mismatch reached CP or changed native order state');
 fwrite(STDOUT, "OK (Phase 9B order orchestration)\n");

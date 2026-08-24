@@ -81,7 +81,6 @@ final class OrderOrchestrator
             if ($snapshot === null) {
                 if (abs($order->total - $request->calculation->price) > 0.01) {
                     $this->attempts->update($attemptId, ['state' => self::TERMINAL_FAILED, 'last_error_class' => 'OrderTotalMismatch']);
-                    $this->orders->markFailed($order->idOrder);
                     DeferredOrderMailQueue::discard();
                     throw new OrderOrchestrationException(
                         'The created order total does not match the validated cart total.',
@@ -102,7 +101,6 @@ final class OrderOrchestrator
             $attempt = $this->attempts->update($attemptId, ['state' => self::PS_ORDER_CREATED, 'id_order' => $order->idOrder, 'order_reference' => $order->reference]);
             if (abs($order->total - $request->calculation->price) > 0.01) {
                 $this->attempts->update($attemptId, ['state' => self::TERMINAL_FAILED, 'last_error_class' => 'OrderTotalMismatch']);
-                $this->orders->markFailed($order->idOrder);
                 DeferredOrderMailQueue::discard();
                 throw new OrderOrchestrationException(
                     'The created order total does not match the validated cart total.',
@@ -150,8 +148,6 @@ final class OrderOrchestrator
             }
             $attempt = $this->attempts->update($attemptId, ['state' => self::CP_CREATED, 'control_panel_order_id' => $cpId]);
             $this->snapshots->update($attemptId, ['control_panel_order_id' => $cpId, 'lifecycle_status' => self::CP_CREATED]);
-            $this->orders->markAwaiting($order->idOrder);
-
             return $this->result($attempt);
         } catch (ConnectionException $exception) {
             $this->recordControlPanelFailure(
@@ -216,7 +212,6 @@ final class OrderOrchestrator
         string $errorClass
     ): void {
         $this->attempts->update($attemptId, ['state' => $state, 'last_error_class' => $errorClass]);
-        $this->orders->markFailed($order->idOrder);
         $this->snapshots->update($attemptId, ['lifecycle_status' => $state]);
         DeferredOrderMailQueue::discard();
         if ($this->bankStatus === null || $order->reference === '') {

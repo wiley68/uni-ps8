@@ -94,7 +94,7 @@ $purgerSrc = (string) file_get_contents($root . '/src/Uninstall/ModuleDataPurger
 assertAud010(strpos($purgerSrc, 'ps_address') === false && strpos($purgerSrc, 'Address::') === false, '19: AUD-006 does not delete native addresses');
 
 $moduleSrc = (string) file_get_contents($root . '/unipayment.php');
-assertAud010(strpos($moduleSrc, "version = '2.0.0'") !== false, 'version 2.0.0');
+assertAud010(strpos($moduleSrc, "version = '2.0.1'") !== false, 'version 2.0.1');
 
 // Snapshot financing email overlay
 $scheme = new AvailableScheme('standard', 'K1', 12, 0, null, ['coeff' => 1.0]);
