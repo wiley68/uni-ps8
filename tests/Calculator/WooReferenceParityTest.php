@@ -96,7 +96,11 @@ if (false) {
     }
 }
 
-require '/var/www/woo.avalonbg.com/wp-content/plugins/mtunicredit/includes/functions.php';
+$wooIncludes = '/var/www/woo.avalonbg.com/wp-content/plugins/mtunicredit/includes';
+require $wooIncludes . '/functions.php';
+// Woo v2.0.2 extracted helpers (plugin bootstrap loads these after functions.php).
+require $wooIncludes . '/mtuc-financing-calculator.php';
+require $wooIncludes . '/mtuc-product-offer-selection.php';
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 require __DIR__ . '/fixtures.php';
 

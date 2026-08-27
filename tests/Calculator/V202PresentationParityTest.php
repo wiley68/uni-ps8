@@ -18,11 +18,13 @@ use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\CurrencyGate;
 use PrestaShop\Module\Unipayment\Calculator\ProductContext;
 use PrestaShop\Module\Unipayment\Calculator\SchemePresentationCategory;
+use PrestaShop\Module\Unipayment\Cart\CartCalculatorPresenter;
 use PrestaShop\Module\Unipayment\Cart\CartContext;
 use PrestaShop\Module\Unipayment\Cart\CartLine;
 use PrestaShop\Module\Unipayment\Cart\CartSchemeResolver;
 use PrestaShop\Module\Unipayment\Checkout\CartSnapshot;
 use PrestaShop\Module\Unipayment\Checkout\CartSnapshotSigner;
+use PrestaShop\Module\Unipayment\Checkout\CheckoutPaymentCalculator;
 use PrestaShop\Module\Unipayment\Checkout\CheckoutPaymentPresenter;
 use PrestaShop\Module\Unipayment\Checkout\ConsentResolver;
 use PrestaShop\Module\Unipayment\Product\ProductPopupSchemeList;
@@ -282,10 +284,11 @@ $prefView = $checkout->present(true, calculatorFixture(), new CartContext([v202L
 assertV202($prefView['default_scheme_key'] === $short['key'], '9: explicit preference preserved');
 assertV202($prefView['default_first_installment'] === 40.0, '9: editable preferred first installment preserved');
 
-// Test 13: conflicting cross-line uni_parva — no line-order-dependent representative
+// Test 13: conflicting cross-line uni_parva — order-independent ambiguity (no first-line wins)
 $conflictShop = calculatorFixture([
     'uni_typekop' => 1,
     'uni_shema_current' => 12,
+    'uni_first_vnoska' => 1,
     'kop' => [
         'by_default' => ['uni_kop_default' => 'STD', 'uni_kop_promo' => 'PROMO'],
         'by_schema' => ['filters' => [
@@ -298,21 +301,109 @@ $conflictShop = calculatorFixture([
     ],
 ]);
 $conflictShop['uni_meseci_12'] = 1;
-$orderA = $resolver->resolve($conflictShop, new CartContext([v202Line(1, 1000), v202Line(2, 1000)], 1000));
-$orderB = $resolver->resolve($conflictShop, new CartContext([v202Line(2, 1000), v202Line(1, 1000)], 1000));
+$cartPresenter = new CartCalculatorPresenter($resolver, $calculator, new CurrencyGate());
+$checkoutCalc = new CheckoutPaymentCalculator($calculator, $resolver, new CurrencyGate());
+$cartAB = new CartContext([v202Line(1, 1000), v202Line(2, 1000)], 1000);
+$cartBA = new CartContext([v202Line(2, 1000), v202Line(1, 1000)], 1000);
+$orderA = $resolver->resolve($conflictShop, $cartAB);
+$orderB = $resolver->resolve($conflictShop, $cartBA);
 assertV202(count($orderA->standardSchemes) === 1 && count($orderB->standardSchemes) === 1, '13: conflicting scheme remains in intersection membership');
 assertV202(
-    ($orderA->standardOffer === null) === ($orderB->standardOffer === null),
-    '13: representative presence is line-order independent'
+    $orderA->standardSchemes[0]->type === $orderB->standardSchemes[0]->type
+        && $orderA->standardSchemes[0]->kopCode === $orderB->standardSchemes[0]->kopCode
+        && $orderA->standardSchemes[0]->months === $orderB->standardSchemes[0]->months,
+    '13: intersection identity A→B == B→A'
 );
-if ($orderA->standardOffer !== null && $orderB->standardOffer !== null) {
-    assertV202(
-        abs($orderA->standardOffer->monthlyInstallment - $orderB->standardOffer->monthlyInstallment) < 0.001,
-        '13: representative monthly is line-order independent'
-    );
-} else {
-    assertV202($orderA->standardOffer === null && $orderB->standardOffer === null, '13: ambiguous uni_parva excludes representative');
+assertV202(
+    $orderA->standardSchemes[0]->firstInstallmentAmbiguous
+        && $orderB->standardSchemes[0]->firstInstallmentAmbiguous,
+    '13: both orders mark first-installment policy ambiguous'
+);
+assertV202(
+    $orderA->standardSchemes[0]->filterId === $orderB->standardSchemes[0]->filterId
+        && $orderA->standardSchemes[0]->filter === null
+        && $orderB->standardSchemes[0]->filter === null,
+    '13: ambiguous schemes do not expose arbitrary first-line filter metadata'
+);
+assertV202($orderA->standardOffer === null && $orderB->standardOffer === null, '13: ambiguous uni_parva excludes representative');
+assertV202(
+    $resolver->unifiedSchemes($orderA, $conflictShop) === []
+        && $resolver->unifiedSchemes($orderB, $conflictShop) === [],
+    '13: Checkout calculable membership excludes ambiguous scheme in both orders'
+);
+$popupAB = $cartPresenter->present($conflictShop, $cartAB, 'BGN');
+$popupBA = $cartPresenter->present($conflictShop, $cartBA, 'BGN');
+assertV202($popupAB === null && $popupBA === null, '13: Cart popup presentable membership excludes ambiguous-only cart');
+$checkoutAB = $checkout->present(true, $conflictShop, $cartAB, 'BGN');
+$checkoutBA = $checkout->present(true, $conflictShop, $cartBA, 'BGN');
+assertV202($checkoutAB === null && $checkoutBA === null, '13: Checkout presentable membership identical (unsupported) for both orders');
+$calcFailedAB = false;
+$calcFailedBA = false;
+try {
+    $checkoutCalc->calculate($conflictShop, $cartAB, 'BGN', [
+        'scheme_key' => '12:61',
+        'kop_code' => 'CAT',
+        'first_installment' => 0,
+    ]);
+} catch (\Throwable $e) {
+    $calcFailedAB = true;
 }
+try {
+    $checkoutCalc->calculate($conflictShop, $cartBA, 'BGN', [
+        'scheme_key' => '12:62',
+        'kop_code' => 'CAT',
+        'first_installment' => 0,
+    ]);
+} catch (\Throwable $e) {
+    $calcFailedBA = true;
+}
+assertV202($calcFailedAB && $calcFailedBA, '13: Checkout AJAX calculation rejects ambiguous scheme regardless of line order / filter id');
+
+// Finding 1: zero_promo must never represent the standard Cart button
+$zeroStdShop = calculatorFixture([
+    'uni_typekop' => 1,
+    'uni_shema_current' => 12,
+    'kop' => [
+        'by_default' => ['uni_kop_default' => 'STD', 'uni_kop_promo' => 'PROMO'],
+        'by_schema' => ['filters' => [
+            ['id' => 1, 'product_id' => 1, 'category_id' => null, 'uni_meseci' => '12', 'uni_promo' => 0, 'uni_parva' => 0, 'uni_kop' => 'STD'],
+            ['id' => 2, 'product_id' => 1, 'category_id' => null, 'uni_meseci' => '12', 'uni_promo' => 0, 'uni_parva' => 0, 'uni_kop' => 'CAT'],
+            ['id' => 3, 'product_id' => 1, 'category_id' => null, 'uni_meseci' => '12', 'uni_promo' => 1, 'uni_parva' => 0, 'uni_kop' => 'ZERO', 'uni_kop_desc' => '0%'],
+        ]],
+    ],
+    'coeff_list' => [
+        ['onlineProductCode' => 'STD', 'installmentCount' => 12, 'coeff' => 0.095, 'interestPercent' => 18],
+        ['onlineProductCode' => 'CAT', 'installmentCount' => 12, 'coeff' => 0.09, 'interestPercent' => 10],
+        ['onlineProductCode' => 'ZERO', 'installmentCount' => 12, 'coeff' => 0.083333, 'interestPercent' => 0],
+    ],
+]);
+$zeroStdShop['uni_meseci_12'] = 1;
+$zeroCart = new CartContext([v202Line(1, 1000)], 1000);
+$zeroRes = $resolver->resolve($zeroStdShop, $zeroCart);
+$cats = [];
+foreach ($zeroRes->standardSchemes as $scheme) {
+    $cats[] = SchemePresentationCategory::classify($scheme, $zeroStdShop);
+}
+assertV202(
+    in_array(SchemePresentationCategory::STANDARD, $cats, true)
+        && in_array(SchemePresentationCategory::NONZERO_PROMO, $cats, true)
+        && in_array(SchemePresentationCategory::ZERO_PROMO, $cats, true),
+    'F1: standard popup membership keeps standard + nonzero + zero_promo'
+);
+assertV202($zeroRes->standardOffer !== null, 'F1: standard button has a representative');
+assertV202(
+    $zeroRes->standardOffer->kopCode !== 'ZERO' && abs($zeroRes->standardOffer->glp) > 0.00001,
+    'F1: standard button never selects zero_promo'
+);
+assertV202(
+    in_array($zeroRes->standardOffer->kopCode, ['STD', 'CAT'], true),
+    'F1: standard button chooses standard or non-zero promo'
+);
+assertV202($zeroRes->promoOffer !== null && $zeroRes->promoOffer->kopCode === 'ZERO', 'F1: dedicated 0% promo button unchanged');
+$zeroCheckout = $checkout->present(true, $zeroStdShop, $zeroCart, 'BGN');
+assertV202(is_array($zeroCheckout), 'F1: checkout still lists 0% membership');
+$zeroKeys = array_column($zeroCheckout['schemes'], 'kop_code');
+assertV202(in_array('ZERO', $zeroKeys, true), 'F1: 0% remains in Checkout membership');
 
 // Product popup uses shared ordering
 $product = new ProductContext(1, [], 1000);

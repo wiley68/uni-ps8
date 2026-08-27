@@ -55,19 +55,25 @@ final class CartSchemeResolver
     }
 
     /**
+     * Calculable / presentable unified list for Checkout (excludes ambiguous first-installment policy).
+     *
      * @param array<string, mixed> $shop
      *
      * @return AvailableScheme[]
      */
     public function unifiedSchemes(CartResolution $resolution, array $shop = []): array
     {
-        $schemes = $resolution->standardSchemes;
+        $schemes = [];
         $seen = [];
-        foreach ($schemes as $scheme) {
+        foreach ($resolution->standardSchemes as $scheme) {
+            if ($scheme->firstInstallmentAmbiguous) {
+                continue;
+            }
+            $schemes[] = $scheme;
             $seen[$this->key($scheme)] = true;
         }
         foreach ($resolution->promoSchemes as $scheme) {
-            if (isset($seen[$this->key($scheme)])) {
+            if ($scheme->firstInstallmentAmbiguous || isset($seen[$this->key($scheme)])) {
                 continue;
             }
             $schemes[] = $scheme;
@@ -148,7 +154,65 @@ final class CartSchemeResolver
             }
         }
 
+        $common = array_map(function (AvailableScheme $scheme) use ($sets): AvailableScheme {
+            return $this->reconcileCommonScheme($scheme, $sets);
+        }, $common);
+
         return SchemePresentationCategory::sort($common, $shop);
+    }
+
+    /**
+     * Order-independent metadata for a common type|KOP|months identity.
+     * Conflicting uni_parva → ambiguous (no authoritative filter); agreeing policies → lowest filterId.
+     *
+     * @param array<int, AvailableScheme[]> $sets
+     */
+    private function reconcileCommonScheme(AvailableScheme $seed, array $sets): AvailableScheme
+    {
+        $contributors = [];
+        $key = $this->key($seed);
+        foreach ($sets as $set) {
+            foreach ($set as $candidate) {
+                if ($this->key($candidate) === $key) {
+                    $contributors[] = $candidate;
+                }
+            }
+        }
+        if ($contributors === []) {
+            return $seed;
+        }
+
+        $policies = [];
+        foreach ($contributors as $candidate) {
+            $policies[] = is_array($candidate->filter) && (int) ($candidate->filter['uni_parva'] ?? 0) === 1 ? 1 : 0;
+        }
+        $uniquePolicies = array_values(array_unique($policies));
+        if (count($uniquePolicies) > 1) {
+            return new AvailableScheme(
+                $seed->type,
+                $seed->kopCode,
+                $seed->months,
+                0,
+                null,
+                $seed->coefficient,
+                true
+            );
+        }
+
+        usort($contributors, static function (AvailableScheme $left, AvailableScheme $right): int {
+            return $left->filterId <=> $right->filterId;
+        });
+        $chosen = $contributors[0];
+
+        return new AvailableScheme(
+            $chosen->type,
+            $chosen->kopCode,
+            $chosen->months,
+            $chosen->filterId,
+            $chosen->filter,
+            $chosen->coefficient,
+            false
+        );
     }
 
     /**
@@ -169,7 +233,14 @@ final class CartSchemeResolver
             if ($buttonType === 'promo' && abs((float) ($scheme->coefficient['interestPercent'] ?? -1)) > 0.00001) {
                 continue;
             }
-            if ($this->hasConflictingAutomaticFirstInstallment($scheme, $lineSets)) {
+            // Standard cart button: standard + non-zero promo only; never zero_promo.
+            if (
+                $buttonType === 'standard'
+                && SchemePresentationCategory::classify($scheme, $shop) === SchemePresentationCategory::ZERO_PROMO
+            ) {
+                continue;
+            }
+            if ($scheme->firstInstallmentAmbiguous || $this->hasConflictingAutomaticFirstInstallment($scheme, $lineSets)) {
                 continue;
             }
             try {

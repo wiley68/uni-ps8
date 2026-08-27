@@ -2,27 +2,51 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') { exit(1); }
+if (PHP_SAPI !== 'cli') {
+    exit(1);
+}
 define('ABSPATH', '/tmp/');
 define('MTUC_SCHEME_MONTH_MIN', 3);
 define('MTUC_SCHEME_MONTH_MAX', 36);
 
 /** @param mixed $value */
-function absint($value) { return abs((int) $value); }
-function mtuc_sort_popup_scheme_options(array $options): array { return $options; }
-function mtuc_build_popup_scheme_option_row(int $months, int $filterId, string $kop, string $desc, string $type): array {
+function absint($value)
+{
+    return abs((int) $value);
+}
+function mtuc_sort_popup_scheme_options(array $options): array
+{
+    return $options;
+}
+function mtuc_build_popup_scheme_option_row(int $months, int $filterId, string $kop, string $desc, string $type): array
+{
     return ['months' => $months, 'filter_id' => $filterId, 'kop_code' => $kop, 'desc' => $desc, 'scheme_type' => $type];
 }
-require '/var/www/woo.avalonbg.com/wp-content/plugins/mtunicredit/includes/mtuc-cart-calculator.php';
+$wooIncludes = '/var/www/woo.avalonbg.com/wp-content/plugins/mtunicredit/includes';
+// Woo v2.0.2: intersection/LCM helpers live in mtuc-cart-scheme-intersection.php.
+require $wooIncludes . '/mtuc-cart-scheme-intersection.php';
+require $wooIncludes . '/mtuc-cart-calculator.php';
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 use PrestaShop\Module\Unipayment\Calculator\AvailableScheme;
 use PrestaShop\Module\Unipayment\Cart\CartSchemeResolver;
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 
-function assertWooCart(bool $condition, string $message): void { if (!$condition) { fwrite(STDERR, "FAIL: {$message}\n"); exit(1); } }
-function wooOption(int $filter): array { return ['scheme_type' => 'standard', 'kop_code' => 'CAT', 'months' => 12, 'filter_id' => $filter]; }
-function domainScheme(int $filter): AvailableScheme { return new AvailableScheme('standard', 'CAT', 12, $filter, ['id' => $filter], ['coeff' => .09, 'interestPercent' => 10]); }
+function assertWooCart(bool $condition, string $message): void
+{
+    if (!$condition) {
+        fwrite(STDERR, "FAIL: {$message}\n");
+        exit(1);
+    }
+}
+function wooOption(int $filter): array
+{
+    return ['scheme_type' => 'standard', 'kop_code' => 'CAT', 'months' => 12, 'filter_id' => $filter];
+}
+function domainScheme(int $filter): AvailableScheme
+{
+    return new AvailableScheme('standard', 'CAT', 12, $filter, ['id' => $filter], ['coeff' => .09, 'interestPercent' => 10]);
+}
 
 /** @var array<int, array<string, mixed>> $woo */
 $woo = call_user_func('mtuc_intersect_cart_scheme_options', [[wooOption(31)], [wooOption(32)]]);
