@@ -75,15 +75,15 @@ Full prerequisites, packaged artifact layout, CP setup, and verification checkli
 
 Merchant-facing module settings (Back Office → Modules → UniPayment → Configure):
 
-| Setting                   | Purpose                                                  |
-| ------------------------- | -------------------------------------------------------- |
-| Enable module             | Master on/off (`UNIPAYMENT_ENABLED`)                     |
-| UNICID                    | Shop identifier for Control Panel authentication         |
-| Shared secret             | CP/module shared secret; stored encrypted at rest        |
-| Advertising enabled       | Homepage promotional content gate                        |
-| Debug enabled             | Diagnostic behavior (see code for current scope)         |
-| Product button action     | Add to cart vs buy (`add_to_cart` / `buy`)               |
-| Button top spacing        | Product page button offset (0–200 px)                    |
+| Setting               | Purpose                                           |
+| --------------------- | ------------------------------------------------- |
+| Enable module         | Master on/off (`UNIPAYMENT_ENABLED`)              |
+| UNICID                | Shop identifier for Control Panel authentication  |
+| Shared secret         | CP/module shared secret; stored encrypted at rest |
+| Advertising enabled   | Homepage promotional content gate                 |
+| Debug enabled         | Diagnostic behavior (see code for current scope)  |
+| Product button action | Add to cart vs buy (`add_to_cart` / `buy`)        |
+| Button top spacing    | Product page button offset (0–200 px)             |
 
 Business financing rules (KOP, coefficients, Process 1/2 flag, SmartUCF endpoints, consents, etc.) come from the **Control Panel shop configuration snapshot**, not from editable duplicate settings in the module.
 
