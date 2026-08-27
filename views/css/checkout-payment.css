@@ -172,7 +172,7 @@
 
 .unipayment-checkout__select option {
   text-align: right;
-  color: #000;
+  color: var(--unipayment-checkout-red);
 }
 
 .unipayment-checkout__select:disabled,
