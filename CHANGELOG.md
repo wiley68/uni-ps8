@@ -2,6 +2,19 @@
 
 All notable production releases of the UniPayment PrestaShop 8 module are documented here.
 
+## 2.0.2 — 2026-08-27
+
+- Canonical financing scheme ordering for equal month counts: standard → non-zero promo → 0%.
+- Product, Cart, and Checkout presentation ordering parity.
+- Correct Cart promotional standard-button representative; `zero_promo` cannot represent the standard Cart button while remaining available in popup/unified membership and the dedicated 0% flow.
+- Cart automatic-first-installment preview parity (`button monthly == popup monthly`).
+- Cross-line conflicting `uni_parva` safety: ambiguous common schemes are not line-order-dependent calculable/submittable offers.
+- Checkout automatic priority: valid explicit → longest 0% → longest non-zero promo → CP preferred standard → deterministic fallback.
+- Checkout first-installment transitions: locked → editable = 0; editable → locked = automatic amount; locked A → locked B = B amount.
+- UniCredit red Checkout scheme selector styling.
+- Woo v2.0.2 parity harness compatibility restored.
+- No database schema change and no upgrade script.
+
 ## 2.0.1 — 2026-08-24
 
 - Finance the complete authoritative tax-inclusive PrestaShop payable total in cart and checkout flows.

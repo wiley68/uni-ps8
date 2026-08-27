@@ -5,7 +5,7 @@ Native PrestaShop 8 module for **UniCredit financing** (credit calculator, check
 | Item                  | Value                        |
 | --------------------- | ---------------------------- |
 | Module technical name | `unipayment`                 |
-| Current version       | `2.0.1`                      |
+| Current version       | `2.0.2`                      |
 | Repository root       | Module root (this directory) |
 | Current state         | First production release     |
 

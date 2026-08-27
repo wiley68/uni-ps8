@@ -289,7 +289,7 @@ assertAud013(strpos($validate, 'finally') === false, 'controller must not use fi
 
 $module = (string) file_get_contents($root . '/unipayment.php');
 assertAud013(strpos($module, 'CheckoutSubmitLockRepository') !== false, 'install must create checkout lock table');
-assertAud013(strpos($module, "version = '2.0.1'") !== false, 'version must be 2.0.1');
+assertAud013(strpos($module, "version = '2.0.2'") !== false, 'version must be 2.0.2');
 
 $purger = (string) file_get_contents($root . '/src/Uninstall/ModuleDataPurger.php');
 assertAud013(strpos($purger, 'CheckoutSubmitLockRepository') !== false, 'purger must drop checkout lock table');

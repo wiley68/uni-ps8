@@ -138,6 +138,6 @@ $tpl = (string) file_get_contents($root . '/views/templates/front/checkout_valid
 assertAud002b(strpos($tpl, 'unipayment_smartucf_outcome_unknown') !== false, 'checkout template shows outcome_unknown');
 
 $version = (string) file_get_contents($root . '/unipayment.php');
-assertAud002b(strpos($version, "version = '2.0.1'") !== false, 'module version is 2.0.1');
+assertAud002b(strpos($version, "version = '2.0.2'") !== false, 'module version is 2.0.2');
 
 fwrite(STDOUT, "OK (AUD-002B/AUD-008 classifier + contracts)\n");

@@ -8,17 +8,17 @@ Release and packaging checklist for the UniPayment PrestaShop module.
 
 | Item           | Value                                      |
 | -------------- | ------------------------------------------ |
-| Module version | **2.0.1** (`unipayment.php`, `config.xml`) |
-| Project status | **Post-release remediation**                |
+| Module version | **2.0.2** (`unipayment.php`, `config.xml`) |
+| Project status | **Scheme presentation / checkout parity**  |
 | Release notes  | [`../CHANGELOG.md`](../CHANGELOG.md)       |
 
-`2.0.0` remains the first production version. `2.0.1` is the canonical-amount and order-status lifecycle remediation.
+`2.0.0` remains the first production version. `2.0.1` is the canonical-amount and order-status lifecycle remediation. `2.0.2` is the scheme presentation, Cart representative, and Checkout parity release.
 
 ---
 
 ## 2. Version policy
 
-- Module version is **`2.0.1`** for this release
+- Module version is **`2.0.2`** for this release
 - Version metadata must stay consistent in `unipayment.php` and `config.xml`
 - **No historical upgrade scripts** for development-only schema iterations
 - After this release, future schema/configuration changes **must** use versioned PrestaShop upgrade files (`upgrade/upgrade-x.y.z.php`)
@@ -31,7 +31,7 @@ See [`INSTALLATION.md`](INSTALLATION.md) §8.
 
 ### Version and packaging
 
-- [x] Remediation version is **2.0.1**
+- [x] Scheme parity version is **2.0.2**
 - [x] Version in `unipayment.php` and `config.xml`
 - [ ] `composer install --no-dev --optimize-autoloader` in the package staging tree
 - [ ] Package includes `vendor/`, module assets, translations, operator docs
@@ -86,7 +86,7 @@ This 2.0.0 tree contains **no** upgrade scripts. That is intentional: developmen
 Distributable archive name:
 
 ```text
-unipayment-2.0.1.zip
+unipayment-2.0.2.zip
 ```
 
 Archive root must be:
@@ -121,9 +121,9 @@ Include:
 1. Working tree contains only intentional release files
 2. Safe tests pass
 3. Create **one** release-preparation commit
-4. Create annotated local tag: `git tag -a v2.0.1 -m "UniPayment 2.0.1"`
+4. Create annotated local tag: `git tag -a v2.0.2 -m "UniPayment 2.0.2"`
 5. Do **not** push, publish a GitHub Release, or upload the package unless explicitly requested
-6. Attach packaged `unipayment-2.0.1.zip` when distribution is approved
+6. Attach packaged `unipayment-2.0.2.zip` when distribution is approved
 
 ---
 

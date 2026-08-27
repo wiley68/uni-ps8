@@ -160,6 +160,6 @@ assertAud010Runtime(
 );
 
 $moduleSrc = (string) file_get_contents($root . '/unipayment.php');
-assertAud010Runtime(strpos($moduleSrc, "version = '2.0.1'") !== false, 'version 2.0.1');
+assertAud010Runtime(strpos($moduleSrc, "version = '2.0.2'") !== false, 'version 2.0.2');
 
 fwrite(STDOUT, "OK (AUD-010 runtime correction)\n");
