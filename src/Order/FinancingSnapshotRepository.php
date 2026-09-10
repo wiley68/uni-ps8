@@ -64,6 +64,7 @@ final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterfa
         foreach (['customer_json', 'address_json', 'lines_json', 'consents_json'] as $key) $values[$key] = json_encode($values[$key] ?? [], JSON_THROW_ON_ERROR);
         $values['created_at'] = $values['created_at'] ?? gmdate('Y-m-d H:i:s');
         $values['updated_at'] = gmdate('Y-m-d H:i:s');
+        $values = $this->normalizeCpSyncNullableFieldsForInsert($values);
         if (!$this->database->insert(self::TABLE, $values, false, true, self::INSERT_IGNORE) && $this->findByAttempt($attemptId) === null) throw new \RuntimeException('The financing snapshot could not be stored.');
     }
 
@@ -270,12 +271,52 @@ final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterfa
         return (int) $this->database->Affected_Rows() > 0;
     }
 
+    /**
+     * Nullable CP sync string columns where PrestaShop insert historically persisted '' instead of SQL NULL.
+     * Semantic "no value" must match both representations in CAS predicates.
+     */
+    private const CP_SYNC_SEMANTIC_NULL_STRING_COLUMNS = [
+        'cp_status_sync_status_id',
+        'cp_status_sync_status',
+        'cp_status_sync_error_class',
+    ];
+
+    /**
+     * Persist semantic-null CP sync string fields as SQL NULL on insert (type=sql),
+     * without enabling blanket Db::$null_values for the whole row.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private function normalizeCpSyncNullableFieldsForInsert(array $values): array
+    {
+        foreach (self::CP_SYNC_SEMANTIC_NULL_STRING_COLUMNS as $column) {
+            if (!array_key_exists($column, $values)) {
+                continue;
+            }
+            $value = $values[$column];
+            if ($value === null || $value === '') {
+                $values[$column] = ['type' => 'sql', 'value' => 'NULL'];
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * Exact equality for non-null expected values; NULL/'' equivalence for semantic null.
+     */
     private function nullSafeEqualsSql(string $column, ?string $value, bool $htmlOk = false): string
     {
-        if ($value === null) {
-            return '`' . $column . '` IS NULL';
+        if ($value === null || $value === '') {
+            return $this->semanticNullEqualsSql($column);
         }
 
         return '`' . $column . '` <=> \'' . pSQL($value, $htmlOk) . '\'';
+    }
+
+    private function semanticNullEqualsSql(string $column): string
+    {
+        return '(`' . $column . '` IS NULL OR `' . $column . '` = \'\')';
     }
 }

@@ -689,6 +689,40 @@ assertF01(
 );
 assertF01(count($cp->patches) === $before, 'confirmed retry must not re-PATCH');
 
+// --- empty-string persistence (production PrestaShop insert shape) ---
+$store->save(1001, [
+    'id_attempt' => 1001,
+    'order_reference' => 'REFEMPTY1001',
+    'cp_status_sync_state' => ControlPanelStatusSyncStates::NOT_NEEDED,
+    'cp_status_sync_status_id' => '',
+    'cp_status_sync_status' => '',
+    'cp_status_sync_error_class' => '',
+]);
+$cpEmpty1 = new F01FakeCp();
+$syncEmpty1 = new ControlPanelStatusSyncService($store, $cpEmpty1);
+assertF01(
+    $syncEmpty1->synchronizeAfterHandoff(1001, 'REFEMPTY1001', $p1) === ControlPanelStatusSyncStates::CONFIRMED,
+    'empty-string not_needed admits and confirms process1'
+);
+assertF01(count($cpEmpty1->patches) === 1, 'empty-string P1 admit triggers PATCH');
+assertF01($store->rows[1001]['cp_status_sync_status_id'] === BankStatus::SENT_PROCESS1, 'empty-string P1 target persisted');
+
+$store->save(1002, [
+    'id_attempt' => 1002,
+    'order_reference' => 'REFEMPTY1002',
+    'cp_status_sync_state' => ControlPanelStatusSyncStates::NOT_NEEDED,
+    'cp_status_sync_status_id' => '',
+    'cp_status_sync_status' => '',
+    'cp_status_sync_error_class' => '',
+]);
+$cpEmpty2 = new F01FakeCp();
+$syncEmpty2 = new ControlPanelStatusSyncService($store, $cpEmpty2);
+assertF01(
+    $syncEmpty2->synchronizeAfterHandoff(1002, 'REFEMPTY1002', $p2) === ControlPanelStatusSyncStates::CONFIRMED,
+    'empty-string not_needed admits and confirms process2'
+);
+assertF01(count($cpEmpty2->patches) === 1, 'empty-string P2 admit triggers PATCH');
+
 $lifecycle = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/PostControlPanelLifecycleService.php');
 $coordinator = (string) file_get_contents(dirname(__DIR__, 2) . '/src/SmartUcf/SmartUcfSessionCoordinator.php');
 $serviceSrc = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/ControlPanelStatusSyncService.php');
