@@ -61,11 +61,18 @@ final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterfa
     {
         $values = $snapshot;
         $values['id_attempt'] = $attemptId;
-        foreach (['customer_json', 'address_json', 'lines_json', 'consents_json'] as $key) $values[$key] = json_encode($values[$key] ?? [], JSON_THROW_ON_ERROR);
+        foreach (['customer_json', 'address_json', 'lines_json', 'consents_json'] as $key) {
+            $values[$key] = json_encode($values[$key] ?? [], JSON_THROW_ON_ERROR);
+        }
         $values['created_at'] = $values['created_at'] ?? gmdate('Y-m-d H:i:s');
         $values['updated_at'] = gmdate('Y-m-d H:i:s');
         $values = $this->normalizeCpSyncNullableFieldsForInsert($values);
-        if (!$this->database->insert(self::TABLE, $values, false, true, self::INSERT_IGNORE) && $this->findByAttempt($attemptId) === null) throw new \RuntimeException('The financing snapshot could not be stored.');
+        // PrestaShop Db::insert does not quote-escape string values. Apostrophes in
+        // product names / addresses / consent text break INSERT without pSQL().
+        $values = $this->prepareDbValues($values);
+        if (!$this->database->insert(self::TABLE, $values, false, true, self::INSERT_IGNORE) && $this->findByAttempt($attemptId) === null) {
+            throw new \RuntimeException('The financing snapshot could not be stored.');
+        }
     }
 
     public function findByAttempt(int $attemptId): ?array
@@ -114,14 +121,10 @@ final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterfa
             }
         }
         $data['updated_at'] = gmdate('Y-m-d H:i:s');
-        $allowNull = false;
-        foreach ($data as $value) {
-            if ($value === null) {
-                $allowNull = true;
-                break;
-            }
-        }
-        if (!$this->database->update(self::TABLE, $data, '`id_attempt`=' . $attemptId, 0, $allowNull)) {
+        // Same Db::update quoting gap as insert — escape free-text status fields at the SQL boundary.
+        // PHP nulls become intentional SQL NULL wrappers; do not enable blanket Db null_values.
+        $data = $this->prepareDbValues($data);
+        if (!$this->database->update(self::TABLE, $data, '`id_attempt`=' . $attemptId, 0, false)) {
             throw new \RuntimeException('The financing snapshot could not be updated.');
         }
     }
@@ -301,6 +304,46 @@ final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterfa
         }
 
         return $values;
+    }
+
+    /**
+     * Escape string literals for {@see \Db::insert()} / {@see \Db::update()} and map remaining PHP nulls to SQL NULL.
+     * Does not enable blanket Db null conversion — only explicit null keys become SQL NULL.
+     * Intentional raw SQL wrappers (`type=sql`) are left unchanged.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private function prepareDbValues(array $values): array
+    {
+        foreach ($values as $key => $value) {
+            if (is_array($value) && isset($value['type']) && $value['type'] === 'sql') {
+                continue;
+            }
+            if ($value === null) {
+                $values[$key] = ['type' => 'sql', 'value' => 'NULL'];
+                continue;
+            }
+            if (is_bool($value)) {
+                $values[$key] = $value ? 1 : 0;
+                continue;
+            }
+            if (is_int($value) || is_float($value)) {
+                continue;
+            }
+            $values[$key] = $this->escapeDbString((string) $value);
+        }
+
+        return $values;
+    }
+
+    private function escapeDbString(string $value): string
+    {
+        if (function_exists('pSQL')) {
+            return pSQL($value, true);
+        }
+
+        return addslashes($value);
     }
 
     /**

@@ -7,9 +7,16 @@ namespace PrestaShop\Module\Unipayment\Order;
 final class OrderAttemptRepository implements OrderAttemptStoreInterface
 {
     public const TABLE = 'unipayment_order_attempt';
+    /** @var \Db|object */
     private $database;
 
-    public function __construct(?\Db $database = null) { $this->database = $database ?? \Db::getInstance(); }
+    /**
+     * @param \Db|object|null $database
+     */
+    public function __construct($database = null)
+    {
+        $this->database = $database ?? \Db::getInstance();
+    }
 
     public function install(): bool
     {
@@ -40,14 +47,64 @@ final class OrderAttemptRepository implements OrderAttemptStoreInterface
 
     public function update(int $attemptId, array $changes): array
     {
-        $allowed = ['state','id_order','order_reference','control_panel_order_id','cp_payload','last_error_class'];
+        $allowed = ['state', 'id_order', 'order_reference', 'control_panel_order_id', 'cp_payload', 'last_error_class'];
         $data = [];
-        foreach ($changes as $key => $value) if (in_array($key, $allowed, true)) $data[$key] = $value;
+        foreach ($changes as $key => $value) {
+            if (in_array($key, $allowed, true)) {
+                $data[$key] = $value;
+            }
+        }
         $data['updated_at'] = gmdate('Y-m-d H:i:s');
-        if (!$this->database->update(self::TABLE, $data, '`id_attempt`=' . $attemptId)) throw new \RuntimeException('The financing attempt could not be updated.');
+        // PrestaShop Db::update does not quote-escape string values. Free-text JSON in
+        // cp_payload (products_name / name / address) breaks UPDATE without pSQL().
+        $data = $this->prepareUpdateValues($data);
+        if (!$this->database->update(self::TABLE, $data, '`id_attempt`=' . $attemptId)) {
+            throw new \RuntimeException('The financing attempt could not be updated.');
+        }
         $row = $this->database->getRow('SELECT * FROM `' . _DB_PREFIX_ . self::TABLE . '` WHERE `id_attempt`=' . $attemptId);
-        if (!is_array($row)) throw new \RuntimeException('The financing attempt could not be reloaded.');
+        if (!is_array($row)) {
+            throw new \RuntimeException('The financing attempt could not be reloaded.');
+        }
 
         return $row;
+    }
+
+    /**
+     * Escape string literals for {@see \Db::update()} and map PHP nulls to SQL NULL.
+     * Does not enable blanket Db null conversion — only explicit null keys become SQL NULL.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private function prepareUpdateValues(array $values): array
+    {
+        foreach ($values as $key => $value) {
+            if (is_array($value) && isset($value['type']) && $value['type'] === 'sql') {
+                continue;
+            }
+            if ($value === null) {
+                $values[$key] = ['type' => 'sql', 'value' => 'NULL'];
+                continue;
+            }
+            if (is_bool($value)) {
+                $values[$key] = $value ? 1 : 0;
+                continue;
+            }
+            if (is_int($value) || is_float($value)) {
+                continue;
+            }
+            $values[$key] = $this->escapeUpdateString((string) $value);
+        }
+
+        return $values;
+    }
+
+    private function escapeUpdateString(string $value): string
+    {
+        if (function_exists('pSQL')) {
+            return pSQL($value, true);
+        }
+
+        return addslashes($value);
     }
 }
