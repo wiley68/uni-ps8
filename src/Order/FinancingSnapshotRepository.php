@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\Order;
 
-final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterface, FinancingSnapshotByOrderReaderPort
+final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterface, FinancingSnapshotByOrderReaderPort, ControlPanelStatusSyncStoreInterface
 {
     public const TABLE = 'unipayment_financing_snapshot';
     /** Matches PrestaShop {@see \Db}::INSERT_IGNORE for idempotent snapshot persistence. */
@@ -40,9 +40,15 @@ final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterfa
             `smartucf_retryable` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
             `smartucf_claimed_at` DATETIME NULL,
             `smartucf_completed_at` DATETIME NULL,
+            `cp_status_sync_state` VARCHAR(32) NOT NULL DEFAULT \'not_needed\',
+            `cp_status_sync_status_id` VARCHAR(255) NULL,
+            `cp_status_sync_status` VARCHAR(255) NULL,
+            `cp_status_sync_error_class` VARCHAR(64) NULL,
+            `cp_status_sync_updated_at` DATETIME NULL,
             `created_at` DATETIME NOT NULL, `updated_at` DATETIME NOT NULL, PRIMARY KEY (`id_snapshot`),
             UNIQUE KEY `uniq_unipayment_snapshot_attempt` (`id_attempt`), UNIQUE KEY `uniq_unipayment_snapshot_order` (`id_order`),
-            KEY `idx_unipayment_snapshot_smartucf_state` (`smartucf_state`, `smartucf_claimed_at`)
+            KEY `idx_unipayment_snapshot_smartucf_state` (`smartucf_state`, `smartucf_claimed_at`),
+            KEY `idx_unipayment_snapshot_cp_status_sync` (`cp_status_sync_state`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
     }
 
@@ -90,11 +96,33 @@ final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterfa
 
     public function update(int $attemptId, array $changes): void
     {
-        $allowed = ['control_panel_order_id', 'lifecycle_status', 'leasing_email_sent'];
+        $allowed = [
+            'control_panel_order_id',
+            'lifecycle_status',
+            'leasing_email_sent',
+            'cp_status_sync_state',
+            'cp_status_sync_status_id',
+            'cp_status_sync_status',
+            'cp_status_sync_error_class',
+            'cp_status_sync_updated_at',
+        ];
         $data = [];
-        foreach ($changes as $key => $value) if (in_array($key, $allowed, true)) $data[$key] = $value;
+        foreach ($changes as $key => $value) {
+            if (in_array($key, $allowed, true)) {
+                $data[$key] = $value;
+            }
+        }
         $data['updated_at'] = gmdate('Y-m-d H:i:s');
-        if (!$this->database->update(self::TABLE, $data, '`id_attempt`=' . $attemptId)) throw new \RuntimeException('The financing snapshot could not be updated.');
+        $allowNull = false;
+        foreach ($data as $value) {
+            if ($value === null) {
+                $allowNull = true;
+                break;
+            }
+        }
+        if (!$this->database->update(self::TABLE, $data, '`id_attempt`=' . $attemptId, 0, $allowNull)) {
+            throw new \RuntimeException('The financing snapshot could not be updated.');
+        }
     }
 
     public function redactExpiredPii(string $cutoffDatetime, int $limit): int
@@ -120,5 +148,134 @@ final class FinancingSnapshotRepository implements FinancingSnapshotStoreInterfa
         );
 
         return (int) $this->database->Affected_Rows();
+    }
+
+    public function compareAndSetPendingTarget(
+        int $attemptId,
+        string $expectedState,
+        ?string $expectedStatusId,
+        ?string $expectedStatus,
+        string $newStatusId,
+        string $newStatus
+    ): bool {
+        $now = gmdate('Y-m-d H:i:s');
+        $sql = sprintf(
+            "UPDATE `%s%s` SET
+                `cp_status_sync_state` = '%s',
+                `cp_status_sync_status_id` = '%s',
+                `cp_status_sync_status` = '%s',
+                `cp_status_sync_error_class` = NULL,
+                `cp_status_sync_updated_at` = '%s',
+                `updated_at` = '%s'
+             WHERE `id_attempt` = %d
+               AND `cp_status_sync_state` = '%s'
+               AND %s
+               AND %s",
+            _DB_PREFIX_,
+            self::TABLE,
+            pSQL(ControlPanelStatusSyncStates::PENDING),
+            pSQL($newStatusId),
+            pSQL($newStatus, true),
+            pSQL($now),
+            pSQL($now),
+            $attemptId,
+            pSQL($expectedState),
+            $this->nullSafeEqualsSql('cp_status_sync_status_id', $expectedStatusId),
+            $this->nullSafeEqualsSql('cp_status_sync_status', $expectedStatus, true)
+        );
+
+        if (!$this->database->execute($sql)) {
+            return false;
+        }
+
+        return (int) $this->database->Affected_Rows() > 0;
+    }
+
+    public function compareAndSetConfirmed(
+        int $attemptId,
+        string $expectedStatusId,
+        string $expectedStatus
+    ): bool {
+        $now = gmdate('Y-m-d H:i:s');
+        $sql = sprintf(
+            "UPDATE `%s%s` SET
+                `cp_status_sync_state` = '%s',
+                `cp_status_sync_status_id` = '%s',
+                `cp_status_sync_status` = '%s',
+                `cp_status_sync_error_class` = NULL,
+                `cp_status_sync_updated_at` = '%s',
+                `updated_at` = '%s'
+             WHERE `id_attempt` = %d
+               AND `cp_status_sync_state` = '%s'
+               AND `cp_status_sync_status_id` = '%s'
+               AND `cp_status_sync_status` = '%s'",
+            _DB_PREFIX_,
+            self::TABLE,
+            pSQL(ControlPanelStatusSyncStates::CONFIRMED),
+            pSQL($expectedStatusId),
+            pSQL($expectedStatus, true),
+            pSQL($now),
+            pSQL($now),
+            $attemptId,
+            pSQL(ControlPanelStatusSyncStates::PENDING),
+            pSQL($expectedStatusId),
+            pSQL($expectedStatus, true)
+        );
+
+        if (!$this->database->execute($sql)) {
+            return false;
+        }
+
+        return (int) $this->database->Affected_Rows() > 0;
+    }
+
+    public function compareAndSetFailure(
+        int $attemptId,
+        string $expectedStatusId,
+        string $expectedStatus,
+        string $newState,
+        string $errorClass
+    ): bool {
+        if (!in_array($newState, [ControlPanelStatusSyncStates::PENDING, ControlPanelStatusSyncStates::TERMINAL_FAILED], true)) {
+            return false;
+        }
+
+        $now = gmdate('Y-m-d H:i:s');
+        $sql = sprintf(
+            "UPDATE `%s%s` SET
+                `cp_status_sync_state` = '%s',
+                `cp_status_sync_error_class` = '%s',
+                `cp_status_sync_updated_at` = '%s',
+                `updated_at` = '%s'
+             WHERE `id_attempt` = %d
+               AND `cp_status_sync_state` = '%s'
+               AND `cp_status_sync_status_id` = '%s'
+               AND `cp_status_sync_status` = '%s'",
+            _DB_PREFIX_,
+            self::TABLE,
+            pSQL($newState),
+            pSQL($errorClass),
+            pSQL($now),
+            pSQL($now),
+            $attemptId,
+            pSQL(ControlPanelStatusSyncStates::PENDING),
+            pSQL($expectedStatusId),
+            pSQL($expectedStatus, true)
+        );
+
+        if (!$this->database->execute($sql)) {
+            return false;
+        }
+
+        return (int) $this->database->Affected_Rows() > 0;
+    }
+
+    private function nullSafeEqualsSql(string $column, ?string $value, bool $htmlOk = false): string
+    {
+        if ($value === null) {
+            return '`' . $column . '` IS NULL';
+        }
+
+        return '`' . $column . '` <=> \'' . pSQL($value, $htmlOk) . '\'';
     }
 }

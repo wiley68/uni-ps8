@@ -599,7 +599,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         ControlPanelOrderClientAdapter $cpClient,
         bool $replayExistingOrder
     ): \PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleResult {
-        return (new PostControlPanelLifecycleService())->handle(
+        return (new PostControlPanelLifecycleService(null, null, null, null, $cpClient))->handle(
             $result,
             $shop,
             new PostControlPanelLifecycleContext(

@@ -14,19 +14,20 @@ final class Configuration
     /** @var array<string, mixed> */
     public static $values = [];
 
-    public static function updateValue($key, $value): bool
+    public static function updateValue(string $key, mixed $value): bool
     {
         self::$values[$key] = $value;
 
         return true;
     }
 
-    public static function get($key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
+    /** @return mixed */
+    public static function get(string $key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
     {
         return self::$values[$key] ?? $default;
     }
 
-    public static function deleteByName($key): bool
+    public static function deleteByName(string $key): bool
     {
         unset(self::$values[$key]);
 
@@ -63,14 +64,16 @@ require_once dirname(__DIR__, 2) . '/src/Api/Exception/AuthenticationException.p
 require_once dirname(__DIR__, 2) . '/src/Api/Exception/HttpException.php';
 require_once dirname(__DIR__, 2) . '/src/Api/Exception/MalformedJsonException.php';
 require_once dirname(__DIR__, 2) . '/src/Api/Exception/InvalidPayloadException.php';
+require_once dirname(__DIR__, 2) . '/src/Api/ModuleApiResponse.php';
 require_once dirname(__DIR__, 2) . '/src/Api/ControlPanelClient.php';
 
 use PrestaShop\Module\Unipayment\Api\ControlPanelClient;
+use PrestaShop\Module\Unipayment\Api\Exception\HttpException;
+use PrestaShop\Module\Unipayment\Api\Exception\InvalidPayloadException;
+use PrestaShop\Module\Unipayment\Api\Exception\MalformedJsonException;
 use PrestaShop\Module\Unipayment\Api\HttpResponse;
 use PrestaShop\Module\Unipayment\Api\HttpTransportInterface;
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
-use PrestaShop\Module\Unipayment\Api\Exception\HttpException;
-use PrestaShop\Module\Unipayment\Api\Exception\MalformedJsonException;
 use PrestaShop\Module\Unipayment\Security\TokenRepository;
 
 final class FakeTransport implements HttpTransportInterface
@@ -106,8 +109,9 @@ function assertPhase2(bool $condition, string $message): void
     }
 }
 
+$unicid = '123e4567-e89b-12d3-a456-426614174000';
 $configuration = new ConfigurationRepository();
-$configuration->save(true, '123e4567-e89b-12d3-a456-426614174000', 'test-secret');
+$configuration->save(true, $unicid, 'test-secret');
 $tokens = new TokenRepository();
 $transport = new FakeTransport();
 $now = 1700000000;
@@ -124,10 +128,14 @@ $client = new ControlPanelClient(
 
 $transport->responses[] = jsonResponse(200, [
     'success' => true,
-    'access_token' => 'token-one',
-    'token_type' => 'Bearer',
-    'expires_in' => 86400,
-    'shop' => ['id' => 10, 'name' => 'https://shop.example', 'unicid' => '123'],
+    'error' => null,
+    'message' => 'ok',
+    'data' => [
+        'access_token' => 'token-one',
+        'token_type' => 'Bearer',
+        'expires_in' => 86400,
+        'shop' => ['id' => 10, 'name' => 'https://shop.example', 'unicid' => $unicid],
+    ],
 ]);
 $client->login();
 assertPhase2($transport->requests[0]['url'] === 'https://cp.example/api/v1/auth/login', 'login endpoint mismatch');
@@ -138,7 +146,9 @@ assertPhase2($tokens->getExpiresAt() === $now + 86400, 'token expiration mismatc
 
 $transport->responses[] = jsonResponse(200, [
     'success' => true,
-    'data' => ['unicid' => '123e4567-e89b-12d3-a456-426614174000'],
+    'error' => null,
+    'message' => 'ok',
+    'data' => ['unicid' => $unicid],
 ]);
 $client->getShop();
 assertPhase2($transport->requests[1]['method'] === 'GET', 'getShop method mismatch');
@@ -147,38 +157,67 @@ assertPhase2($transport->requests[1]['headers']['Authorization'] === 'Bearer tok
 $now += 86350;
 $transport->responses[] = jsonResponse(200, [
     'success' => true,
-    'access_token' => 'token-two',
-    'token_type' => 'Bearer',
-    'expires_in' => 86400,
+    'error' => null,
+    'message' => 'ok',
+    'data' => [
+        'access_token' => 'token-two',
+        'token_type' => 'Bearer',
+        'expires_in' => 86400,
+    ],
 ]);
 $transport->responses[] = jsonResponse(201, [
     'success' => true,
-    'data' => ['id' => 55],
+    'error' => null,
+    'message' => 'created',
+    'data' => [
+        'id' => 55,
+        'shop_id' => 10,
+        'order_id' => '100',
+        'unicid' => $unicid,
+        'created_at' => '2026-01-01T00:00:00Z',
+    ],
 ]);
 $client->createOrder(['order_id' => '100', 'name' => 'Client']);
 assertPhase2($transport->requests[2]['url'] === 'https://cp.example/api/v1/auth/refresh', 'proactive refresh endpoint mismatch');
 assertPhase2($transport->requests[3]['url'] === 'https://cp.example/api/v1/orders', 'createOrder endpoint mismatch');
 assertPhase2($transport->requests[3]['headers']['Authorization'] === 'Bearer token-two', 'refreshed token was not used');
 
-$transport->responses[] = jsonResponse(401, ['error' => 'expired']);
+$transport->responses[] = jsonResponse(401, ['success' => false, 'error' => 'token_expired', 'message' => 'expired', 'data' => []]);
 $transport->responses[] = jsonResponse(200, [
     'success' => true,
-    'access_token' => 'token-three',
-    'token_type' => 'Bearer',
-    'expires_in' => 86400,
-    'shop' => ['id' => 10],
+    'error' => null,
+    'message' => 'ok',
+    'data' => [
+        'access_token' => 'token-three',
+        'token_type' => 'Bearer',
+        'expires_in' => 86400,
+        'shop' => ['id' => 10, 'unicid' => $unicid],
+    ],
 ]);
 $transport->responses[] = jsonResponse(200, [
     'success' => true,
-    'data' => ['order_id' => '100', 'status' => 'sent'],
+    'error' => null,
+    'message' => 'updated',
+    'data' => [
+        'id' => 55,
+        'shop_id' => 10,
+        'order_id' => '100',
+        'status_id' => 'cp_sent',
+        'status' => 'sent',
+        'updated_at' => '2026-01-01T00:00:01Z',
+    ],
 ]);
 $client->updateOrderStatus('100', 'sent', 'cp_sent');
 assertPhase2($transport->requests[4]['method'] === 'PATCH', 'status method mismatch');
 assertPhase2($transport->requests[5]['url'] === 'https://cp.example/api/v1/auth/login', '401 did not trigger re-login');
 assertPhase2($transport->requests[6]['headers']['Authorization'] === 'Bearer token-three', '401 retry did not use new token');
 assertPhase2($transport->requests[6]['payload']['status_id'] === 'cp_sent', 'status_id contract mismatch');
+assertPhase2($transport->requests[6]['payload']['status'] === 'sent', 'status contract mismatch');
 
-$transport->responses[] = jsonResponse(200, ['success' => true, 'message' => 'ok']);
+$transport->responses[] = new HttpResponse(
+    200,
+    '{"success":true,"error":null,"message":"ok","data":{}}'
+);
 $client->logout();
 assertPhase2($transport->requests[7]['url'] === 'https://cp.example/api/v1/auth/logout', 'logout endpoint mismatch');
 assertPhase2(!$tokens->hasToken(), 'logout did not invalidate the local token');
@@ -199,4 +238,37 @@ try {
     assertPhase2(true, 'malformed successful response classification');
 }
 
-fwrite(STDOUT, "OK (Phase 2 Control Panel API contract and token lifecycle)\n");
+// Old top-level token layout / non-object data must be rejected.
+$transport->responses[] = new HttpResponse(
+    200,
+    json_encode([
+        'success' => true,
+        'error' => null,
+        'message' => 'ok',
+        'access_token' => 'legacy-token',
+        'token_type' => 'Bearer',
+        'expires_in' => 86400,
+        'shop' => ['unicid' => $unicid],
+        'data' => [],
+    ], JSON_THROW_ON_ERROR)
+);
+try {
+    $client->login();
+    assertPhase2(false, 'legacy top-level token / empty-array data accepted');
+} catch (InvalidPayloadException $exception) {
+    assertPhase2(true, 'legacy login envelope rejected');
+}
+
+// HTTP 2xx alone is not success when success=false.
+$transport->responses[] = new HttpResponse(
+    200,
+    '{"success":false,"error":"authentication_failed","message":"no","data":{}}'
+);
+try {
+    $client->login();
+    assertPhase2(false, 'success=false accepted as CP success');
+} catch (InvalidPayloadException $exception) {
+    assertPhase2(true, 'success=false rejected');
+}
+
+fwrite(STDOUT, "OK (Control Panel client authentication and request flow)\n");

@@ -28,7 +28,8 @@ Verified against the current codebase:
 - **Bank status callbacks** — signed CP → module push with bank status persistence independent of native order status
 - **Merchant order admin** — financing details on order view and order grid column
 - **Financing emails** — audience-specific customer/admin leasing application emails
-- **Signed inbound module API** — HMAC-signed CP callbacks with replay protection
+- **Signed inbound module API** — HMAC-signed CP callbacks (`timestamp\nnonce\nraw_body`) with operation binding, lowercase nonce, canonical `{success,error,message,data}` envelopes, and replay protection
+- **Control Panel client** — login/refresh tokens under `data`; create-order P1/P2 without lifecycle status; PATCH for `bank_sent_process1` / `bank_sent_process2`
 - **Certificate synchronization** — CP-managed SmartUCF client certificate pair in module `keys/`
 - **PII retention** — opportunistic 180-day redaction of snapshot customer/address/sensitive fields
 - **Security hardening** — encrypted secrets/tokens, checkout submit lock, durable order-attempt idempotency, multishop bank-status scoping

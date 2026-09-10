@@ -12,6 +12,9 @@ interface SmartUcfDebugLogStoreInterface
     /** @return array<string, mixed>|null */
     public function findLatestByOrderId(string $orderId): ?array;
 
+    /** @return array<string, mixed>|null */
+    public function findLatestByOrderIdAndPsOrderId(string $orderId, int $psOrderId): ?array;
+
     /** @return array<int, array<string, mixed>> */
     public function findAll(): array;
 

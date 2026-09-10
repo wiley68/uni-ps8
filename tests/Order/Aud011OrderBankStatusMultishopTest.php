@@ -34,6 +34,14 @@ class Aud011DbStub
         return false;
     }
 
+    /** @return list<array<string, string>>|false */
+    public function executeS(string $sql)
+    {
+        unset($sql);
+
+        return false;
+    }
+
     public function execute(string $sql): bool
     {
         unset($sql);
@@ -59,6 +67,17 @@ final class Aud011FakeDb extends Aud011DbStub
     /** @return array<string, string>|false */
     public function getRow(string $sql)
     {
+        $rows = $this->executeS($sql);
+        if (!is_array($rows) || $rows === []) {
+            return false;
+        }
+
+        return $rows[0];
+    }
+
+    /** @return list<array<string, string>>|false */
+    public function executeS(string $sql)
+    {
         $this->queries[] = $sql;
 
         if (!preg_match("/o\.`reference` = '([^']+)'/s", $sql, $referenceMatch)) {
@@ -73,23 +92,24 @@ final class Aud011FakeDb extends Aud011DbStub
 
         $reference = str_replace("\\'", "'", $referenceMatch[1]);
         $idShop = (int) $shopMatch[1];
+        $matches = [];
 
         foreach ($this->orders as $order) {
             if ($order['reference'] !== $reference || $order['id_shop'] !== $idShop) {
                 continue;
             }
             if (!in_array($order['id_order'], $this->snapshotOrderIds, true)) {
-                return false;
+                continue;
             }
 
-            return [
+            $matches[] = [
                 'id_order' => (string) $order['id_order'],
                 'id_shop' => (string) $order['id_shop'],
                 'reference' => $order['reference'],
             ];
         }
 
-        return false;
+        return $matches === [] ? false : $matches;
     }
 
     public function execute(string $sql): bool
@@ -138,7 +158,7 @@ $repoSrc = (string) file_get_contents($root . '/src/Order/OrderBankStatusReposit
 $ctrlSrc = (string) file_get_contents($root . '/controllers/front/orderbankstatus.php');
 
 assertAud011(strpos($repoSrc, 'ctype_digit') === false, 'numeric id_order fallback removed');
-assertAud011(strpos($repoSrc, 'findAuthorizedFinancingOrder') !== false, 'authorized lookup present');
+assertAud011(strpos($repoSrc, 'resolveAuthorizedFinancingOrder') !== false, 'authorized lookup present');
 assertAud011(
     strpos($repoSrc, 'FinancingSnapshotRepository::TABLE') !== false
         && strpos($repoSrc, 'INNER JOIN') !== false,

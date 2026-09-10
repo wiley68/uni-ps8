@@ -127,7 +127,7 @@ final class FakeCp implements ControlPanelOrderClientInterface
         return $next;
     }
 
-    public function updateOrderStatus(string $orderId, string $status, ?string $statusId = null): array
+    public function updateOrderStatus(string $orderId, string $status, string $statusId): array
     {
         $this->calls[] = ['orderId' => $orderId, 'status' => $status, 'statusId' => $statusId];
 

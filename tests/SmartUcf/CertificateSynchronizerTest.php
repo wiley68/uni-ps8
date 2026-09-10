@@ -169,6 +169,7 @@ function metaPayload(string $certHash, string $keyHash, string $rev = 'rev-1'): 
 {
     return json_encode([
         'success' => true,
+        'error' => null,
         'message' => 'ok',
         'data' => [
             'available' => true,
@@ -185,6 +186,7 @@ function bundlePayload(string $cert, string $key, string $certHash, string $keyH
 {
     return json_encode([
         'success' => true,
+        'error' => null,
         'message' => 'ok',
         'data' => [
             'ssl_revision' => $rev,

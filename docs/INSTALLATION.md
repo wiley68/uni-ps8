@@ -127,9 +127,12 @@ Prerequisites on the Control Panel side (operational assumption — verify in yo
 1. Shop record exists with the same **UNICID** and **shared secret** as the module.
 2. Shop configuration (KOP, Process 1/2, SmartUCF URLs, consents, etc.) is complete in CP.
 3. CP can reach the shop's signed module URLs:
-    - `/module/unipayment/shopcache`
-    - `/module/unipayment/orderbankstatus`
-    - `/module/unipayment/smartucfdebuglog`
+    - `/module/unipayment/shopcache` (`operation`: `shop-cache`)
+    - `/module/unipayment/orderbankstatus` (`operation`: `order-bank-status`)
+    - `/module/unipayment/smartucfdebuglog` (`operation`: `smartucf-debug-log`)
+
+    Requests must use the canonical HMAC (`timestamp\nnonce\nraw_body`), lowercase 64-hex nonce, and JSON bodies that include `operation`. Responses use `{success, error, message, data}`.
+
 4. Module can reach CP API over HTTPS.
 
 ### SmartUCF certificate

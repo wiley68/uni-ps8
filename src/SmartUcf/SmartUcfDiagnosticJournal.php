@@ -72,6 +72,22 @@ final class SmartUcfDiagnosticJournal
         return $entry === null ? null : $this->sanitizeEntry($entry);
     }
 
+    /**
+     * Shop-scoped diagnostic lookup: order reference + PrestaShop order id ownership.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function findLatestForAuthorizedOrder(string $orderReference, int $psOrderId): ?array
+    {
+        if ($psOrderId <= 0) {
+            return null;
+        }
+
+        $entry = $this->store->findLatestByOrderIdAndPsOrderId($orderReference, $psOrderId);
+
+        return $entry === null ? null : $this->sanitizeEntry($entry);
+    }
+
     /** @return array<string, mixed> */
     public function buildExport(): array
     {

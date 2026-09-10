@@ -43,7 +43,7 @@ final class OrderBankStatusRepository implements BankStatusPersistencePort, Bank
     /** @return array<string, mixed>|null */
     public function updateByOrderIdentifier(int $idShop, string $orderReference, string $statusId, string $statusLabel): ?array
     {
-        $order = $this->findAuthorizedFinancingOrder($idShop, $orderReference);
+        $order = $this->resolveAuthorizedFinancingOrder($idShop, $orderReference);
         if ($order === null) {
             return null;
         }
@@ -109,9 +109,11 @@ final class OrderBankStatusRepository implements BankStatusPersistencePort, Bank
      * Incoming order_id from Control Panel is always ps_orders.reference, never id_order,
      * even when the reference consists only of digits.
      *
+     * Fail-closed: 0 candidates → null; 1 → continue; 2+ → OrderBankStatusAmbiguousException.
+     *
      * @return array{id_order: int, id_shop: int, order_reference: string}|null
      */
-    private function findAuthorizedFinancingOrder(int $idShop, string $orderReference): ?array
+    public function resolveAuthorizedFinancingOrder(int $idShop, string $orderReference): ?array
     {
         if ($idShop <= 0) {
             return null;
@@ -122,7 +124,7 @@ final class OrderBankStatusRepository implements BankStatusPersistencePort, Bank
             return null;
         }
 
-        $row = $this->database->getRow(sprintf(
+        $rows = $this->database->executeS(sprintf(
             'SELECT o.`id_order`, o.`id_shop`, o.`reference`
              FROM `%1$sorders` o
              INNER JOIN `%2$s` s ON s.`id_order` = o.`id_order`
@@ -133,6 +135,16 @@ final class OrderBankStatusRepository implements BankStatusPersistencePort, Bank
             pSQL($orderReference, true),
             $idShop
         ));
+        if (!is_array($rows) || $rows === []) {
+            return null;
+        }
+        if (count($rows) > 1) {
+            throw new OrderBankStatusAmbiguousException(
+                'Multiple financing orders match this shop reference.'
+            );
+        }
+
+        $row = $rows[0];
         if (!is_array($row)) {
             return null;
         }

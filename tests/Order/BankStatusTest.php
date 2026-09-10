@@ -58,10 +58,11 @@ assertBankStatus(strpos($grid, 'hookActionEmailSendBefore') !== false, 'order_co
 assertBankStatus(strpos($grid, 'hookDisplayPaymentReturn') !== false, 'Process 2 thank-you leasing block hook must be registered');
 $payloadBuilder = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/ControlPanelOrderPayloadBuilder.php');
 $coordinator = (string) file_get_contents(dirname(__DIR__, 2) . '/src/SmartUcf/SmartUcfSessionCoordinator.php');
-assertBankStatus(strpos($payloadBuilder, 'if ($process2)') !== false, 'Process 1 CP create must not claim bank_sent_process1 before SmartUCF');
-assertBankStatus(strpos($coordinator, 'CP status update failed after SmartUCF created') !== false, 'Process 1 success must update CP only after SmartUCF creation');
-$leasingPresenter = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/OrderLeasingDetailsPresenter.php');
-assertBankStatus(strpos($leasingPresenter, 'applyBankStatusLabel') !== false, 'admin/thank-you leasing rows must overlay live bank status like Woo');
+assertBankStatus(strpos($payloadBuilder, "'status'") === false && strpos($payloadBuilder, "'status_id'") === false, 'P1/P2 CP create must not send lifecycle status fields');
+assertBankStatus(strpos($coordinator, 'synchronizeAfterHandoff') !== false, 'Process 1 success must durable-sync CP status after SmartUCF creation');
+assertBankStatus(strpos($lifecycleService, 'synchronizeAfterHandoff') !== false, 'Process 2 success must durable-sync CP status after handoff');
+assertBankStatus(strpos($lifecycleService, 'ControlPanelStatusSyncService') !== false || strpos($lifecycleService, 'statusSync') !== false, 'lifecycle wires CP status sync service');
+assertBankStatus(strpos($leasingPresenter = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/OrderLeasingDetailsPresenter.php'), 'applyBankStatusLabel') !== false, 'admin/thank-you leasing rows must overlay live bank status like Woo');
 $cart = (string) file_get_contents(dirname(__DIR__, 2) . '/controllers/front/cartpopup.php');
 assertBankStatus(strpos($cart, 'SmartUcfSessionCoordinator') !== false, 'cart popup must use shared SmartUCF coordinator');
 assertBankStatus(strpos($popup, 'createSession(') === false, 'popup must not call createSession directly');
@@ -69,7 +70,7 @@ assertBankStatus(strpos($checkout, 'createSession(') === false, 'checkout must n
 assertBankStatus(strpos($cart, 'createSession(') === false, 'cart must not call createSession directly');
 
 $bankRepo = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/OrderBankStatusRepository.php');
-assertBankStatus(strpos($bankRepo, 'getRow(sprintf') !== false, 'bank status lookup must use Db::getRow');
-assertBankStatus(strpos($bankRepo, "LIMIT 1'") === false, 'getRow queries must not include LIMIT 1 (PrestaShop appends it)');
+assertBankStatus(strpos($bankRepo, 'executeS(sprintf') !== false, 'bank status lookup must use Db::executeS for fail-closed counting');
+assertBankStatus(strpos($bankRepo, "LIMIT 1'") === false, 'authorized lookup queries must not include LIMIT 1');
 
 fwrite(STDOUT, "OK (Bank status persistence for admin orders list)\n");

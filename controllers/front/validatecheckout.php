@@ -98,7 +98,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             $result = $orchestrator->orchestrate($idShop, $idCart, $request, $shop, 'checkout');
             (new CheckoutPreferenceStore())->clear($this->context->cookie);
 
-            $lifecycle = (new PostControlPanelLifecycleService())->handle(
+            $lifecycle = (new PostControlPanelLifecycleService(null, null, null, null, $cpClient))->handle(
                 $result,
                 $shop,
                 new PostControlPanelLifecycleContext(

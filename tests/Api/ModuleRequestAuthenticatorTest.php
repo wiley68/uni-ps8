@@ -14,19 +14,20 @@ final class Configuration
     /** @var array<string, mixed> */
     public static $values = [];
 
-    public static function updateValue($key, $value): bool
+    public static function updateValue(string $key, mixed $value): bool
     {
         self::$values[$key] = $value;
 
         return true;
     }
 
-    public static function get($key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
+    /** @return mixed */
+    public static function get(string $key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
     {
         return self::$values[$key] ?? $default;
     }
 
-    public static function deleteByName($key): bool
+    public static function deleteByName(string $key): bool
     {
         unset(self::$values[$key]);
 
@@ -55,6 +56,7 @@ final class PhpEncryption
 
 require_once dirname(__DIR__, 2) . '/src/Configuration/ConfigurationRepository.php';
 require_once dirname(__DIR__, 2) . '/src/Api/Exception/ModuleApiException.php';
+require_once dirname(__DIR__, 2) . '/src/Api/ModuleApiError.php';
 require_once dirname(__DIR__, 2) . '/src/Security/ClockInterface.php';
 require_once dirname(__DIR__, 2) . '/src/Security/SystemClock.php';
 require_once dirname(__DIR__, 2) . '/src/Security/FixedClock.php';
@@ -101,10 +103,10 @@ function assertPhase4(bool $condition, string $message): void
     }
 }
 
-function expectApiStatus(ModuleRequestAuthenticator $authenticator, array $payload, string $rawBody, array $headers, int $status): void
+function expectApiStatus(ModuleRequestAuthenticator $authenticator, string $rawBody, array $headers, int $status): void
 {
     try {
-        $authenticator->authenticate($payload, $rawBody, $headers);
+        $authenticator->authenticate($rawBody, $headers);
         assertPhase4(false, "expected HTTP {$status} authentication error");
     } catch (ModuleApiException $exception) {
         assertPhase4($exception->getStatusCode() === $status, 'unexpected authentication error status');
@@ -122,22 +124,17 @@ $authenticator = new ModuleRequestAuthenticator(
 );
 
 $rawBody = '{"unicid":"123e4567-e89b-12d3-a456-426614174000"}';
-$payload = json_decode($rawBody, true);
-assertPhase4(is_array($payload), 'payload decode failed');
 
-expectApiStatus($authenticator, $payload, $rawBody, [], 401);
-expectApiStatus($authenticator, $payload, $rawBody, [
+expectApiStatus($authenticator, $rawBody, [], 401);
+expectApiStatus($authenticator, $rawBody, [
     ModuleRequestSignatureProtocol::HEADER_TIMESTAMP => (string) time(),
     ModuleRequestSignatureProtocol::HEADER_NONCE => str_repeat('a', 64),
     ModuleRequestSignatureProtocol::HEADER_SIGNATURE => str_repeat('0', 64),
 ], 401);
 
-expectApiStatus($authenticator, [
-    'unicid' => '123e4567-e89b-12d3-a456-426614174000',
-    'secret' => 'test-secret',
-], '{"unicid":"123e4567-e89b-12d3-a456-426614174000","secret":"test-secret"}', [], 401);
+expectApiStatus($authenticator, '{"unicid":"123e4567-e89b-12d3-a456-426614174000","secret":"test-secret"}', [], 401);
 
 $configuration->save(false, '123e4567-e89b-12d3-a456-426614174000', null);
-expectApiStatus($authenticator, $payload, $rawBody, [], 403);
+expectApiStatus($authenticator, $rawBody, [], 403);
 
 fwrite(STDOUT, "OK (Phase 4 centralized module request authentication)\n");

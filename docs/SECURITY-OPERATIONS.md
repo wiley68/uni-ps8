@@ -47,6 +47,17 @@ X-UniPayment-Signature
 
 - `{raw_request_body}` must be the **exact** HTTP body bytes received (before JSON re-encoding).
 - JSON payload must include `unicid` matching the configured shop UNICID.
+- JSON payload must include canonical `operation` matching the endpoint (covered by HMAC because it is inside the raw body).
+
+### Operations and endpoint binding
+
+| Operation            | PrestaShop front controller |
+| -------------------- | --------------------------- |
+| `shop-cache`         | `shopcache`                 |
+| `order-bank-status`  | `orderbankstatus`           |
+| `smartucf-debug-log` | `smartucfdebuglog`          |
+
+A valid signed body for one operation must not execute on another endpoint (`unsupported_operation`).
 
 ### Signature
 
@@ -61,12 +72,51 @@ X-UniPayment-Signature
 
 ### Nonce
 
-- Format: **64 hexadecimal characters** (`NONCE_HEX_LENGTH`)
-- Pattern: `[0-9a-fA-F]{64}`
+- Format: **64 lowercase hexadecimal characters** (`^[0-9a-f]{64}$`)
+- Uppercase hex is rejected
+- Retention: **900 seconds**
+
+### Body size
+
+- Maximum inbound JSON body: **1 MiB** (`1048576` bytes)
+- Read via `BoundedRawBodyReader` with hard cap `MAX+1` bytes (no unbounded `file_get_contents('php://input')`)
+- Declared `Content-Length` > 1 MiB may fail early, but the stream bound remains authoritative
+- Oversized requests fail before JSON parsing / HMAC / nonce claim (`payload_too_large`, HTTP 413)
+
+### Local bank status vs CP status sync
+
+Local `bank_sent_process1` / `bank_sent_process2` mean **business handoff proven** (admin/email/thank-you).
+
+Outbound CP `PATCH /orders/status` confirmation is tracked separately on the financing snapshot (`cp_status_sync_*`):
+
+| State             | Meaning                                                                                                  |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| `pending`         | Desired status persisted; PATCH not yet canonically confirmed                                            |
+| `confirmed`       | Canonical CP success + identity/status echo validated                                                    |
+| `terminal_failed` | Positive allowlist only: `invalid_payload`, `semantic_conflict`, `unsupported_status`, `order_not_found` |
+
+Pending sync is retried idempotently from existing lifecycle/resume paths without repeating SmartUCF create or P2 business handoff. Transitions use status-aware compare-and-set so a stale retry cannot overwrite a newer pending/confirmed target. Unknown/transient 4xx/5xx (`rate_limited`, auth/token errors, `internal_error`, etc.) remain `pending`.
+
+`bank_sent_process1` and `bank_sent_process2` are mutually incompatible terminal statuses for CP status-sync admission. They represent alternative process outcomes, not sequential stages — neither may replace the other in pending/confirmed/`terminal_failed` sync state.
+
+### Canonical response envelope
+
+Every inbound module API response uses:
+
+```json
+{
+    "success": true,
+    "error": null,
+    "message": "...",
+    "data": {}
+}
+```
+
+Failures set `success` to `false` and `error` to a stable snake_case machine code. `data` is always a JSON object.
 
 ### Authentication failure
 
-HTTP **401** with message: `Invalid or expired module request.`
+HTTP **401** with machine code `invalid_signature` and message: `Invalid or expired module request.`
 
 ### Unsigned protocol
 
@@ -76,13 +126,15 @@ Legacy unsigned CP → module requests are **not** accepted.
 
 For cross-project compatibility testing only — **not production credentials**:
 
-| Field              | Value                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| Secret             | `test_shared_secret_123`                                                            |
-| Timestamp          | `1787380000`                                                                        |
-| Nonce              | `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`                  |
-| Raw body           | `{"unicid":"TEST-UNICID","order_id":"ABC123","status":"approved","status_id":"10"}` |
-| Expected signature | `2f4a55c19a2dd0f2f7f2390a6d720e95dbdff577c096d7ff291ef8f84a53e94f`                  |
+| Field              | Value                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Secret             | `test_shared_secret_123`                                                                                            |
+| Timestamp          | `1787380000`                                                                                                        |
+| Nonce              | `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`                                                  |
+| Raw body           | `{"operation":"order-bank-status","unicid":"TEST-UNICID","order_id":"ABC123","status":"approved","status_id":"10"}` |
+| Expected signature | `012e8545e84e43b45ae05a828bb487932454313ace1729d846cc3bd05a41c6a0`                                                  |
+
+Authority: Control Panel frozen baseline `0facb6721c0b9199078ce4b6404ed89c00de680c` (`docs/MODULE_PROTOCOL.md`).
 
 ---
 
@@ -103,13 +155,15 @@ Do not treat nonce table truncation as routine maintenance.
 
 ## 4. Multishop authorization
 
-Bank status endpoint (`orderbankstatus`):
+Bank status endpoint (`orderbankstatus`) and SmartUCF debug endpoint (`smartucfdebuglog`):
 
-- Uses **current PrestaShop shop context** (`$this->context->shop->id`).
-- Payload `order_id` = **PrestaShop order reference** (string), **not** `id_order`.
-- Order must exist with a financing snapshot authorized for that shop.
+- Use **current PrestaShop shop context** (`$this->context->shop->id`).
+- Payload `order_id` = immutable **shop-side financing order reference** (`ps_orders.reference`, max **13** on the wire), **not** `id_order` and not CP `orders.id`.
+- Order must exist with a UniCredit financing snapshot authorized for that shop.
+- Debug diagnostics are further scoped by matching `ps_order_id` / `id_order`.
+- Foreign-shop same-reference and missing diagnostics both return opaque **404** `order_not_found`.
 
-Wrong shop URL or reference → 404 `The order was not found in the shop.`
+Wrong shop URL or reference → 404 `order_not_found`.
 
 ---
 

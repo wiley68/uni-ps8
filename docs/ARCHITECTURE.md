@@ -78,15 +78,16 @@ Presentation uses Smarty/Twig templates and module assets; business rules live i
 
 Distinction comes from CP shop snapshot field **`uni_proces`**:
 
-|                    | Process 1                                | Process 2                  |
-| ------------------ | ---------------------------------------- | -------------------------- |
-| `uni_proces`       | `0` (default)                            | `1`                        |
-| EGN / second phone | Not required                             | Required at checkout/popup |
-| SmartUCF           | Session started after CP order           | Skipped                    |
-| Post-submit UX     | SmartUCF redirect or native confirmation | Native order confirmation  |
-| Success status     | `bank_sent_process1`                     | `bank_sent_process2`       |
-| CP create failure  | `bank_send_failed_cp`                    | `bank_send_failed`         |
-| SmartUCF failure   | `bank_send_failed_smartucf`              | n/a                        |
+|                    | Process 1                                         | Process 2                                   |
+| ------------------ | ------------------------------------------------- | ------------------------------------------- |
+| `uni_proces`       | `0` (default)                                     | `1`                                         |
+| EGN / second phone | Not required                                      | Required at checkout/popup                  |
+| SmartUCF           | Session started after CP order                    | Skipped                                     |
+| Post-submit UX     | SmartUCF redirect or native confirmation          | Native order confirmation                   |
+| CP create          | Same canonical create schema → `cp_sent`          | Same canonical create schema → `cp_sent`    |
+| Success status     | PATCH `bank_sent_process1` after SmartUCF success | PATCH `bank_sent_process2` after P2 handoff |
+| CP create failure  | `bank_send_failed_cp`                             | `bank_send_failed`                          |
+| SmartUCF failure   | `bank_send_failed_smartucf`                       | n/a                                         |
 
 Canonical Woo-compatible status vocabulary (`BankStatus`):
 
@@ -104,9 +105,13 @@ Helper: `ShopConfigurationFlags::isProcess2($shop)`.
 
 ### After successful CP order
 
-- **Process 1:** `SmartUcfSessionCoordinator` may create SmartUCF session and redirect; lifecycle tracked on financing snapshot.
-- **Process 2:** Customer sees confirmation; admin receives operational email (may include full EGN — see [`SECURITY-OPERATIONS.md`](SECURITY-OPERATIONS.md)).
+- **Process 1:** `SmartUcfSessionCoordinator` may create SmartUCF session and redirect. Proven SmartUCF success sets local `bank_sent_process1` (business handoff) and persists a **pending** CP status sync; PATCH confirmation marks sync **confirmed**. PATCH transport/echo ambiguity leaves sync **pending** and must not start another SmartUCF session.
+- **Process 2:** After successful CP create handoff, local `bank_sent_process2` is business handoff proven; CP PATCH confirmation is tracked separately as pending → confirmed. Pending sync is retried on subsequent lifecycle invocation without repeating the P2 handoff.
+- Create-time payloads never send `status` / `status_id` / `egn` / `phone2` to CP.
 - Leasing emails sent once per attempt (`leasing_email_sent` on snapshot).
+- Durable sync fields on `unipayment_financing_snapshot`: `cp_status_sync_state`, `cp_status_sync_status_id`, `cp_status_sync_status`, `cp_status_sync_error_class`, `cp_status_sync_updated_at`.
+- CP status-sync transitions are compare-and-set on `(state, status_id, status)`; terminal failure requires an explicit machine-code allowlist (not generic HTTP 4xx).
+- `bank_sent_process1` and `bank_sent_process2` are mutually incompatible terminal statuses (alternative process outcomes, not sequential stages). Local CP-sync admission rejects either direction without PATCH.
 
 ---
 
@@ -224,13 +229,15 @@ PrestaShop front controller URLs (pattern):
 /module/unipayment/smartucfdebuglog
 ```
 
-| Controller         | Purpose                                                            |
-| ------------------ | ------------------------------------------------------------------ |
-| `shopcache`        | Replace local shop configuration snapshot (`payload.data`)         |
-| `orderbankstatus`  | Push bank status for a financing order in current shop context     |
-| `smartucfdebuglog` | Return latest local SmartUCF diagnostic log for an order reference |
+| Controller         | Expected `operation` | Purpose                                                            |
+| ------------------ | -------------------- | ------------------------------------------------------------------ |
+| `shopcache`        | `shop-cache`         | Replace local shop configuration snapshot (`payload.data`)         |
+| `orderbankstatus`  | `order-bank-status`  | Push bank status for a financing order in current shop context     |
+| `smartucfdebuglog` | `smartucf-debug-log` | Return latest local SmartUCF diagnostic log for an order reference |
 
-Common security boundary: `ModuleRequestAuthenticator` (enabled module, UNICID match, HMAC signature, nonce claim).
+Common security boundary: `ModuleRequestAuthenticator` (enabled module, HMAC over exact raw body, UNICID match, nonce claim) then endpoint operation binding.
+
+Canonical inbound responses always use `{success, error, message, data}` with `data` as a JSON object.
 
 ---
 
@@ -252,9 +259,13 @@ Canonical string:
 {timestamp}\n{nonce}\n{raw_request_body}
 ```
 
-HMAC-SHA256 with shared secret; signature as lowercase hex. Timestamp window ±300 s. Nonce: 64 hex chars. Replay store retention 900 s.
+HMAC-SHA256 with shared secret; signature as lowercase hex. Timestamp window ±300 s. Nonce: **64 lowercase hex** chars. Replay store retention 900 s. Max body **1 MiB**, enforced by a bounded stream read of at most `MAX+1` bytes (`BoundedRawBodyReader`) before HMAC/JSON/nonce processing.
+
+Canonical operations inside the signed JSON body: `shop-cache`, `order-bank-status`, `smartucf-debug-log`.
 
 Unsigned requests are rejected.
+
+Module → CP responses are also parsed as the canonical envelope (`success === true`, `error === null`, `data` object). Login/refresh tokens live under `data`. HTTP 2xx alone is not treated as success.
 
 ---
 
@@ -262,9 +273,11 @@ Unsigned requests are rejected.
 
 Bank status callback (`orderbankstatus`) resolves the PrestaShop order in **`$this->context->shop->id`** only.
 
-Incoming payload field **`order_id`** is the **PrestaShop order reference** (e.g. `XKBNTABCD`), **not** native `id_order`.
+Incoming payload field **`order_id`** is the **PrestaShop order reference** (e.g. `XKBNTABCD`, wire max **13**), **not** native `id_order`.
 
-`OrderBankStatusRepository::findAuthorizedFinancingOrder()` requires a matching financing snapshot for that shop + reference.
+`OrderBankStatusRepository::resolveAuthorizedFinancingOrder()` requires a matching financing snapshot for that shop + reference (fail-closed if ambiguous).
+
+SmartUCF debug uses the same shop + reference + financing ownership gate, plus diagnostic `id_order` ownership.
 
 Broader multishop support beyond this scoping is not claimed.
 

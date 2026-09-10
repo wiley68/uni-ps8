@@ -181,7 +181,7 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
                 ],
             ];
 
-            $lifecycle = (new PostControlPanelLifecycleService())->handle(
+            $lifecycle = (new PostControlPanelLifecycleService(null, null, null, null, $cpClient))->handle(
                 $result,
                 $shop,
                 new PostControlPanelLifecycleContext(

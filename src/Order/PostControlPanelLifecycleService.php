@@ -26,16 +26,31 @@ final class PostControlPanelLifecycleService
     /** @var SmartUcfEndpointPolicy */
     private $endpointPolicy;
 
+    /** @var ControlPanelOrderClientInterface|null */
+    private $cpClient;
+
+    /** @var ControlPanelStatusSyncService */
+    private $statusSync;
+
     public function __construct(
         ?FinancingSnapshotStoreInterface $snapshots = null,
         ?LeasingMailDispatchPort $mailDispatcher = null,
         ?BankStatusPersistencePort $bankStatus = null,
-        ?SmartUcfEndpointPolicy $endpointPolicy = null
+        ?SmartUcfEndpointPolicy $endpointPolicy = null,
+        ?ControlPanelOrderClientInterface $cpClient = null,
+        ?ControlPanelStatusSyncService $statusSync = null
     ) {
         $this->snapshots = $snapshots ?? new FinancingSnapshotRepository();
         $this->mailDispatcher = $mailDispatcher ?? new FinancingOrderMailDispatcher();
         $this->bankStatus = $bankStatus ?? new OrderBankStatusRepository();
         $this->endpointPolicy = $endpointPolicy ?? new SmartUcfEndpointPolicy();
+        $this->cpClient = $cpClient;
+        $this->statusSync = $statusSync ?? new ControlPanelStatusSyncService(
+            $this->snapshots instanceof ControlPanelStatusSyncStoreInterface
+                ? $this->snapshots
+                : new ControlPanelStatusSyncStoreAdapter($this->snapshots),
+            $this->cpClient
+        );
     }
 
     /**
@@ -82,6 +97,12 @@ final class PostControlPanelLifecycleService
         $finalStatus = BankStatus::successfulSend($process2);
 
         if ($process2) {
+            // Local business handoff is proven; CP PATCH confirmation is tracked separately.
+            $this->statusSync->synchronizeAfterHandoff(
+                $order->attemptId,
+                $order->orderReference,
+                $finalStatus
+            );
             $result = PostControlPanelLifecycleResult::process2($finalStatus);
             if ($context->sendLeasingEmail) {
                 $this->persistBankStatus($context->idShop, $order->orderReference, $finalStatus);
@@ -90,6 +111,9 @@ final class PostControlPanelLifecycleService
 
             return $result;
         }
+
+        // Opportunistic retry of a previously pending P1 CP status sync before/alongside SmartUCF resume.
+        $this->statusSync->retryPending($order->attemptId, $order->orderReference);
 
         $shop['_currency_iso'] = $context->currencyIso;
         $smart = $context->resumeSmartUcf

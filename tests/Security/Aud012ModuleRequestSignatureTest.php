@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * AUD-012 — signed Control Panel → module request verification.
+ * AUD-012 — signed Control Panel → module request verification (canonical protocol).
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -21,19 +21,20 @@ final class Configuration
     /** @var array<string, mixed> */
     public static $values = [];
 
-    public static function updateValue($key, $value): bool
+    public static function updateValue(string $key, mixed $value): bool
     {
         self::$values[$key] = $value;
 
         return true;
     }
 
-    public static function get($key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
+    /** @return mixed */
+    public static function get(string $key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
     {
         return self::$values[$key] ?? $default;
     }
 
-    public static function deleteByName($key): bool
+    public static function deleteByName(string $key): bool
     {
         unset(self::$values[$key]);
 
@@ -110,15 +111,6 @@ final class Aud012FakeDb
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
-require_once dirname(__DIR__, 2) . '/src/Api/Exception/ModuleApiException.php';
-require_once dirname(__DIR__, 2) . '/src/Configuration/ConfigurationRepository.php';
-require_once dirname(__DIR__, 2) . '/src/Security/ClockInterface.php';
-require_once dirname(__DIR__, 2) . '/src/Security/FixedClock.php';
-require_once dirname(__DIR__, 2) . '/src/Security/ModuleRequestSignatureProtocol.php';
-require_once dirname(__DIR__, 2) . '/src/Security/ModuleRequestSignatureVerifier.php';
-require_once dirname(__DIR__, 2) . '/src/Security/ApiNonceRepository.php';
-require_once dirname(__DIR__, 2) . '/src/Security/ModuleRequestAuthenticator.php';
-
 use PrestaShop\Module\Unipayment\Api\Exception\ModuleApiException;
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
 use PrestaShop\Module\Unipayment\Security\ApiNonceRepository;
@@ -173,20 +165,22 @@ assertAud012(
     ) === ModuleRequestSignatureProtocol::CONTRACT_SIGNATURE,
     'shared contract vector mismatch'
 );
+assertAud012(
+    strpos(ModuleRequestSignatureProtocol::CONTRACT_RAW_BODY, '"operation":"order-bank-status"') !== false,
+    'contract vector must include canonical operation in raw body'
+);
 
 $clock = new FixedClock((int) ModuleRequestSignatureProtocol::CONTRACT_TIMESTAMP);
 $db = new Aud012FakeDb();
 $authenticator = makeAuthenticator($clock, $db);
 
 $rawBody = ModuleRequestSignatureProtocol::CONTRACT_RAW_BODY;
-$payload = json_decode($rawBody, true);
-assertAud012(is_array($payload), 'contract payload decode failed');
-
-$unicid = $authenticator->authenticate($payload, $rawBody, signedHeaders('test_shared_secret_123', $rawBody));
+[$payload, $unicid] = $authenticator->authenticate($rawBody, signedHeaders('test_shared_secret_123', $rawBody));
 assertAud012($unicid === 'TEST-UNICID', 'valid signed request rejected');
+assertAud012(($payload['operation'] ?? null) === 'order-bank-status', 'operation missing after authenticate');
 
 try {
-    $authenticator->authenticate($payload, $rawBody, signedHeaders('test_shared_secret_123', $rawBody));
+    $authenticator->authenticate($rawBody, signedHeaders('test_shared_secret_123', $rawBody));
     assertAud012(false, 'exact replay was accepted');
 } catch (ModuleApiException $exception) {
     assertAud012($exception->getStatusCode() === 401, 'replay status code mismatch');
@@ -203,30 +197,34 @@ $newHeaders = signedHeaders(
     ModuleRequestSignatureProtocol::CONTRACT_TIMESTAMP,
     $newNonce
 );
-$unicidAgain = $authenticator->authenticate($payload, $rawBody, $newHeaders);
+[$payloadAgain, $unicidAgain] = $authenticator->authenticate($rawBody, $newHeaders);
 assertAud012($unicidAgain === 'TEST-UNICID', 'same body with new nonce rejected');
+assertAud012(($payloadAgain['operation'] ?? null) === 'order-bank-status', 'replay-safe body lost operation');
 
-$tamperedBody = '{"unicid":"TEST-UNICID","order_id":"ABC123","status":"approved","status_id":"11"}';
+$tamperedBody = '{"operation":"order-bank-status","unicid":"TEST-UNICID","order_id":"ABC123","status":"approved","status_id":"11"}';
+$nonceBeforeTamper = count($db->rows);
 try {
-    $authenticator->authenticate(json_decode($tamperedBody, true), $tamperedBody, signedHeaders('test_shared_secret_123', $rawBody));
+    $authenticator->authenticate($tamperedBody, signedHeaders('test_shared_secret_123', $rawBody));
     assertAud012(false, 'tampered body accepted');
 } catch (ModuleApiException $exception) {
     assertAud012($exception->getStatusCode() === 401, 'tampered body status mismatch');
+    assertAud012(count($db->rows) === $nonceBeforeTamper, 'invalid signature must not consume nonce');
 }
 
 $wrongSecretHeaders = signedHeaders('wrong-secret', $rawBody, ModuleRequestSignatureProtocol::CONTRACT_TIMESTAMP, str_repeat('c', 64));
+$nonceBeforeWrong = count($db->rows);
 try {
-    $authenticator->authenticate($payload, $rawBody, $wrongSecretHeaders);
+    $authenticator->authenticate($rawBody, $wrongSecretHeaders);
     assertAud012(false, 'wrong signature accepted');
 } catch (ModuleApiException $exception) {
     assertAud012($exception->getStatusCode() === 401, 'wrong signature status mismatch');
+    assertAud012(count($db->rows) === $nonceBeforeWrong, 'wrong signature must not consume nonce');
 }
 
 $staleClock = new FixedClock((int) ModuleRequestSignatureProtocol::CONTRACT_TIMESTAMP + 400);
 $staleAuthenticator = makeAuthenticator($staleClock, new Aud012FakeDb());
 try {
     $staleAuthenticator->authenticate(
-        $payload,
         $rawBody,
         signedHeaders('test_shared_secret_123', $rawBody, ModuleRequestSignatureProtocol::CONTRACT_TIMESTAMP, str_repeat('d', 64))
     );
@@ -235,8 +233,28 @@ try {
     assertAud012($exception->getStatusCode() === 401, 'expired timestamp status mismatch');
 }
 
+$freshWithin = new FixedClock((int) ModuleRequestSignatureProtocol::CONTRACT_TIMESTAMP + 300);
+$freshAuthenticator = makeAuthenticator($freshWithin, new Aud012FakeDb());
+[$okPayload, $okUnicid] = $freshAuthenticator->authenticate(
+    $rawBody,
+    signedHeaders('test_shared_secret_123', $rawBody, ModuleRequestSignatureProtocol::CONTRACT_TIMESTAMP, str_repeat('e', 64))
+);
+assertAud012($okUnicid === 'TEST-UNICID', '±300 boundary accepted');
+assertAud012(is_array($okPayload), '±300 boundary payload');
+
+$upperNonce = strtoupper(str_repeat('f', 64));
 try {
-    $authenticator->authenticate($payload, $rawBody, [
+    $authenticator->authenticate(
+        $rawBody,
+        signedHeaders('test_shared_secret_123', $rawBody, ModuleRequestSignatureProtocol::CONTRACT_TIMESTAMP, $upperNonce)
+    );
+    assertAud012(false, 'uppercase nonce accepted');
+} catch (ModuleApiException $exception) {
+    assertAud012($exception->getStatusCode() === 401, 'uppercase nonce status mismatch');
+}
+
+try {
+    $authenticator->authenticate($rawBody, [
         ModuleRequestSignatureProtocol::HEADER_TIMESTAMP => ModuleRequestSignatureProtocol::CONTRACT_TIMESTAMP,
         ModuleRequestSignatureProtocol::HEADER_NONCE => ModuleRequestSignatureProtocol::CONTRACT_NONCE,
     ]);
@@ -246,10 +264,7 @@ try {
 }
 
 try {
-    $authenticator->authenticate([
-        'unicid' => 'TEST-UNICID',
-        'secret' => 'test_shared_secret_123',
-    ], '{"unicid":"TEST-UNICID","secret":"test_shared_secret_123"}', []);
+    $authenticator->authenticate('{"unicid":"TEST-UNICID","secret":"test_shared_secret_123"}', []);
     assertAud012(false, 'legacy unsigned request accepted');
 } catch (ModuleApiException $exception) {
     assertAud012($exception->getStatusCode() === 401, 'legacy unsigned status mismatch');

@@ -57,11 +57,12 @@ assertAud001(
 assertAud001(strpos($productController, 'GuestCustomerFactory') !== false, 'product popup controller must wire GuestCustomerFactory');
 assertAud001(strpos($cartController, 'GuestCustomerFactory') !== false, 'cart popup controller must wire GuestCustomerFactory');
 
-// Regression: orchestrator / CP / SmartUCF paths untouched by this remediation.
+// Regression: orchestrator / CP / SmartUCF paths untouched by guest-identity remediation.
 $orchestrator = (string) file_get_contents($root . '/src/Order/OrderOrchestrator.php');
 $cpPayload = (string) file_get_contents($root . '/src/Order/ControlPanelOrderPayloadBuilder.php');
 assertAud001(strpos($orchestrator, 'function orchestrate') !== false, 'OrderOrchestrator must remain present');
-assertAud001(strpos($cpPayload, "'status_id'") !== false, 'CP payload contract markers must remain');
+assertAud001(strpos($cpPayload, "'order_id'") !== false, 'CP payload contract markers must remain');
+assertAud001(strpos($cpPayload, "'status_id'") === false && strpos($cpPayload, "'status'") === false, 'CP create must not send lifecycle status fields');
 
 $gate = new PopupCustomerIdentityGate();
 assertAud001($gate->shouldUseAuthenticatedCustomer(null) === false, 'null customer must not be trusted');

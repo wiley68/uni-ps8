@@ -9,7 +9,8 @@ define('_NEW_COOKIE_KEY_', 'test-key');
 final class Configuration
 {
     public static $values = [];
-    public static function get($key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false) { return self::$values[$key] ?? $default; }
+    /** @return mixed */
+    public static function get(string $key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false) { return self::$values[$key] ?? $default; }
 }
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
@@ -25,6 +26,14 @@ final class MemoryDebugStore implements SmartUcfDebugLogStoreInterface
     public $entries = [];
     public function insert(array $entry): bool { $entry['id'] = count($this->entries) + 1; $this->entries[] = $entry; return true; }
     public function findLatestByOrderId(string $orderId): ?array { foreach (array_reverse($this->entries) as $entry) if ($entry['order_id'] === $orderId) return $entry; return null; }
+    public function findLatestByOrderIdAndPsOrderId(string $orderId, int $psOrderId): ?array {
+        foreach (array_reverse($this->entries) as $entry) {
+            if ($entry['order_id'] === $orderId && (int) ($entry['ps_order_id'] ?? 0) === $psOrderId) {
+                return $entry;
+            }
+        }
+        return null;
+    }
     public function findAll(): array { return $this->entries; }
     public function prune(?DateTimeImmutable $now = null): bool { return true; }
 }

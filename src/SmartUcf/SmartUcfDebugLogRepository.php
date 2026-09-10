@@ -9,10 +9,10 @@ final class SmartUcfDebugLogRepository implements SmartUcfDebugLogStoreInterface
     public const TABLE = 'unipayment_smartucf_log';
     public const RETENTION_MONTHS = 3;
 
-    /** @var \Db */
+    /** @var \DbCore */
     private $database;
 
-    public function __construct(?\Db $database = null)
+    public function __construct(?\DbCore $database = null)
     {
         $this->database = $database ?? \Db::getInstance();
     }
@@ -72,6 +72,28 @@ final class SmartUcfDebugLogRepository implements SmartUcfDebugLogStoreInterface
             "SELECT * FROM `%s` WHERE `order_id` = '%s' ORDER BY `id` DESC",
             $this->tableName(),
             pSQL($orderId)
+        ));
+        if (!is_array($row)) {
+            return null;
+        }
+
+        return $this->formatRow($row);
+    }
+
+    /** @return array<string, mixed>|null */
+    public function findLatestByOrderIdAndPsOrderId(string $orderId, int $psOrderId): ?array
+    {
+        $this->prune();
+        $orderId = trim($orderId);
+        if ($orderId === '' || $psOrderId <= 0) {
+            return null;
+        }
+
+        $row = $this->database->getRow(sprintf(
+            "SELECT * FROM `%s` WHERE `order_id` = '%s' AND `id_order` = %d ORDER BY `id` DESC",
+            $this->tableName(),
+            pSQL($orderId),
+            $psOrderId
         ));
         if (!is_array($row)) {
             return null;
