@@ -207,7 +207,7 @@ $snapshot = [
     'months' => 12,
     'monthly_installment' => 10,
 ];
-$shop = ['_currency_iso' => 'EUR'];
+$shop = ['_currency_iso' => 'EUR', 'uni_user' => 'demo-user', 'uni_password' => 'demo-pass', 'uni_sertificat' => 0];
 
 $baseRow = [
     'id_attempt' => 42,

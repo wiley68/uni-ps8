@@ -22,8 +22,13 @@ use PrestaShop\Module\Unipayment\Configuration\Exception\ShopConfigurationSnapsh
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCacheInterface;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationService;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationSnapshotValidator;
+use PrestaShop\Module\Unipayment\Infrastructure\ImmediateMutationBoundary;
 use PrestaShop\Module\Unipayment\Security\TokenRepository;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCredentialCipher;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCredentialPersistence;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCredentialRepository;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfEndpointPolicy;
+use PrestaShop\Module\Unipayment\Tests\Support\InMemorySmartUcfCredentialSettingStore;
 
 if (!defined('_NEW_COOKIE_KEY_')) {
     define('_NEW_COOKIE_KEY_', 'test-key');
@@ -38,7 +43,7 @@ if (!class_exists('Configuration', false)) {
         /**
          * @param mixed $value
          */
-        public static function updateValue(string $key, $value): bool
+        public static function updateValue(string $key, $value, bool $html = false, $idShopGroup = null, $idShop = null): bool
         {
             self::$values[$key] = $value;
 
@@ -202,24 +207,34 @@ $cache = new Aud005MemoryCache();
 $provider = new Aud005Provider();
 $tokens = new TokenRepository();
 $tokens->save('tok', 'Bearer', time() + 3600);
+$credSettings = new InMemorySmartUcfCredentialSettingStore();
+$credRepo = new SmartUcfCredentialRepository($credSettings, new SmartUcfCredentialCipher(), 1);
+$boundary = new ImmediateMutationBoundary();
+$credPersistence = new SmartUcfCredentialPersistence($credRepo, $cache, $boundary);
 $service = new ShopConfigurationService(
     new ConfigurationRepository(),
     $cache,
     $provider,
     $tokens,
-    $validator
+    $validator,
+    $credRepo,
+    $credPersistence,
+    $boundary
 );
 
 // 1 pull accepted
 $good = unipayment_valid_shop_snapshot();
 $provider->responses[] = ['success' => true, 'data' => $good];
 $pulled = $service->get(true);
-assertAud005($pulled === $good && $cache->replaceCount === 1, '1: valid pull accepted');
+assertAud005($cache->replaceCount === 1, '1: valid pull accepted');
+assertAud005(!isset($cache->rows[$unicid]['uni_user']), '1b: pull cache credential-free');
+assertAud005(($pulled['uni_user'] ?? '') === 'demo-user', '1c: pull hydrates credentials');
 
 // 2 push accepted
 $pushed = unipayment_valid_shop_snapshot(['uni_zaglavie' => 'Title']);
 assertAud005($service->replaceSnapshot($unicid, $pushed), '2: valid push accepted');
 assertAud005($cache->rows[$unicid]['uni_zaglavie'] === 'Title', '2b: push stored');
+assertAud005(!isset($cache->rows[$unicid]['uni_password']), '2c: push cache credential-free');
 
 // 4 missing required
 expectViolations(function () use ($validator) {
@@ -379,14 +394,15 @@ expectViolations(function () use ($validator) {
     ]));
 }, 'uni_test_service', 'required');
 
-// 26 Process2 does not require SmartUCF fields
+// 26 Process2 does not require SmartUCF credential fields in structural validator
 $validator->validate(unipayment_valid_shop_snapshot([
     'uni_proces' => 1,
     'uni_test_service' => '',
     'uni_test_application' => '',
-    'uni_user' => '',
-    'uni_password' => '',
 ]));
+$p2Absent = unipayment_valid_shop_snapshot(['uni_proces' => 1]);
+unset($p2Absent['uni_user'], $p2Absent['uni_password']);
+$validator->validate($p2Absent);
 
 // 27 hostile URL structurally OK; AUD-003 still rejects
 $hostile = unipayment_valid_shop_snapshot([

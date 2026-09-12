@@ -17,7 +17,7 @@ final class Configuration
     /**
      * @param mixed $value
      */
-    public static function updateValue(string $key, $value): bool
+    public static function updateValue(string $key, $value, bool $html = false, $idShopGroup = null, $idShop = null): bool
     {
         self::$values[$key] = $value;
 
@@ -55,18 +55,16 @@ final class PhpEncryption
     }
 }
 
-require_once dirname(__DIR__, 2) . '/src/Configuration/ConfigurationRepository.php';
-require_once dirname(__DIR__, 2) . '/src/Configuration/ShopConfigurationCacheInterface.php';
-require_once dirname(__DIR__, 2) . '/src/Security/TokenRepository.php';
-require_once dirname(__DIR__, 2) . '/src/Api/ShopConfigurationProviderInterface.php';
-require_once dirname(__DIR__, 2) . '/src/Api/Exception/ControlPanelException.php';
-require_once dirname(__DIR__, 2) . '/src/Api/Exception/AuthenticationException.php';
-require_once dirname(__DIR__, 2) . '/src/Api/Exception/ConnectionException.php';
-require_once dirname(__DIR__, 2) . '/src/Api/Exception/HttpException.php';
-require_once dirname(__DIR__, 2) . '/src/Api/Exception/InvalidPayloadException.php';
-require_once dirname(__DIR__, 2) . '/src/Configuration/Exception/ShopConfigurationSnapshotValidationException.php';
-require_once dirname(__DIR__, 2) . '/src/Configuration/ShopConfigurationSnapshotValidator.php';
-require_once dirname(__DIR__, 2) . '/src/Configuration/ShopConfigurationService.php';
+if (!class_exists('PrestaShopLogger', false)) {
+    class PrestaShopLogger
+    {
+        public static function addLog(string $message, int $severity = 1): void
+        {
+        }
+    }
+}
+
+require dirname(__DIR__, 2) . '/vendor/autoload.php';
 require_once dirname(__DIR__) . '/fixtures/shop_snapshot.php';
 
 use PrestaShop\Module\Unipayment\Api\Exception\AuthenticationException;
@@ -76,7 +74,12 @@ use PrestaShop\Module\Unipayment\Api\ShopConfigurationProviderInterface;
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCacheInterface;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationService;
+use PrestaShop\Module\Unipayment\Infrastructure\ImmediateMutationBoundary;
 use PrestaShop\Module\Unipayment\Security\TokenRepository;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCredentialCipher;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCredentialPersistence;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCredentialRepository;
+use PrestaShop\Module\Unipayment\Tests\Support\InMemorySmartUcfCredentialSettingStore;
 
 final class MemoryShopConfigurationCache implements ShopConfigurationCacheInterface
 {
@@ -163,18 +166,35 @@ $tokens = new TokenRepository();
 $tokens->save('test-token', 'Bearer', 2000000000);
 $cache = new MemoryShopConfigurationCache();
 $provider = new FakeShopConfigurationProvider();
-$service = new ShopConfigurationService($configuration, $cache, $provider, $tokens);
+$credSettings = new InMemorySmartUcfCredentialSettingStore();
+$credRepo = new SmartUcfCredentialRepository($credSettings, new SmartUcfCredentialCipher(), 1);
+$boundary = new ImmediateMutationBoundary();
+$credPersistence = new SmartUcfCredentialPersistence($credRepo, $cache, $boundary);
+$service = new ShopConfigurationService(
+    $configuration,
+    $cache,
+    $provider,
+    $tokens,
+    null,
+    $credRepo,
+    $credPersistence,
+    $boundary
+);
 $unicid = $configuration->getUnicid();
 
 // Missing cache: initial fetch and persistent full snapshot replacement.
 $provider->responses[] = ['success' => true, 'data' => unipayment_valid_shop_snapshot(['id' => 10])];
 $initial = $service->get();
 assertPhase3($provider->calls === 1, 'missing cache did not call Control Panel');
-assertPhase3($initial['id'] === 10 && $cache->rows[$unicid] === $initial, 'initial snapshot was not cached');
+assertPhase3($initial['id'] === 10, 'initial snapshot id');
+assertPhase3(!isset($cache->rows[$unicid]['uni_user']), 'GET /shop cache strips uni_user');
+assertPhase3(!isset($cache->rows[$unicid]['uni_password']), 'GET /shop cache strips uni_password');
+assertPhase3(($initial['uni_user'] ?? '') === 'demo-user', 'runtime hydrate restores uni_user');
+assertPhase3(($initial['uni_password'] ?? '') === 'demo-secret-password', 'runtime hydrate restores uni_password');
 
 // Fresh cache hit: no Control Panel request.
 $hit = $service->get();
-assertPhase3($provider->calls === 1 && $hit === $initial, 'fresh cache did not avoid a Control Panel request');
+assertPhase3($provider->calls === 1 && ($hit['uni_zaglavie'] ?? '') === ($initial['uni_zaglavie'] ?? ''), 'fresh cache did not avoid a Control Panel request');
 
 // Expired cache: refresh from Control Panel.
 $cache->fresh = false;
@@ -223,7 +243,10 @@ try {
 $callsBeforePush = $provider->calls;
 $pushed = unipayment_valid_shop_snapshot(['id' => 10, 'consents' => [['id' => 5, 'name' => 'C', 'mandatory' => 1]]]);
 assertPhase3($service->replaceSnapshot($unicid, $pushed), 'push snapshot replacement failed');
-assertPhase3($cache->rows[$unicid] === $pushed, 'push snapshot was merged instead of replaced');
+assertPhase3(!isset($cache->rows[$unicid]['uni_user']), 'push cache strips credentials');
+assertPhase3(($cache->rows[$unicid]['consents'][0]['name'] ?? '') === 'C', 'push snapshot was merged instead of replaced');
 assertPhase3($provider->calls === $callsBeforePush, 'push replacement made an outbound request');
+$hydratedPush = $service->get();
+assertPhase3(($hydratedPush['uni_user'] ?? '') === 'demo-user', 'push path hydrates credentials');
 
 fwrite(STDOUT, "OK (Phase 3 shop configuration cache semantics)\n");

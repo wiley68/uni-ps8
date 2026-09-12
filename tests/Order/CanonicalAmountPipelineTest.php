@@ -28,7 +28,7 @@ assertCanonical(strpos($factorySource, 'getOrderTotal(true, \\Cart::BOTH)') !== 
 assertCanonical(strpos((string) file_get_contents($root . '/src/Cart/CartPopupApplyService.php'), 'neutralizeShipping') === false, 'cart popup still strips shipping');
 $calculator = new Calculator('2026-08-24');
 $resolver = new CartSchemeResolver($calculator);
-$shop = calculatorFixture(['uni_eur' => 0]);
+$shop = calculatorFixture(['uni_eur' => 0, 'uni_user' => 'demo-user', 'uni_password' => 'demo-pass']);
 $cases = ['products only' => 1000.00, 'products + shipping' => 1050.00, 'products + taxable shipping' => 1060.00, 'products + fees' => 1025.00, 'discounts' => 900.00, 'taxes' => 1200.00, 'mixed adjustments' => 1137.50, 'final checkout total' => 987.65];
 foreach ($cases as $label => $total) {
     $cart = new CartContext([new CartLine(new ProductContext(42, [7], $total), 0, 1, 800.0)], $total);

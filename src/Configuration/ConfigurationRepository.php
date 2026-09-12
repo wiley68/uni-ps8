@@ -56,6 +56,8 @@ final class ConfigurationRepository
                 'UNIPAYMENT_CP_ACCESS_TOKEN',
                 'UNIPAYMENT_CP_TOKEN_TYPE',
                 'UNIPAYMENT_CP_TOKEN_EXPIRES_AT',
+                \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCredentialRepository::USER_KEY,
+                \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCredentialRepository::PASSWORD_KEY,
                 FinancingSnapshotRetentionService::LAST_CLEANUP_KEY,
             ] as $key
         ) {
