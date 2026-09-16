@@ -138,6 +138,11 @@ final class CasSqlFakeCp implements ControlPanelOrderClientInterface
             ],
         ];
     }
+
+    public function reportOrderOrphan(string $orderId, string $orderDate): array
+    {
+        return ['success' => true, 'error' => null, 'data' => ['result' => 'notified', 'order_id' => $orderId]];
+    }
 }
 
 $db = new CasSqlFakeDb();

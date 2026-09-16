@@ -18,7 +18,7 @@ class Unipayment extends PaymentModule
     {
         $this->name = 'unipayment';
         $this->tab = 'payments_gateways';
-        $this->version = '2.0.2';
+        $this->version = '2.0.3';
         $this->author = 'Avalon Ltd';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -82,6 +82,7 @@ class Unipayment extends PaymentModule
         $checkoutLock = new PrestaShop\Module\Unipayment\Checkout\CheckoutSubmitLockRepository();
         $attempts = new PrestaShop\Module\Unipayment\Order\OrderAttemptRepository();
         $snapshots = new PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository();
+        $orphanSync = new PrestaShop\Module\Unipayment\Order\OrphanSyncRepository();
         $popupSubmissions = new PrestaShop\Module\Unipayment\Product\PopupSubmissionRepository();
         $orderStates = new PrestaShop\Module\Unipayment\Order\OrderStateInstaller();
         try {
@@ -98,6 +99,7 @@ class Unipayment extends PaymentModule
             && $checkoutLock->install()
             && $attempts->install()
             && $snapshots->install()
+            && $orphanSync->install()
             && $popupSubmissions->install()
             && $orderStates->install()
             && $this->registerHook('displayAdminOrderMainBottom')
@@ -111,12 +113,14 @@ class Unipayment extends PaymentModule
             && $this->registerHook('actionOrderGridQueryBuilderModifier')
             && $this->registerHook('displayPaymentReturn')
             && $this->registerHook('displayFooter')
+            && $this->registerHook('actionCronJob')
         ) {
             return true;
         }
 
         $orderStates->uninstall();
         $popupSubmissions->uninstall();
+        $orphanSync->uninstall();
         $snapshots->uninstall();
         $attempts->uninstall();
         $apiNonce = new PrestaShop\Module\Unipayment\Security\ApiNonceRepository();
@@ -640,6 +644,9 @@ class Unipayment extends PaymentModule
      */
     public function hookDisplayFooter($params = []): string
     {
+        // Customer storefront rendering must never wait on orphan-report HTTP.
+        // Pending orphan recovery is cron-only (hookActionCronJob).
+
         if (!isset($this->context->controller->php_self) || $this->context->controller->php_self !== 'index') {
             return '';
         }
@@ -657,9 +664,40 @@ class Unipayment extends PaymentModule
     }
 
     /**
+     * CronJobs module compatible entrypoint for bounded orphan-report flush.
+     *
+     * @param array<string, mixed> $params
+     */
+    public function hookActionCronJob(array $params = []): void
+    {
+        $this->flushOrphanReportSync(10);
+    }
+
+    /**
+     * Bounded cron flush for durable orphan-report intents.
+     * Must not be invoked from customer-facing rendering hooks.
+     */
+    protected function flushOrphanReportSync(int $limit = 10): void
+    {
+        try {
+            $cpApi = $this->getControlPanelClient();
+            $cpClient = new PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter($cpApi);
+            (new PrestaShop\Module\Unipayment\Order\OrphanReportSyncService(
+                new PrestaShop\Module\Unipayment\Order\OrphanSyncRepository(),
+                $cpClient
+            ))->flushDuePending($limit);
+        } catch (Throwable $exception) {
+            PrestaShopLogger::addLog(
+                'UniPayment orphan flush failed: ' . get_class($exception),
+                2
+            );
+        }
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
-    private function homepageAdvertisingContext(): ?array
+    protected function homepageAdvertisingContext(): ?array
     {
         static $resolved = false;
         static $context = null;

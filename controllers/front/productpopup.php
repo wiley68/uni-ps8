@@ -271,7 +271,12 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             $cpClient,
             new FinancingSnapshotFactory(new SensitiveDataCipher()),
             new ControlPanelOrderPayloadBuilder(),
-            new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository()
+            new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository(),
+            null,
+            new PrestaShop\Module\Unipayment\Order\OrphanReportSyncService(
+                new PrestaShop\Module\Unipayment\Order\OrphanSyncRepository(),
+                $cpClient
+            )
         );
         $service = new ProductPopupApplyService(
             new Calculator(),

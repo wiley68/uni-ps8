@@ -12,9 +12,10 @@ use PrestaShop\Module\Unipayment\Api\Exception\MalformedJsonException;
 use PrestaShop\Module\Unipayment\Api\Exception\TimeoutException;
 
 /**
- * Durable, idempotent CP status PATCH synchronization after proven P1/P2 handoffs.
+ * Durable, idempotent CP status PATCH synchronization after proven P1/P2 handoffs
+ * and definitive SmartUCF remote failures (`bank_send_failed_smartucf`).
  *
- * Local bank_sent_* = business handoff proven.
+ * Local bank_sent_* / bank_send_failed_smartucf = business outcome proven.
  * cp_status_sync_* = CP confirmation state with concurrency-safe CAS transitions.
  *
  * bank_sent_process1 and bank_sent_process2 are mutually incompatible terminal
@@ -111,7 +112,7 @@ final class ControlPanelStatusSyncService
             if ($decision === self::CONFLICT) {
                 \PrestaShopLogger::addLog(
                     'UniPayment CP status sync conflict: incompatible terminal targets '
-                    . (string) $currentStatusId . ' vs ' . $statusId,
+                        . (string) $currentStatusId . ' vs ' . $statusId,
                     2
                 );
             }
@@ -143,7 +144,7 @@ final class ControlPanelStatusSyncService
             if ($retryDecision === self::CONFLICT) {
                 \PrestaShopLogger::addLog(
                     'UniPayment CP status sync conflict after CAS miss: incompatible terminal targets '
-                    . (string) $latestStatusId . ' vs ' . $statusId,
+                        . (string) $latestStatusId . ' vs ' . $statusId,
                     2
                 );
             }

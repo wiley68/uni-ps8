@@ -11,4 +11,11 @@ interface ControlPanelOrderClientInterface
 
     /** @return array<string, mixed> */
     public function updateOrderStatus(string $orderId, string $status, string $statusId): array;
+
+    /**
+     * Report a Shop-local bank_send_failed_cp orphan (no CP financing order).
+     *
+     * @return array<string, mixed>
+     */
+    public function reportOrderOrphan(string $orderId, string $orderDate): array;
 }

@@ -214,6 +214,11 @@ final class F01FakeCp implements ControlPanelOrderClientInterface
             ],
         ];
     }
+
+    public function reportOrderOrphan(string $orderId, string $orderDate): array
+    {
+        return ['success' => true, 'error' => null, 'data' => ['result' => 'notified', 'order_id' => $orderId]];
+    }
 }
 
 function f01Http(int $status, string $error): HttpException
@@ -594,7 +599,7 @@ assertF01(
 );
 assertF01(
     $store->rows[81]['cp_status_sync_state'] === ControlPanelStatusSyncStates::CONFIRMED
-    && $store->rows[81]['cp_status_sync_status_id'] === BankStatus::SENT_PROCESS2,
+        && $store->rows[81]['cp_status_sync_status_id'] === BankStatus::SENT_PROCESS2,
     'confirmed mutated target unchanged by stale failure'
 );
 
@@ -638,7 +643,7 @@ assertF01($syncSameA->retryPending(83, 'REFCAS083') === ControlPanelStatusSyncSt
 assertF01($syncSameB->retryPending(83, 'REFCAS083') === ControlPanelStatusSyncStates::CONFIRMED, 'same-target B no-op confirmed');
 assertF01(
     $store->rows[83]['cp_status_sync_state'] === ControlPanelStatusSyncStates::CONFIRMED
-    && $store->rows[83]['cp_status_sync_status_id'] === BankStatus::SENT_PROCESS1,
+        && $store->rows[83]['cp_status_sync_status_id'] === BankStatus::SENT_PROCESS1,
     'same-target concurrent retries leave confirmed process1'
 );
 
@@ -741,7 +746,7 @@ assertF01(
     !preg_match('/\$status\s*>=\s*400\s*&&\s*\$status\s*<\s*500/', $serviceSrc),
     'generic 4xx terminal fallback removed'
 );
-assertF01(strpos($serviceSrc, 'bank_send_failed_smartucf') === false, 'SmartUCF failure path not expanded in sync service');
+assertF01(strpos($serviceSrc, 'bank_send_failed_smartucf') !== false, 'SmartUCF failure durable target admitted in sync service');
 assertF01(
     !preg_match('/SENT_PROCESS2[^\n]*return 20|process2\s*>\s*process1/i', $serviceSrc),
     'no local process2 > process1 ranking remains'

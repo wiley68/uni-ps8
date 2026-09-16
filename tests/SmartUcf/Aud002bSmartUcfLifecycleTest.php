@@ -102,14 +102,16 @@ assertAud002b(strpos($lifecycle, 'claimForSubmitting') !== false, 'atomic claim 
 assertAud002b(strpos($lifecycle, 'markOutcomeUnknown') !== false, 'outcome_unknown persistence');
 
 $coordinator = (string) file_get_contents($root . '/src/SmartUcf/SmartUcfSessionCoordinator.php');
-assertAud002b(strpos($coordinator, 'markDefinitiveFailure') !== false, 'definitive failure path exists');
+assertAud002b(strpos($coordinator, 'finalizeDefinitiveRemoteFailure') !== false, 'definitive failure path exists');
 assertAud002b(strpos($coordinator, 'OUTCOME_UNKNOWN') !== false, 'coordinator handles outcome_unknown');
 assertAud002b(strpos($coordinator, 'handleCreateFailure') !== false, 'create failure boundary helper');
 assertAud002b(strpos($coordinator, 'markCreated failed after remote success') !== false, 'post-success markCreated handling');
-// outcome_unknown must not call markDefinitiveFailure in that branch
+// outcome_unknown must not call definitive bank/status finalization in that branch
 $unknownBranch = substr($coordinator, (int) strpos($coordinator, 'OUTCOME_UNKNOWN'));
-$unknownSection = substr($unknownBranch, 0, (int) strpos($unknownBranch, 'markFailed'));
-assertAud002b(strpos($unknownSection, 'markDefinitiveFailure') === false, 'outcome_unknown must not mark definitive failure');
+$unknownSection = substr($unknownBranch, 0, (int) strpos($unknownBranch, 'isRetryable()'));
+assertAud002b(strpos($unknownSection, 'finalizeDefinitiveRemoteFailure') === false, 'outcome_unknown must not mark definitive failure');
+assertAud002b(strpos($coordinator, 'retryPending') !== false, 'failed resume retries durable CP status sync');
+assertAud002b(strpos($coordinator, 'updateOrderStatus(') === false, 'best-effort SmartUCF failure PATCH removed');
 
 $lifecycleRepoSrc = (string) file_get_contents($root . '/src/SmartUcf/SmartUcfLifecycleRepository.php');
 assertAud002b(strpos($lifecycleRepoSrc, 'Affected_Rows()') !== false, 'mark* checks affected rows');
@@ -138,6 +140,6 @@ $tpl = (string) file_get_contents($root . '/views/templates/front/checkout_valid
 assertAud002b(strpos($tpl, 'unipayment_smartucf_outcome_unknown') !== false, 'checkout template shows outcome_unknown');
 
 $version = (string) file_get_contents($root . '/unipayment.php');
-assertAud002b(strpos($version, "version = '2.0.2'") !== false, 'module version is 2.0.2');
+assertAud002b(strpos($version, "version = '2.0.3'") !== false, 'module version is 2.0.3');
 
 fwrite(STDOUT, "OK (AUD-002B/AUD-008 classifier + contracts)\n");

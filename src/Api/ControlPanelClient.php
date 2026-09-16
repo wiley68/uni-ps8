@@ -145,6 +145,27 @@ final class ControlPanelClient implements ShopConfigurationProviderInterface
     }
 
     /**
+     * Report a Shop-local bank_send_failed_cp orphan (no CP financing order).
+     *
+     * Exact payload allowlist: order_id, order_date, status_id.
+     *
+     * @return array<string, mixed>
+     */
+    public function reportOrderOrphan(string $orderId, string $orderDate): array
+    {
+        $payload = [
+            'order_id' => substr(trim($orderId), 0, 13),
+            'order_date' => trim($orderDate),
+            'status_id' => 'bank_send_failed_cp',
+        ];
+
+        $response = $this->authenticatedRequest('POST', '/orders/orphan-report', $payload);
+        $this->assertOrphanReportEcho($response, $payload);
+
+        return $response;
+    }
+
+    /**
      * Lightweight SSL certificate metadata (no PEM body).
      *
      * @return array{
@@ -332,7 +353,8 @@ final class ControlPanelClient implements ShopConfigurationProviderInterface
             throw new MalformedJsonException('The Control Panel JSON response is not an object.');
         }
 
-        if (!property_exists($decodedObject, 'success')
+        if (
+            !property_exists($decodedObject, 'success')
             || $decodedObject->success !== true
             || !property_exists($decodedObject, 'error')
             || $decodedObject->error !== null
@@ -457,11 +479,35 @@ final class ControlPanelClient implements ShopConfigurationProviderInterface
             throw new InvalidPayloadException('The Control Panel status response has no valid data object.');
         }
 
-        if ((string) ($data['order_id'] ?? '') !== $payload['order_id']
+        if (
+            (string) ($data['order_id'] ?? '') !== $payload['order_id']
             || (string) ($data['status_id'] ?? '') !== $payload['status_id']
             || (string) ($data['status'] ?? '') !== $payload['status']
         ) {
             throw new InvalidPayloadException('The Control Panel status response does not echo the request identity.');
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     * @param array{order_id: string, order_date: string, status_id: string} $payload
+     */
+    private function assertOrphanReportEcho(array $response, array $payload): void
+    {
+        $data = $response['data'] ?? null;
+        if (!is_array($data) || !$this->isAssociativeObject($data)) {
+            throw new InvalidPayloadException('The Control Panel orphan-report response has no valid data object.');
+        }
+
+        $result = isset($data['result']) && is_string($data['result']) ? trim($data['result']) : '';
+        if ($result === '') {
+            throw new InvalidPayloadException('The Control Panel orphan-report response has no result.');
+        }
+
+        if (isset($data['order_id']) && is_string($data['order_id']) && $data['order_id'] !== '') {
+            if (!hash_equals($payload['order_id'], substr(trim($data['order_id']), 0, 13))) {
+                throw new InvalidPayloadException('The Control Panel orphan-report response does not echo order_id.');
+            }
         }
     }
 
