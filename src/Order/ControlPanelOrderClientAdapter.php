@@ -25,9 +25,4 @@ final class ControlPanelOrderClientAdapter implements ControlPanelOrderClientInt
     {
         return $this->client->updateOrderStatus($orderId, $status, $statusId);
     }
-
-    public function reportOrderOrphan(string $orderId, string $orderDate): array
-    {
-        return $this->client->reportOrderOrphan($orderId, $orderDate);
-    }
 }

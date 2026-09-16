@@ -11,7 +11,6 @@ use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
 use PrestaShop\Module\Unipayment\Order\OrderAttemptRepository;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
 use PrestaShop\Module\Unipayment\Order\OrderStateInstaller;
-use PrestaShop\Module\Unipayment\Order\OrphanSyncRepository;
 use PrestaShop\Module\Unipayment\Product\PopupSubmissionRepository;
 use PrestaShop\Module\Unipayment\Security\ApiNonceRepository;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfDebugLogRepository;
@@ -32,7 +31,6 @@ final class ModuleSchemaInventory
             CheckoutSubmitLockRepository::TABLE,
             OrderAttemptRepository::TABLE,
             FinancingSnapshotRepository::TABLE,
-            OrphanSyncRepository::TABLE,
             PopupSubmissionRepository::TABLE,
         ];
     }
@@ -67,7 +65,6 @@ final class ModuleSchemaInventory
             && (new CheckoutSubmitLockRepository($db))->install()
             && (new OrderAttemptRepository($db))->install()
             && (new FinancingSnapshotRepository($db))->install()
-            && (new OrphanSyncRepository($db))->install()
             && (new PopupSubmissionRepository($db))->install()
             && (new OrderStateInstaller())->install();
     }

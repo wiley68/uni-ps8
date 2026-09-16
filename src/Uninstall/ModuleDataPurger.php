@@ -101,7 +101,6 @@ final class ModuleDataPurger
     {
         return [
             'popup_submissions' => new PopupSubmissionRepository($this->database),
-            'orphan_sync' => new \PrestaShop\Module\Unipayment\Order\OrphanSyncRepository($this->database),
             'financing_snapshots' => new FinancingSnapshotRepository($this->database),
             'order_attempts' => new OrderAttemptRepository($this->database),
             'order_bank_status' => new OrderBankStatusRepository($this->database),

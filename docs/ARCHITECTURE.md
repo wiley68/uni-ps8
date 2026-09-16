@@ -78,16 +78,16 @@ Presentation uses Smarty/Twig templates and module assets; business rules live i
 
 Distinction comes from CP shop snapshot field **`uni_proces`**:
 
-|                    | Process 1                                                                     | Process 2                                        |
-| ------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------ |
-| `uni_proces`       | `0` (default)                                                                 | `1`                                              |
-| EGN / second phone | Not required                                                                  | Required at checkout/popup                       |
-| SmartUCF           | Session started after CP order                                                | Skipped                                          |
-| Post-submit UX     | SmartUCF redirect or native confirmation                                      | Native order confirmation                        |
-| CP create          | Same canonical create schema → `cp_sent`                                      | Same canonical create schema → `cp_sent`         |
-| Success status     | PATCH `bank_sent_process1` after SmartUCF success                             | PATCH `bank_sent_process2` after P2 handoff      |
-| CP create failure  | Definitive only → `bank_send_failed_cp` + orphan-report                       | Definitive only → `bank_send_failed` (no orphan) |
-| SmartUCF failure   | Definitive remote only → `bank_send_failed_smartucf` + durable CP status sync | n/a                                              |
+|                    | Process 1                                         | Process 2                                   |
+| ------------------ | ------------------------------------------------- | ------------------------------------------- |
+| `uni_proces`       | `0` (default)                                     | `1`                                         |
+| EGN / second phone | Not required                                      | Required at checkout/popup                  |
+| SmartUCF           | Session started after CP order                    | Skipped                                     |
+| Post-submit UX     | SmartUCF redirect or native confirmation          | Native order confirmation                   |
+| CP create          | Same canonical create schema → `cp_sent`          | Same canonical create schema → `cp_sent`    |
+| Success status     | PATCH `bank_sent_process1` after SmartUCF success | PATCH `bank_sent_process2` after P2 handoff |
+| CP create failure  | `bank_send_failed_cp`                             | `bank_send_failed`                          |
+| SmartUCF failure   | `bank_send_failed_smartucf`                       | n/a                                         |
 
 Canonical Woo-compatible status vocabulary (`BankStatus`):
 
@@ -105,10 +105,9 @@ Helper: `ShopConfigurationFlags::isProcess2($shop)`.
 
 ### After successful CP order
 
-- **Process 1:** `SmartUcfSessionCoordinator` may create SmartUCF session and redirect. Proven SmartUCF success sets local `bank_sent_process1` (business handoff) and persists a **pending** CP status sync; PATCH confirmation marks sync **confirmed**. PATCH transport/echo ambiguity leaves sync **pending** and must not start another SmartUCF session. Definitive SmartUCF remote rejection sets local `bank_send_failed_smartucf` and a pending CP status-sync target in the same durability boundary, then retries PATCH (never a second SmartUCF session).
+- **Process 1:** `SmartUcfSessionCoordinator` may create SmartUCF session and redirect. Proven SmartUCF success sets local `bank_sent_process1` (business handoff) and persists a **pending** CP status sync; PATCH confirmation marks sync **confirmed**. PATCH transport/echo ambiguity leaves sync **pending** and must not start another SmartUCF session.
 - **Process 2:** After successful CP create handoff, local `bank_sent_process2` is business handoff proven; CP PATCH confirmation is tracked separately as pending → confirmed. Pending sync is retried on subsequent lifecycle invocation without repeating the P2 handoff.
 - Create-time payloads never send `status` / `status_id` / `egn` / `phone2` to CP.
-- Definitive CP create rejection (Process 1) is allowlisted to frozen create codes `invalid_payload` / `semantic_conflict` only; it schedules durable `POST /orders/orphan-report` via `unipayment_orphan_sync` (`event_type=cp_create_orphan`). Ambiguous/retryable create outcomes never write `bank_send_failed_cp` and never create orphan intents. Pending orphan recovery runs via `actionCronJob` only (not customer storefront hooks).
 - Leasing emails sent once per attempt (`leasing_email_sent` on snapshot).
 - Durable sync fields on `unipayment_financing_snapshot`: `cp_status_sync_state`, `cp_status_sync_status_id`, `cp_status_sync_status`, `cp_status_sync_error_class`, `cp_status_sync_updated_at`.
 - CP status-sync transitions are compare-and-set on `(state, status_id, status)`; terminal failure requires an explicit machine-code allowlist (not generic HTTP 4xx).
@@ -179,7 +178,6 @@ Module-owned tables (created in `unipayment.php::install()`):
 | `unipayment_checkout_lock`      | Short-lived checkout submit lock per shop+cart                            |
 | `unipayment_order_attempt`      | Durable financing submission attempt / idempotency                        |
 | `unipayment_financing_snapshot` | Financing terms + customer/address/consent snapshot                       |
-| `unipayment_orphan_sync`        | Durable CP orphan-report intents (`cp_create_orphan`)                     |
 | `unipayment_popup_submission`   | Product popup submission deduplication / tracking                         |
 
 Additional PrestaShop data (not module tables):

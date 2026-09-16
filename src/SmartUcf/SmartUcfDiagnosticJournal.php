@@ -99,7 +99,7 @@ final class SmartUcfDiagnosticJournal
 
         return [
             'module' => 'unipayment',
-            'module_version' => '2.0.3',
+            'module_version' => '2.0.2',
             'exported_at_gmt' => gmdate('c'),
             'debug_enabled' => $this->configuration->isDebugEnabled(),
             'total_entries' => count($entries),

@@ -39,7 +39,7 @@ $smartucfTemplate = (string) file_get_contents($root . '/views/templates/hook/or
 $errorTemplate = (string) file_get_contents($root . '/views/templates/front/checkout_validation_error.tpl');
 $urlBuilder = (string) file_get_contents($root . '/src/Order/OrderConfirmationUrlBuilder.php');
 
-$bankStub = new class() implements BankStatusReaderPort {
+$bankStub = new class () implements BankStatusReaderPort {
     /** @var array<int, array<string, mixed>|null> */
     public $rows = [];
 
@@ -48,7 +48,7 @@ $bankStub = new class() implements BankStatusReaderPort {
         return $this->rows[$idOrder] ?? null;
     }
 };
-$snapshotStub = new class() implements FinancingSnapshotByOrderReaderPort {
+$snapshotStub = new class () implements FinancingSnapshotByOrderReaderPort {
     /** @var array<int, array<string, mixed>|null> */
     public $rows = [];
 
@@ -61,8 +61,7 @@ $presenter = new OrderConfirmationFinancingOutcomePresenter($bankStub, $snapshot
 
 // Test A — HTTP 4xx / definitive CP failure
 assertCpFailureThankYou(
-    strpos($orchestrator, 'DefinitiveCpCreateFailureFinalizer') !== false
-        || strpos($orchestrator, 'applyCreateFailure') !== false,
+    strpos($orchestrator, 'recordControlPanelFailure') !== false,
     'A: orchestrator must persist CP failure close to the transition'
 );
 assertCpFailureThankYou(
@@ -93,8 +92,8 @@ assertCpFailureThankYou(
 // Test B — HTTP 5xx retryable is same-attempt, not customer Try again
 assertCpFailureThankYou(
     strpos($orchestrator, 'CP_FAILED_RETRYABLE') !== false
-        && strpos($orchestrator, 'ControlPanelCreateFailureService') !== false,
-    'B: HTTP 5xx stays CP_FAILED_RETRYABLE via create-failure classifier'
+        && strpos($orchestrator, 'getStatusCode() >= 500') !== false,
+    'B: HTTP 5xx stays CP_FAILED_RETRYABLE on the same attempt'
 );
 assertCpFailureThankYou(
     strpos($cpTemplate, 'Опитайте отново') === false && strpos($cpTemplate, 'Try again') === false,
@@ -113,8 +112,8 @@ assertCpFailureThankYou(
 // Test C — connection / outcome unknown
 assertCpFailureThankYou(
     strpos($orchestrator, 'CP_OUTCOME_UNKNOWN') !== false
-        && is_file($root . '/src/Order/ControlPanelCreateFailureService.php'),
-    'C: connection failure stays CP_OUTCOME_UNKNOWN via classifier'
+        && strpos($orchestrator, 'ConnectionException') !== false,
+    'C: connection failure stays CP_OUTCOME_UNKNOWN'
 );
 $bankStub->rows[60] = [
     'status_id' => BankStatus::SEND_FAILED_CP,

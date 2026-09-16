@@ -133,11 +133,6 @@ final class FakeCp implements ControlPanelOrderClientInterface
 
         return ['ok' => true];
     }
-
-    public function reportOrderOrphan(string $orderId, string $orderDate): array
-    {
-        return ['success' => true, 'error' => null, 'data' => ['result' => 'notified', 'order_id' => $orderId]];
-    }
 }
 final class MemoryBankStatus implements \PrestaShop\Module\Unipayment\Order\BankStatusPersistencePort
 {
@@ -213,48 +208,34 @@ try {
     assertOrder($e->isOutcomeUnknown() && $e->state() === OrderOrchestrator::CP_OUTCOME_UNKNOWN, 'timeout must be outcome unknown');
 }
 assertOrder(($s2->rows[1]['lifecycle_status'] ?? '') === OrderOrchestrator::CP_OUTCOME_UNKNOWN, 'timeout must persist snapshot outcome unknown');
-assertOrder($bank2->updates === [], 'timeout must NOT persist bank_send_failed_cp');
+assertOrder($bank2->updates !== [] && $bank2->updates[0]['statusId'] === BankStatus::SEND_FAILED_CP, 'timeout must persist Woo bank_send_failed_cp');
 $recovered = $flow2->orchestrate(1, 10, $request, $shop);
 assertOrder($recovered->controlPanelOrderId === 902, 'ambiguous retry did not recover CP ID');
 assertOrder($o2->created === 1, 'ambiguous retry created another PS order');
 assertOrder(json_encode($c2->calls[0]) === json_encode($c2->calls[1]), 'ambiguous retry changed CP payload');
 
-foreach (
-    [
-        [404, true, OrderOrchestrator::CP_OUTCOME_UNKNOWN, false],
-        [409, true, OrderOrchestrator::CP_OUTCOME_UNKNOWN, false],
-        [422, false, OrderOrchestrator::TERMINAL_FAILED, true, 'invalid_payload'],
-        [500, true, OrderOrchestrator::CP_FAILED_RETRYABLE, false],
-        [503, true, OrderOrchestrator::CP_FAILED_RETRYABLE, false, 'lifecycle_busy'],
-    ] as $case
-) {
-    [$status, $retryable, $state, $expectBank] = $case;
-    $error = $case[4] ?? '';
+foreach ([[404, false, OrderOrchestrator::TERMINAL_FAILED], [409, false, OrderOrchestrator::TERMINAL_FAILED], [422, false, OrderOrchestrator::TERMINAL_FAILED], [500, true, OrderOrchestrator::CP_FAILED_RETRYABLE]] as [$status, $retryable, $state]) {
     $a = new MemoryAttempts();
     $s = new MemorySnapshots();
     $o = new FakeOrders($created);
     $c = new FakeCp();
     $bank = new MemoryBankStatus();
-    $response = $error !== '' ? ['error' => $error, 'data' => ['result' => $error === 'lifecycle_busy' ? 'busy' : null]] : [];
-    $c->queue[] = new HttpException($status, $response);
+    $c->queue[] = new HttpException($status, []);
     $flow = new OrderOrchestrator($a, $s, $o, $c, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder(), $bank);
     try {
-        $flow->orchestrate(2, $status + ($error === 'lifecycle_busy' ? 1000 : 0), $request, $shop);
-        assertOrder(false, "HTTP $status/$error accepted");
+        $flow->orchestrate(2, $status, $request, $shop);
+        assertOrder(false, "HTTP $status accepted");
     } catch (OrderOrchestrationException $e) {
-        assertOrder($e->isRetryable() === $retryable, "HTTP $status/$error classification differs");
-        assertOrder($e->isPostOrder() && $e->idOrder() === 55, "HTTP $status/$error must expose existing PS order");
-        assertOrder($e->state() === $state, "HTTP $status/$error attempt state differs");
+        assertOrder($e->isRetryable() === $retryable, "HTTP $status classification differs");
+        assertOrder($e->isPostOrder() && $e->idOrder() === 55, "HTTP $status must expose existing PS order");
+        assertOrder($e->state() === $state, "HTTP $status attempt state differs");
+        assertOrder(!$e->isOutcomeUnknown(), "HTTP $status must not be collapsed into outcome unknown");
     }
-    assertOrder($o->created === 1, "HTTP $status/$error created duplicate");
-    assertOrder($o->failed === [], "HTTP $status/$error changed the native order state");
-    assertOrder(($s->rows[1]['lifecycle_status'] ?? '') === $state, "HTTP $status/$error snapshot lifecycle differs");
-    if ($expectBank) {
-        assertOrder($bank->updates !== [] && $bank->updates[0]['statusId'] === BankStatus::SEND_FAILED_CP, "HTTP $status/$error must persist bank_send_failed_cp");
-    } else {
-        assertOrder($bank->updates === [], "HTTP $status/$error must NOT persist bank_send_failed_cp");
-    }
-    assertOrder((int) ($s->rows[1]['control_panel_order_id'] ?? 0) === 0, "HTTP $status/$error must not fabricate a CP id");
+    assertOrder($o->created === 1, "HTTP $status created duplicate");
+    assertOrder($o->failed === [], "HTTP $status changed the native order state");
+    assertOrder(($s->rows[1]['lifecycle_status'] ?? '') === $state, "HTTP $status snapshot lifecycle differs");
+    assertOrder($bank->updates !== [] && $bank->updates[0]['statusId'] === BankStatus::SEND_FAILED_CP, "HTTP $status must persist bank_send_failed_cp");
+    assertOrder((int) ($s->rows[1]['control_panel_order_id'] ?? 0) === 0, "HTTP $status must not fabricate a CP id");
 }
 
 $missingIdAttempts = new MemoryAttempts();
@@ -268,10 +249,10 @@ try {
     $missingIdFlow->orchestrate(4, 12, $request, $shop);
     assertOrder(false, 'missing CP id accepted');
 } catch (OrderOrchestrationException $e) {
-    assertOrder($e->isRetryable() && $e->state() === OrderOrchestrator::CP_OUTCOME_UNKNOWN, 'missing CP id must be ambiguous/retryable');
+    assertOrder(!$e->isRetryable() && $e->state() === OrderOrchestrator::TERMINAL_FAILED, 'missing CP id must be terminal');
     assertOrder($e->isPostOrder(), 'missing CP id is post-order');
 }
-assertOrder($missingIdBank->updates === [], 'missing CP id must NOT persist bank_send_failed_cp');
+assertOrder($missingIdBank->updates !== [] && $missingIdBank->updates[0]['statusId'] === BankStatus::SEND_FAILED_CP, 'missing CP id must persist bank_send_failed_cp');
 
 $badOrder = new CreatedOrder(56, 'BADTOTAL', 1049, 'BGN', 1, $created->customer, $created->addresses, $created->lines);
 $badOrders = new FakeOrders($badOrder);

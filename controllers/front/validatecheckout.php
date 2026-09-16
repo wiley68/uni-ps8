@@ -93,12 +93,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 $cpClient,
                 new FinancingSnapshotFactory(new SensitiveDataCipher()),
                 new ControlPanelOrderPayloadBuilder(),
-                new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository(),
-                null,
-                new PrestaShop\Module\Unipayment\Order\OrphanReportSyncService(
-                    new PrestaShop\Module\Unipayment\Order\OrphanSyncRepository(),
-                    $cpClient
-                )
+                new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository()
             );
             $result = $orchestrator->orchestrate($idShop, $idCart, $request, $shop, 'checkout');
             (new CheckoutPreferenceStore())->clear($this->context->cookie);

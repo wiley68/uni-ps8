@@ -2,19 +2,6 @@
 
 All notable production releases of the UniPayment PrestaShop 8 module are documented here.
 
-## 2.0.3 — 2026-09-16
-
-- Definitive Control Panel create rejection writes `bank_send_failed_cp` and schedules a durable orphan-report (`POST /api/v1/orders/orphan-report`).
-- Ambiguous/retryable CP create outcomes (`lifecycle_busy`, timeout/connection, HTTP 5xx, missing CP identity, non-allowlisted 4xx) no longer write `bank_send_failed_cp` and do not create orphan intents.
-- CP create retries continue to reuse the frozen `order_attempt.cp_payload`.
-- Definitive SmartUCF remote rejection writes `bank_send_failed_smartucf` with a durable CP status-sync target; best-effort immediate PATCH is removed.
-- Pre-send / transport / 5xx / outcome_unknown SmartUCF failures do not promote to `bank_send_failed_smartucf`.
-- Adds `unipayment_orphan_sync` table, install path, and `upgrade/upgrade-2.0.3.php`.
-- Bounded orphan-report retry via opportunistic lifecycle flush and `actionCronJob`.
-
-* Bounded orphan-report retry via `actionCronJob` only (no customer storefront/network flush).
-* Definitive CP create allowlist narrowed to `invalid_payload` / `semantic_conflict`.
-
 ## 2.0.2 — 2026-08-27
 
 - Canonical financing scheme ordering for equal month counts: standard → non-zero promo → 0%.

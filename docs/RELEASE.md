@@ -6,21 +6,21 @@ Release and packaging checklist for the UniPayment PrestaShop module.
 
 ## 1. Current release state
 
-| Item           | Value                                             |
-| -------------- | ------------------------------------------------- |
-| Module version | **2.0.3** (`unipayment.php`, `config.xml`)        |
-| Project status | **Orphan-report + SmartUCF durable failure sync** |
-| Release notes  | [`../CHANGELOG.md`](../CHANGELOG.md)              |
+| Item           | Value                                      |
+| -------------- | ------------------------------------------ |
+| Module version | **2.0.2** (`unipayment.php`, `config.xml`) |
+| Project status | **Scheme presentation / checkout parity**  |
+| Release notes  | [`../CHANGELOG.md`](../CHANGELOG.md)       |
 
-`2.0.0` remains the first production version. `2.0.1` is the canonical-amount remediation. `2.0.2` is scheme presentation parity. `2.0.3` adds definitive CP-create orphan-report and durable SmartUCF failure status sync (requires `upgrade/upgrade-2.0.3.php`).
+`2.0.0` remains the first production version. `2.0.1` is the canonical-amount and order-status lifecycle remediation. `2.0.2` is the scheme presentation, Cart representative, and Checkout parity release.
 
 ---
 
 ## 2. Version policy
 
-- Module version is **`2.0.3`** for this release
+- Module version is **`2.0.2`** for this release
 - Version metadata must stay consistent in `unipayment.php` and `config.xml`
-- Schema change: durable orphan-report table via `upgrade/upgrade-2.0.3.php` (and fresh install)
+- **No historical upgrade scripts** for development-only schema iterations
 - After this release, future schema/configuration changes **must** use versioned PrestaShop upgrade files (`upgrade/upgrade-x.y.z.php`)
 
 See [`INSTALLATION.md`](INSTALLATION.md) §8.
@@ -31,9 +31,8 @@ See [`INSTALLATION.md`](INSTALLATION.md) §8.
 
 ### Version and packaging
 
-- [x] Orphan-report / durable SmartUCF failure version is **2.0.3**
+- [x] Scheme parity version is **2.0.2**
 - [x] Version in `unipayment.php` and `config.xml`
-- [x] `upgrade/upgrade-2.0.3.php` present for orphan sync table
 - [ ] `composer install --no-dev --optimize-autoloader` in the package staging tree
 - [ ] Package includes `vendor/`, module assets, translations, operator docs
 - [ ] Artifact review (§6) — no secrets, `keys/`, tests, or IDE files
@@ -87,7 +86,7 @@ This 2.0.0 tree contains **no** upgrade scripts. That is intentional: developmen
 Distributable archive name:
 
 ```text
-unipayment-2.0.3.zip
+unipayment-2.0.2.zip
 ```
 
 Archive root must be:
@@ -122,9 +121,9 @@ Include:
 1. Working tree contains only intentional release files
 2. Safe tests pass
 3. Create **one** release-preparation commit
-4. Create annotated local tag: `git tag -a v2.0.3 -m "UniPayment 2.0.3"`
+4. Create annotated local tag: `git tag -a v2.0.2 -m "UniPayment 2.0.2"`
 5. Do **not** push, publish a GitHub Release, or upload the package unless explicitly requested
-6. Attach packaged `unipayment-2.0.3.zip` when distribution is approved
+6. Attach packaged `unipayment-2.0.2.zip` when distribution is approved
 
 ---
 

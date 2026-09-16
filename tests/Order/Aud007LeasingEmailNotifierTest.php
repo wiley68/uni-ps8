@@ -22,7 +22,7 @@ final class Configuration
         'PS_LANG_DEFAULT' => 1,
     ];
 
-    public static function get(string $key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
+    public static function get($key, $idLang = null, $idShopGroup = null, $idShop = null, $default = false)
     {
         return self::$values[$key] ?? $default;
     }
@@ -34,21 +34,21 @@ final class Mail
     public static $sent = [];
 
     public static function Send(
-        int $idLang,
-        string $template,
-        string $subject,
-        array $templateVars,
-        string $to,
-        ?string $toName = null,
-        ?string $from = null,
-        ?string $fromName = null,
-        mixed $fileAttachment = null,
-        mixed $mode_smtp = null,
-        ?string $templatePath = null,
-        bool $die = false,
-        ?int $idShop = null,
-        ?string $bcc = null,
-        ?string $replyTo = null
+        $idLang,
+        $template,
+        $subject,
+        $templateVars,
+        $to,
+        $toName = null,
+        $from = null,
+        $fromName = null,
+        $fileAttachment = null,
+        $mode_smtp = null,
+        $templatePath = null,
+        $die = false,
+        $idShop = null,
+        $bcc = null,
+        $replyTo = null
     ): bool {
         self::$sent[] = [
             'to' => $to,
@@ -65,7 +65,7 @@ final class PrestaShopLogger
     /** @var list<string> */
     public static $logs = [];
 
-    public static function addLog(string $message, int $severity = 1): void
+    public static function addLog($message, $severity = 1): void
     {
         self::$logs[] = (string) $message;
     }
@@ -181,10 +181,10 @@ assertAud007(count(Mail::$sent) === $sentCount, '5: second notify is idempotent 
 assertAud007($snapshots->updateCalls === 1, '5b: second notify does not re-update marker');
 
 assertAud007(
-    is_file($root . '/upgrade/upgrade-2.0.3.php'),
-    '2.0.3 upgrade script must exist'
+    !is_dir($root . '/upgrade') || glob($root . '/upgrade/upgrade-*.php') === [] || glob($root . '/upgrade/upgrade-*.php') === false,
+    'no upgrade scripts created'
 );
 $moduleSrc = (string) file_get_contents($root . '/unipayment.php');
-assertAud007(strpos($moduleSrc, "version = '2.0.3'") !== false, 'version is 2.0.3');
+assertAud007(strpos($moduleSrc, "version = '2.0.2'") !== false, 'version is 2.0.2');
 
 fwrite(STDOUT, "OK (AUD-007 LeasingEmailNotifier no runtime schema mutation)\n");
