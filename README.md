@@ -36,7 +36,7 @@ Verified against the current codebase:
 
 ## Architecture
 
-High-level design, data model, and integration flows:
+High-level design, data model, integration flows, and **authoritative bank-status / leasing presentation rules** (§3.1):
 
 → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
@@ -119,7 +119,7 @@ See [`docs/RELEASE.md`](docs/RELEASE.md) for release and artifact review.
 
 | Document                                                     | Description                                     |
 | ------------------------------------------------------------ | ----------------------------------------------- |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)               | Current system design and module layers         |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)               | System design + authoritative bank status / leasing rules |
 | [`docs/INSTALLATION.md`](docs/INSTALLATION.md)               | Install, deploy, CP setup, verification         |
 | [`docs/SECURITY-OPERATIONS.md`](docs/SECURITY-OPERATIONS.md) | Secrets, signed API, PII, logging               |
 | [`docs/RECOVERY.md`](docs/RECOVERY.md)                       | Operational troubleshooting runbook             |

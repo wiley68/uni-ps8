@@ -144,6 +144,7 @@ Related: [`SECURITY-OPERATIONS.md`](SECURITY-OPERATIONS.md), [`ARCHITECTURE.md`]
 - Financing snapshot exists for that order in the same shop
 - `unipayment_order_bank_status` row
 - Bank statuses are persisted separately; subsequent bank events do not change the native PS order state
+- Displayed value is a **standard bank status** or a later **raw SmartUCF** status (see [`ARCHITECTURE.md` §3.1](ARCHITECTURE.md)) — not an internal lifecycle/sync state
 
 **Safe actions**
 
@@ -153,10 +154,11 @@ Related: [`SECURITY-OPERATIONS.md`](SECURITY-OPERATIONS.md), [`ARCHITECTURE.md`]
 **Do not do**
 
 - Manually edit bank status in DB without understanding CP as source of truth
+- Invent a fifth public status or rename SmartUCF-returned later statuses
 
 **Escalation data**
 
-- Order reference, `id_shop`, `id_order`, CP status_id, callback HTTP status
+- Order reference, `id_shop`, `id_order`, CP status_id / status label, callback HTTP status
 
 ---
 
@@ -166,6 +168,8 @@ Related: [`SECURITY-OPERATIONS.md`](SECURITY-OPERATIONS.md), [`ARCHITECTURE.md`]
 
 - Process 1 customer not redirected to SmartUCF
 - Snapshot `smartucf_state`: `failed`, `outcome_unknown`, or stuck `submitting`
+
+Note: `smartucf_state` / retry / error-class fields are **internal service lifecycle** data. Public bank status for definitive SmartUCF failure is **Неуспешно изпратен Банка - SmartUCF**; ambiguous outcomes must not invent a new public status ([`ARCHITECTURE.md` §3.1](ARCHITECTURE.md)).
 
 **Checks**
 

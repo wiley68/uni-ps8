@@ -85,9 +85,16 @@ A valid signed body for one operation must not execute on another endpoint (`uns
 
 ### Local bank status vs CP status sync
 
-Local `bank_sent_process1` / `bank_sent_process2` mean **business handoff proven** (admin/email/thank-you).
+**Standard bank status** (customer/business-facing labels) is defined in [`ARCHITECTURE.md` §3.1](ARCHITECTURE.md). Summary:
 
-Outbound CP `PATCH /orders/status` confirmation is tracked separately on the financing snapshot (`cp_status_sync_*`):
+- Exactly four initial public labels: `Неуспешно изпратен Банка - КП`, `Неуспешно изпратен Банка - SmartUCF`, `Изпратен Банка - Процес 1`, `Изпратен Банка - Процес 2`.
+- Definitive CP create failure (Process 1 **and** Process 2) → `Неуспешно изпратен Банка - КП` only. Generic `Неуспешно изпратен Банка` is **not** a public bank status.
+- Later SmartUCF-returned statuses are stored/displayed **raw** (no invented mapping).
+- Attempt / SmartUCF / CP-sync machine states are **internal** and must not appear as bank status on normal UI.
+
+Local `bank_sent_process1` / `bank_sent_process2` mean **business handoff proven** for the corresponding standard success label (admin/email/thank-you).
+
+Outbound CP `PATCH /orders/status` confirmation is tracked separately on the financing snapshot (`cp_status_sync_*`) as an **internal sync state**:
 
 | State             | Meaning                                                                                                  |
 | ----------------- | -------------------------------------------------------------------------------------------------------- |
@@ -217,6 +224,8 @@ Recovery: see [`RECOVERY.md`](RECOVERY.md) §9.
 | Process 2 | No EGN (confirmation message allowed) | **Full EGN** + second phone (operational) |
 
 Implementation: `LeasingOrderEmailPresenter::customerRowsFromSnapshot()` / `adminRowsFromSnapshot()`, `LeasingEmailNotifier`.
+
+Emails that include UniCredit leasing information must follow the **standard leasing field set** and **standard bank status** rules in [`ARCHITECTURE.md` §3.1](ARCHITECTURE.md): no internal lifecycle/sync/diagnostic rows in the normal leasing block.
 
 If customer email equals shop email → **admin variant only**, sent once.
 

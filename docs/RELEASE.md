@@ -65,7 +65,7 @@ A PS module release that changes inbound signature rules, header names, canonica
 
 Outbound CP API contract (`/api/v1/auth/*`, `/shop`, `/orders`, `/orders/status`, SSL certificate endpoints) must remain compatible with the deployed Control Panel.
 
-Canonical bank status IDs and labels must stay Woo-compatible. Do not invent PS8-only status IDs.
+Canonical **standard bank status** labels and rules (exactly four initial public statuses; Process 1/2 CP failure consistency; raw later SmartUCF statuses; internal vs public) are documented in [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) §3.1. Machine `status_id` values must stay Woo/CP-compatible. Do not invent PS8-only public status labels or a fifth initial public status.
 
 Do not treat unrelated repository SHAs as permanent compatibility pins in documentation or code comments.
 

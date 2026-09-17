@@ -6,6 +6,7 @@
 > It does **not** describe the current feature scope or supported capabilities.
 >
 > For current behavior, start with [`../README.md`](../README.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md).
+> Authoritative **standard bank status** / leasing presentation rules: [`ARCHITECTURE.md` §3.1](ARCHITECTURE.md).
 
 **Repository:** `wiley68/uni-ps8`  
 **Module technical name:** `unipayment`  
