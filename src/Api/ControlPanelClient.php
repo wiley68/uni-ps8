@@ -332,7 +332,8 @@ final class ControlPanelClient implements ShopConfigurationProviderInterface
             throw new MalformedJsonException('The Control Panel JSON response is not an object.');
         }
 
-        if (!property_exists($decodedObject, 'success')
+        if (
+            !property_exists($decodedObject, 'success')
             || $decodedObject->success !== true
             || !property_exists($decodedObject, 'error')
             || $decodedObject->error !== null
@@ -457,7 +458,8 @@ final class ControlPanelClient implements ShopConfigurationProviderInterface
             throw new InvalidPayloadException('The Control Panel status response has no valid data object.');
         }
 
-        if ((string) ($data['order_id'] ?? '') !== $payload['order_id']
+        if (
+            (string) ($data['order_id'] ?? '') !== $payload['order_id']
             || (string) ($data['status_id'] ?? '') !== $payload['status_id']
             || (string) ($data['status'] ?? '') !== $payload['status']
         ) {

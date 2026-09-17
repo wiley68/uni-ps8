@@ -226,7 +226,11 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
         } catch (OrderOrchestrationException $exception) {
             PrestaShopLogger::addLog('UniPayment cart popup apply orchestration failed: ' . get_class($exception), 2);
             if ($exception->isPostOrder()) {
-                return PostOrderPopupFailureResponse::fromException($exception);
+                $thankYouUrl = $exception->idOrder() > 0
+                    ? (new OrderConfirmationUrlBuilder())->build($this->context, $module, $exception->idOrder())
+                    : '';
+
+                return PostOrderPopupFailureResponse::fromException($exception, $thankYouUrl);
             }
             http_response_code(500);
 

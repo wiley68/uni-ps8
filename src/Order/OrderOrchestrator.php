@@ -35,6 +35,9 @@ final class OrderOrchestrator
     /** @var BankStatusPersistencePort|null */
     private $bankStatus;
 
+    /** @var LeasingMailDispatchPort|null */
+    private $mailDispatcher;
+
     public function __construct(
         OrderAttemptStoreInterface $attempts,
         FinancingSnapshotStoreInterface $snapshots,
@@ -42,7 +45,8 @@ final class OrderOrchestrator
         ControlPanelOrderClientInterface $cp,
         FinancingSnapshotFactory $snapshotFactory,
         ControlPanelOrderPayloadBuilder $payloads,
-        ?BankStatusPersistencePort $bankStatus = null
+        ?BankStatusPersistencePort $bankStatus = null,
+        ?LeasingMailDispatchPort $mailDispatcher = null
     ) {
         $this->attempts = $attempts;
         $this->snapshots = $snapshots;
@@ -51,6 +55,7 @@ final class OrderOrchestrator
         $this->snapshotFactory = $snapshotFactory;
         $this->payloads = $payloads;
         $this->bankStatus = $bankStatus;
+        $this->mailDispatcher = $mailDispatcher;
     }
 
     /** @param array<string, mixed> $shop */
@@ -213,24 +218,63 @@ final class OrderOrchestrator
     ): void {
         $this->attempts->update($attemptId, ['state' => $state, 'last_error_class' => $errorClass]);
         $this->snapshots->update($attemptId, ['lifecycle_status' => $state]);
-        DeferredOrderMailQueue::discard();
-        if ($this->bankStatus === null || $order->reference === '') {
+
+        $status = BankStatus::controlPanelFailure(ShopConfigurationFlags::isProcess2($shop));
+        if ($this->bankStatus !== null && $order->reference !== '') {
+            try {
+                $this->bankStatus->updateByOrderIdentifier(
+                    $idShop,
+                    $order->reference,
+                    $status['status_id'],
+                    $status['status_label']
+                );
+            } catch (\Throwable $exception) {
+                \PrestaShopLogger::addLog(
+                    'UniPayment local CP-failure status update failed: ' . get_class($exception),
+                    2
+                );
+            }
+        }
+
+        // Ambiguous CP create: do not finalize customer emails as a definitive failure.
+        if ($state === self::CP_OUTCOME_UNKNOWN) {
+            DeferredOrderMailQueue::discard();
+
             return;
         }
 
-        $status = BankStatus::controlPanelFailure(ShopConfigurationFlags::isProcess2($shop));
+        $this->finalizeDefinitiveControlPanelFailureEmails($attemptId, $shop, $status);
+    }
+
+    /**
+     * Shop order exists + definitive CP create failure → send deferred order_conf + leasing once.
+     *
+     * @param array<string, mixed> $shop
+     * @param array{status_id: string, status_label: string} $status
+     */
+    private function finalizeDefinitiveControlPanelFailureEmails(
+        int $attemptId,
+        array $shop,
+        array $status
+    ): void {
+        $snapshot = $this->snapshots->findByAttempt($attemptId);
+        if ($snapshot === null) {
+            DeferredOrderMailQueue::discard();
+
+            return;
+        }
+
         try {
-            $this->bankStatus->updateByOrderIdentifier(
-                $idShop,
-                $order->reference,
-                $status['status_id'],
-                $status['status_label']
-            );
+            $dispatcher = $this->mailDispatcher ?? new FinancingOrderMailDispatcher();
+            $dispatcher->send($snapshot, $attemptId, $shop, $status);
         } catch (\Throwable $exception) {
-            \PrestaShopLogger::addLog(
-                'UniPayment local CP-failure status update failed: ' . get_class($exception),
-                2
-            );
+            DeferredOrderMailQueue::discard();
+            if (class_exists('\\PrestaShopLogger', false)) {
+                \PrestaShopLogger::addLog(
+                    'UniPayment CP-failure order email finalization failed: ' . get_class($exception),
+                    2
+                );
+            }
         }
     }
 

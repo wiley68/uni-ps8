@@ -31,12 +31,42 @@ assertBankStatus($failed['status_id'] === 'bank_send_failed_smartucf', 'SmartUCF
 assertBankStatus($failed['status_label'] === 'Неуспешно изпратен Банка - SmartUCF', 'SmartUCF failure label mismatch');
 
 $cpFailed = BankStatus::controlPanelFailure(false);
-assertBankStatus($cpFailed['status_id'] === 'bank_send_failed_cp', 'Process 1 CP failure status id must match Woo bank_send_failed_cp');
+assertBankStatus($cpFailed['status_id'] === 'bank_send_failed_cp', 'Process 1 CP failure status id must be bank_send_failed_cp');
 assertBankStatus($cpFailed['status_label'] === 'Неуспешно изпратен Банка - КП', 'Process 1 CP failure label mismatch');
 
 $process2Failed = BankStatus::controlPanelFailure(true);
-assertBankStatus($process2Failed['status_id'] === 'bank_send_failed', 'Process 2 CP failure status id must match Woo bank_send_failed');
-assertBankStatus($process2Failed['status_label'] === 'Неуспешно изпратен Банка', 'Process 2 CP failure label mismatch');
+assertBankStatus($process2Failed['status_id'] === 'bank_send_failed_cp', 'Process 2 CP failure must use bank_send_failed_cp (not generic bank_send_failed)');
+assertBankStatus($process2Failed['status_label'] === 'Неуспешно изпратен Банка - КП', 'Process 2 CP failure label must be Неуспешно изпратен Банка - КП');
+assertBankStatus(
+    $process2Failed['status_id'] === $cpFailed['status_id']
+        && $process2Failed['status_label'] === $cpFailed['status_label'],
+    'CP create failure public status is identical for Process 1 and Process 2'
+);
+
+$frozenPublicLabels = [
+    BankStatus::LABEL_SEND_FAILED_CP,
+    BankStatus::LABEL_SEND_FAILED_SMARTUCF,
+    BankStatus::LABEL_SENT_PROCESS1,
+    BankStatus::LABEL_SENT_PROCESS2,
+];
+foreach (
+    [
+        BankStatus::controlPanelFailure(false),
+        BankStatus::controlPanelFailure(true),
+        BankStatus::smartUcfFailure(),
+        BankStatus::successfulSend(false),
+        BankStatus::successfulSend(true),
+    ] as $status
+) {
+    assertBankStatus(
+        in_array($status['status_label'], $frozenPublicLabels, true),
+        'initial public bank status must use frozen vocabulary: ' . $status['status_label']
+    );
+    assertBankStatus(
+        $status['status_label'] !== BankStatus::LABEL_SEND_FAILED,
+        'generic Неуспешно изпратен Банка must not be used as public bank status'
+    );
+}
 
 $popup = (string) file_get_contents(dirname(__DIR__, 2) . '/controllers/front/productpopup.php');
 $checkout = (string) file_get_contents(dirname(__DIR__, 2) . '/controllers/front/validatecheckout.php');
@@ -53,7 +83,18 @@ assertBankStatus(strpos($lifecycleService, 'BankStatus::smartUcfFailure') !== fa
 assertBankStatus(strpos($lifecycleService, 'LeasingMailDispatchPort') !== false || strpos($lifecycleService, 'FinancingOrderMailDispatcher') !== false, 'lifecycle service must dispatch leasing email centrally');
 assertBankStatus(strpos($gateway, 'DeferredOrderMailQueue::start') !== false, 'Process 1 order_conf must be deferred until SmartUCF');
 $orchestratorSrc = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/OrderOrchestrator.php');
-assertBankStatus(strpos($orchestratorSrc, 'DeferredOrderMailQueue::discard()') !== false, 'Process 1 deferred order_conf must be discarded when CP create fails');
+assertBankStatus(
+    strpos($orchestratorSrc, 'finalizeDefinitiveControlPanelFailureEmails') !== false,
+    'Process 1 definitive CP failure must finalize deferred order_conf + leasing emails'
+);
+assertBankStatus(
+    strpos($orchestratorSrc, 'CP_OUTCOME_UNKNOWN') !== false
+        && (bool) preg_match(
+            '/CP_OUTCOME_UNKNOWN[\s\S]*?DeferredOrderMailQueue::discard\(\)/s',
+            $orchestratorSrc
+        ),
+    'Ambiguous CP create must still discard deferred order_conf'
+);
 assertBankStatus(strpos($grid, 'hookActionEmailSendBefore') !== false, 'order_conf deferral hook must be registered');
 assertBankStatus(strpos($grid, 'hookDisplayPaymentReturn') !== false, 'Process 2 thank-you leasing block hook must be registered');
 $payloadBuilder = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/ControlPanelOrderPayloadBuilder.php');

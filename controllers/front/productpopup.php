@@ -336,7 +336,10 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                     0
                 );
 
-                return PostOrderPopupFailureResponse::fromException($exception);
+                return PostOrderPopupFailureResponse::fromException(
+                    $exception,
+                    $this->buildThankYouUrl($module, $exception->idOrder())
+                );
             }
             if ($exception->isRetryable()) {
                 return $this->processingResponse($token);
@@ -499,7 +502,9 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         if ((int) ($row['control_panel_order_id'] ?? 0) <= 0 && (int) ($row['id_order'] ?? 0) > 0) {
             return PostOrderPopupFailureResponse::fromPersistedOrder(
                 (int) $row['id_order'],
-                (string) $row['order_reference']
+                (string) $row['order_reference'],
+                null,
+                $this->buildThankYouUrl($module, (int) $row['id_order'])
             );
         }
 
@@ -626,13 +631,18 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         }
 
         // Prefer Thank You over any mapper smartucf_error (JS follows redirect_url first).
-        $response['redirect_url'] = (new OrderConfirmationUrlBuilder())->build(
-            $this->context,
-            $module,
-            $idOrder
-        );
+        $response['redirect_url'] = $this->buildThankYouUrl($module, $idOrder);
         unset($response['smartucf_error'], $response['debug_smartucf_error']);
         $response['step'] = 'order_created';
+    }
+
+    private function buildThankYouUrl(Unipayment $module, int $idOrder): string
+    {
+        if ($idOrder <= 0) {
+            return '';
+        }
+
+        return (new OrderConfirmationUrlBuilder())->build($this->context, $module, $idOrder);
     }
 
     /**

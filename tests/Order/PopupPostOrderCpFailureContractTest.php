@@ -87,12 +87,23 @@ assertPopupCpFailure((int) $responseFailed['order']['id_order'] === 123, 'A: ord
 assertPopupCpFailure((int) $responseFailed['order']['control_panel_order_id'] === 0, 'A: no fabricated CP id');
 assertPopupCpFailure(
     strpos($responseFailed['cp_error'], 'не беше регистрирана успешно в системата на УниКредит') !== false,
-    'A: definitive CP wording'
+    'A: definitive CP wording without Thank You URL still available as fallback'
 );
 assertPopupCpFailure(
     strpos($responseFailed['cp_error'], 'Please try again') === false
         && strpos($responseFailed['cp_error'], 'Опитайте отново') === false,
     'A: no retry CTA'
+);
+
+$thankYouUrl = 'https://shop.example/index.php?controller=order-confirmation&id_order=123&key=k';
+$responseFailedRedirect = PostOrderPopupFailureResponse::fromException($failed, $thankYouUrl);
+assertPopupCpFailure(
+    ($responseFailedRedirect['redirect_url'] ?? '') === $thankYouUrl,
+    'A: definitive CP failure with Thank You URL redirects'
+);
+assertPopupCpFailure(
+    !isset($responseFailedRedirect['cp_error']) && !isset($responseFailedRedirect['smartucf_error']),
+    'A: Thank You redirect must not keep popup-only cp_error'
 );
 
 // Test C / D — outcome unknown
