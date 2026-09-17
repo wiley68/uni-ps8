@@ -125,10 +125,15 @@ final class SmartUcfSessionCoordinator implements \PrestaShop\Module\Unipayment\
 
         // Fail-before-network: require hydrated SmartUCF credentials before claim or cURL.
         if (!$this->hasRuntimeSmartUcfCredentials($shop)) {
+            \PrestaShopLogger::addLog(
+                'UniPayment SmartUCF blocked before send: ' . self::ERROR_CREDENTIALS_UNAVAILABLE,
+                2
+            );
+
             return SmartUcfCoordinationResult::failed(
                 self::CUSTOMER_FAILED,
                 true,
-                self::ERROR_CREDENTIALS_UNAVAILABLE
+                SmartUcfFailureClassification::CLASS_PRE_SEND
             );
         }
 
@@ -437,7 +442,6 @@ final class SmartUcfSessionCoordinator implements \PrestaShop\Module\Unipayment\
                 );
             }
         }
-
     }
 
     /** @param array<string, mixed> $session */

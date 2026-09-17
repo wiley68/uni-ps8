@@ -7,6 +7,7 @@ namespace PrestaShop\Module\Unipayment\Order;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCoordinationResult;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfEndpointPolicy;
+use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfFailureClassification;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionCoordinator;
 
 /**
@@ -133,6 +134,11 @@ final class PostControlPanelLifecycleService
             return $result;
         }
 
+        // Pre-send failures must not finalize emails with bank_sent_process1 or claim SmartUCF rejection.
+        if ($result->isFailed() && $result->finalBankStatus() === null) {
+            return $result;
+        }
+
         $emailStatus = $result->finalBankStatus() ?? $finalStatus;
 
         return $this->dispatchLeasingEmail($result, $snapshot, $order->attemptId, $shop, $emailStatus);
@@ -186,6 +192,11 @@ final class PostControlPanelLifecycleService
                 ? $smart->customerMessage()
                 : SmartUcfSessionCoordinator::CUSTOMER_FAILED;
 
+            // Fail-before-network is not a definitive SmartUCF remote rejection.
+            if ($this->isPreSendFailure($smart)) {
+                return PostControlPanelLifecycleResult::smartUcfFailed($message, null);
+            }
+
             return PostControlPanelLifecycleResult::smartUcfFailed(
                 $message,
                 BankStatus::smartUcfFailure()
@@ -196,6 +207,14 @@ final class PostControlPanelLifecycleService
             SmartUcfSessionCoordinator::CUSTOMER_OUTCOME_UNKNOWN,
             $defaultSuccessStatus
         );
+    }
+
+    private function isPreSendFailure(SmartUcfCoordinationResult $smart): bool
+    {
+        $errorClass = $smart->errorClass();
+
+        return $errorClass === SmartUcfFailureClassification::CLASS_PRE_SEND
+            || $errorClass === SmartUcfSessionCoordinator::ERROR_CREDENTIALS_UNAVAILABLE;
     }
 
     /**

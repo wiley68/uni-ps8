@@ -104,9 +104,7 @@ if (!class_exists('Configuration', false)) {
 if (!class_exists('PrestaShopLogger', false)) {
     class PrestaShopLogger
     {
-        public static function addLog(string $message, int $severity = 1): void
-        {
-        }
+        public static function addLog(string $message, int $severity = 1): void {}
     }
 }
 
@@ -293,20 +291,22 @@ assertCred($repo->getUsername() === null, 'plaintext fallback rejected');
 
 $repo->saveCompletePair('keep-user', 'keep-pass');
 $prior = $repo->captureRawPair();
-foreach ([
-    'absent' => (static function (): array {
-        $s = unipayment_valid_shop_snapshot(['uni_proces' => 0]);
-        unset($s['uni_user'], $s['uni_password']);
+foreach (
+    [
+        'absent' => (static function (): array {
+            $s = unipayment_valid_shop_snapshot(['uni_proces' => 0]);
+            unset($s['uni_user'], $s['uni_password']);
 
-        return $s;
-    })(),
-    'user only' => (static function (): array {
-        $s = unipayment_valid_shop_snapshot(['uni_user' => 'u']);
-        unset($s['uni_password']);
+            return $s;
+        })(),
+        'user only' => (static function (): array {
+            $s = unipayment_valid_shop_snapshot(['uni_user' => 'u']);
+            unset($s['uni_password']);
 
-        return $s;
-    })(),
-] as $label => $bad) {
+            return $s;
+        })(),
+    ] as $label => $bad
+) {
     try {
         $persistence->persistValidatedSnapshot(CRED_UNICID, $bad);
         assertCred(false, 'P1 should reject: ' . $label);
@@ -462,19 +462,21 @@ $snapshotRow = [
 $ref = new ReflectionClass(SmartUcfSessionCoordinator::class);
 /** @var SmartUcfSessionCoordinator $coordinator */
 $coordinator = $ref->newInstanceWithoutConstructor();
-foreach ([
-    'lifecycle' => $lifecycle,
-    'client' => $client,
-    'payloadBuilder' => new SmartUcfPayloadBuilder(),
-    'classifier' => new \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfFailureClassifier(),
-    'snapshots' => null,
-    'cpClient' => null,
-    'controlPanelApi' => null,
-    'certificateSynchronizer' => null,
-    'module' => null,
-    'context' => null,
-    'statusSync' => null,
-] as $name => $value) {
+foreach (
+    [
+        'lifecycle' => $lifecycle,
+        'client' => $client,
+        'payloadBuilder' => new SmartUcfPayloadBuilder(),
+        'classifier' => new \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfFailureClassifier(),
+        'snapshots' => null,
+        'cpClient' => null,
+        'controlPanelApi' => null,
+        'certificateSynchronizer' => null,
+        'module' => null,
+        'context' => null,
+        'statusSync' => null,
+    ] as $name => $value
+) {
     $prop = $ref->getProperty($name);
     $prop->setAccessible(true);
     $prop->setValue($coordinator, $value);
@@ -483,7 +485,7 @@ $shopMissing = unipayment_valid_shop_snapshot(['uni_sertificat' => 0]);
 unset($shopMissing['uni_user'], $shopMissing['uni_password']);
 $result = $coordinator->run(1, $shopMissing, false, $snapshotRow);
 assertCred($result->isFailed(), 'missing credentials fail locally');
-assertCred($result->errorClass() === SmartUcfSessionCoordinator::ERROR_CREDENTIALS_UNAVAILABLE, 'credentials unavailable class');
+assertCred($result->errorClass() === \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfFailureClassification::CLASS_PRE_SEND, 'credentials miss classified as pre_send');
 assertCred($client->calls === 0, 'no SmartUCF client call');
 assertCred(($lifecycle->row['smartucf_state'] ?? '') === SmartUcfLifecycleStates::NOT_STARTED, 'no claim on credential miss');
 
@@ -519,11 +521,27 @@ try {
 Configuration::$values[ConfigurationRepository::DEBUG_ENABLED] = true;
 $store = new class implements SmartUcfDebugLogStoreInterface {
     public $entries = [];
-    public function insert(array $entry): bool { $this->entries[] = $entry; return true; }
-    public function findLatestByOrderId(string $orderId): ?array { return null; }
-    public function findLatestByOrderIdAndPsOrderId(string $orderId, int $psOrderId): ?array { return null; }
-    public function findAll(): array { return $this->entries; }
-    public function prune(?DateTimeImmutable $now = null): bool { return true; }
+    public function insert(array $entry): bool
+    {
+        $this->entries[] = $entry;
+        return true;
+    }
+    public function findLatestByOrderId(string $orderId): ?array
+    {
+        return null;
+    }
+    public function findLatestByOrderIdAndPsOrderId(string $orderId, int $psOrderId): ?array
+    {
+        return null;
+    }
+    public function findAll(): array
+    {
+        return $this->entries;
+    }
+    public function prune(?DateTimeImmutable $now = null): bool
+    {
+        return true;
+    }
 };
 $journal = new SmartUcfDiagnosticJournal(new ConfigurationRepository(), $store);
 $journal->record(1, 'ORD', 200, [

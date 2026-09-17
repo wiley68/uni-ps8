@@ -9,6 +9,11 @@ namespace PrestaShop\Module\Unipayment\SmartUcf;
  *
  * Reads never use Configuration::get() fallback (shop → group → global).
  * Pair reads use one exact-context SQL query on the master DB connection.
+ *
+ * When multishop is disabled, PrestaShop Configuration::updateValue() always
+ * persists rows with id_shop/id_shop_group NULL even if a shop id is passed.
+ * Reads for a context shop must therefore target that global row shape;
+ * otherwise FO shop id=1 never hydrates credentials that were written correctly.
  */
 final class ConfigurationSmartUcfCredentialSettingStore implements SmartUcfCredentialSettingStoreInterface
 {
@@ -94,7 +99,8 @@ final class ConfigurationSmartUcfCredentialSettingStore implements SmartUcfCrede
     public function delete(int $idShop, string $key): void
     {
         $idShop = max(0, $idShop);
-        if ($idShop > 0 && method_exists(\Configuration::class, 'deleteFromGivenContext')) {
+        // Multishop-off rows are global; shop-scoped deleteFromGivenContext would miss them.
+        if ($idShop > 0 && !$this->isMultishopInactive() && method_exists(\Configuration::class, 'deleteFromGivenContext')) {
             $idShopGroup = $this->resolveShopGroupId($idShop);
             \Configuration::deleteFromGivenContext($key, $idShopGroup, $idShop);
 
@@ -136,12 +142,20 @@ final class ConfigurationSmartUcfCredentialSettingStore implements SmartUcfCrede
 
     private function exactContextRestriction(int $idShop, int $idShopGroup): string
     {
-        if ($idShop > 0) {
+        // Align with PrestaShop persistence: without multishop, Configuration rows are global.
+        if ($idShop > 0 && !$this->isMultishopInactive()) {
             return ' AND `id_shop` = ' . (int) $idShop
                 . ' AND `id_shop_group` = ' . (int) $idShopGroup;
         }
 
         return ' AND (`id_shop` IS NULL OR `id_shop` = 0)'
             . ' AND (`id_shop_group` IS NULL OR `id_shop_group` = 0)';
+    }
+
+    private function isMultishopInactive(): bool
+    {
+        return !class_exists('\\Shop')
+            || !method_exists('\\Shop', 'isFeatureActive')
+            || !\Shop::isFeatureActive();
     }
 }
