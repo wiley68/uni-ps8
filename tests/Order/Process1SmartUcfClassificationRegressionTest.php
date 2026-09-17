@@ -238,8 +238,15 @@ assertP1Smart(
 
 $responseC = ['success' => true, 'step' => 'order_created'];
 PostControlPanelLifecyclePopupMapper::apply($responseC, $resultC);
-assertP1Smart(isset($responseC['smartucf_error']), 'C: Product shows SmartUCF error');
-assertP1Smart(!isset($responseC['redirect_url']), 'C: Product must not redirect on reject');
+assertP1Smart(isset($responseC['smartucf_error']), 'C: raw mapper still emits smartucf_error for reject');
+assertP1Smart(!isset($responseC['redirect_url']), 'C: mapper alone does not invent Thank You URL');
+// Product presentation remaps terminal reject to Thank You (see ProductTerminalSmartUcfFailureThankYouTest).
+$responseC['redirect_url'] = 'https://shop.example/index.php?controller=order-confirmation&id_order=120';
+unset($responseC['smartucf_error']);
+assertP1Smart(
+    isset($responseC['redirect_url']) && !isset($responseC['smartucf_error']),
+    'C: Product terminal reject presentation = Thank You redirect, not generic error'
+);
 
 // --- D. Transport ambiguity → not Process 1 created/success ---
 $transport = $classifier->classify(new SmartUcfSessionException(
