@@ -12,24 +12,36 @@ final class LeasingEmailNotifier
     /** @var LeasingOrderEmailPresenter */
     private $presenter;
 
-    public function __construct(?FinancingSnapshotStoreInterface $snapshots = null, ?LeasingOrderEmailPresenter $presenter = null)
-    {
+    /** @var SatrudnikFailureMailNotifier */
+    private $satrudnikNotifier;
+
+    public function __construct(
+        ?FinancingSnapshotStoreInterface $snapshots = null,
+        ?LeasingOrderEmailPresenter $presenter = null,
+        ?SatrudnikFailureMailNotifier $satrudnikNotifier = null
+    ) {
         $this->snapshots = $snapshots ?? new FinancingSnapshotRepository();
         $this->presenter = $presenter ?? new LeasingOrderEmailPresenter();
+        $this->satrudnikNotifier = $satrudnikNotifier ?? new SatrudnikFailureMailNotifier();
     }
 
     /**
      * Sends audience-specific leasing emails — once per attempt.
+     * Best-effort Satrudnik failure mail runs inside the same once-guard.
      *
      * @param array<string, mixed> $snapshot
      * @param array<string, mixed> $shop
+     * @param array{status_id?: string, status_label?: string} $status
      */
-    public function notify(array $snapshot, int $attemptId, array $shop = []): void
+    public function notify(array $snapshot, int $attemptId, array $shop = [], array $status = []): void
     {
         $current = $this->snapshots->findByAttempt($attemptId);
         if ($current !== null && !empty($current['leasing_email_sent'])) {
             return;
         }
+
+        // Inside once-guard, before leasing_email_sent is finalized. Best-effort only.
+        $this->satrudnikNotifier->notify($snapshot, $shop, $status);
 
         $customer = is_array($snapshot['customer_json'] ?? null) ? $snapshot['customer_json'] : [];
         $customerEmail = trim((string) ($customer['email'] ?? ''));
