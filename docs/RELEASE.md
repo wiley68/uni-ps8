@@ -8,17 +8,17 @@ Release and packaging checklist for the UniPayment PrestaShop module.
 
 | Item           | Value                                      |
 | -------------- | ------------------------------------------ |
-| Module version | **2.0.2** (`unipayment.php`, `config.xml`) |
-| Project status | **Scheme presentation / checkout parity**  |
+| Module version | **2.0.3** (`unipayment.php`, `config.xml`) |
+| Project status | **Satrudnik failure notification**         |
 | Release notes  | [`../CHANGELOG.md`](../CHANGELOG.md)       |
 
-`2.0.0` remains the first production version. `2.0.1` is the canonical-amount and order-status lifecycle remediation. `2.0.2` is the scheme presentation, Cart representative, and Checkout parity release.
+`2.0.0` remains the first production version. `2.0.1` is the canonical-amount and order-status lifecycle remediation. `2.0.2` is the scheme presentation, Cart representative, and Checkout parity release. `2.0.3` adds Satrudnik operational failure email for canonical bank-send failures.
 
 ---
 
 ## 2. Version policy
 
-- Module version is **`2.0.2`** for this release
+- Module version is **`2.0.3`** for this release
 - Version metadata must stay consistent in `unipayment.php` and `config.xml`
 - **No historical upgrade scripts** for development-only schema iterations
 - After this release, future schema/configuration changes **must** use versioned PrestaShop upgrade files (`upgrade/upgrade-x.y.z.php`)
@@ -31,9 +31,8 @@ See [`INSTALLATION.md`](INSTALLATION.md) §8.
 
 ### Version and packaging
 
-- [x] Scheme parity version is **2.0.2**
-- [x] Version in `unipayment.php` and `config.xml`
-- [ ] `composer install --no-dev --optimize-autoloader` in the package staging tree
+- [x] Current module version is **2.0.3**
+- [x] Version in `unipayment.php` and `config.xml`- [ ] `composer install --no-dev --optimize-autoloader` in the package staging tree
 - [ ] Package includes `vendor/`, module assets, translations, operator docs
 - [ ] Artifact review (§6) — no secrets, `keys/`, tests, or IDE files
 

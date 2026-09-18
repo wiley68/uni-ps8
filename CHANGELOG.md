@@ -2,6 +2,11 @@
 
 All notable production releases of the UniPayment PrestaShop 8 module are documented here.
 
+## 2.0.3 — 2026-09-18
+
+- Satrudnik operational failure notification for canonical statuses `bank_send_failed_cp` and `bank_send_failed_smartucf` (best-effort, once-guard via `leasing_email_sent`).
+- No database schema change and no upgrade script.
+
 ## 2.0.2 — 2026-08-27
 
 - Canonical financing scheme ordering for equal month counts: standard → non-zero promo → 0%.
