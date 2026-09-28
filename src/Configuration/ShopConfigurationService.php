@@ -41,6 +41,15 @@ final class ShopConfigurationService
     /** @var MutationBoundaryInterface */
     private $mutationBoundary;
 
+    /** @var ShopConfigurationRefreshCoordinatorInterface */
+    private $refreshCoordinator;
+
+    /** @var ShopConfigurationFailureClassifier */
+    private $failureClassifier;
+
+    /** @var callable */
+    private $clock;
+
     public function __construct(
         ConfigurationRepository $configuration,
         ShopConfigurationCacheInterface $cache,
@@ -49,7 +58,10 @@ final class ShopConfigurationService
         ?ShopConfigurationSnapshotValidator $snapshotValidator = null,
         ?SmartUcfCredentialRepository $smartUcfCredentials = null,
         ?SmartUcfCredentialPersistence $credentialPersistence = null,
-        ?MutationBoundaryInterface $mutationBoundary = null
+        ?MutationBoundaryInterface $mutationBoundary = null,
+        ?ShopConfigurationRefreshCoordinatorInterface $refreshCoordinator = null,
+        ?ShopConfigurationFailureClassifier $failureClassifier = null,
+        ?callable $clock = null
     ) {
         $this->configuration = $configuration;
         $this->cache = $cache;
@@ -63,10 +75,25 @@ final class ShopConfigurationService
             $cache,
             $this->mutationBoundary
         );
+        $this->refreshCoordinator = $refreshCoordinator ?? (class_exists('\Db') ? new DbShopConfigurationRefreshCoordinator() : new ImmediateShopConfigurationRefreshCoordinator());
+        $this->failureClassifier = $failureClassifier ?? new ShopConfigurationFailureClassifier();
+        $this->clock = $clock ?? 'time';
     }
 
     /** @return array<string, mixed> */
     public function get(bool $forceRefresh = false): array
+    {
+        return $this->resolve(false, $forceRefresh);
+    }
+
+    /** @return array<string, mixed> */
+    public function getForSubmission(): array
+    {
+        return $this->resolve(true, false);
+    }
+
+    /** @return array<string, mixed> */
+    private function resolve(bool $submission, bool $forceRefresh): array
     {
         $unicid = $this->configuration->getUnicid();
         if ($unicid === '') {
@@ -74,24 +101,71 @@ final class ShopConfigurationService
             throw new AuthenticationException('UNICID is required to load the shop configuration.');
         }
 
-        if ($forceRefresh) {
-            $this->refresh($unicid);
-        }
-
-        $hydrated = $this->loadCoherentRuntimeSnapshot($unicid);
-        if ($hydrated !== null) {
-            return $hydrated;
-        }
-
         if (!$forceRefresh) {
-            $this->refresh($unicid);
-            $hydrated = $this->loadCoherentRuntimeSnapshot($unicid);
-            if ($hydrated !== null) {
-                return $hydrated;
+            $fresh = $this->loadCoherentRuntimeSnapshot($unicid);
+            if ($fresh !== null) {
+                return $fresh;
             }
         }
 
+        $lkg = $this->loadEligibleLkg($unicid);
+        $lease = $this->refreshCoordinator->acquire($unicid, (!$submission && $lkg !== null) ? 0 : 3);
+        if ($lease === null) {
+            if (!$submission && $lkg !== null) {
+                return $lkg;
+            }
+            throw new \RuntimeException('Shop configuration refresh is already in progress.');
+        }
+
+        try {
+            if (!$forceRefresh) {
+                $fresh = $this->loadCoherentRuntimeSnapshot($unicid);
+                if ($fresh !== null) {
+                    return $fresh;
+                }
+            }
+            try {
+                $this->refresh($unicid);
+            } catch (\Throwable $exception) {
+                if (!$submission && $lkg !== null
+                    && $this->failureClassifier->classify($exception) === ShopConfigurationFailureClassifier::TRANSIENT
+                ) {
+                    return $lkg;
+                }
+                throw $exception;
+            }
+            $fresh = $this->loadCoherentRuntimeSnapshot($unicid);
+            if ($fresh !== null) {
+                return $fresh;
+            }
+        } finally {
+            $lease->release();
+        }
+
         throw new InvalidPayloadException('The shop configuration cache could not be loaded.');
+    }
+
+    /** @return array<string,mixed>|null */
+    private function loadEligibleLkg(string $unicid): ?array
+    {
+        if (!$this->cache instanceof StaleShopConfigurationCacheInterface) {
+            return null;
+        }
+        $retained = $this->cache->getRetained($unicid);
+        $now = (int) call_user_func($this->clock);
+        if ($retained === null || $retained['expires_at_timestamp'] > $now
+            || $now > $retained['expires_at_timestamp'] + ShopConfigurationCache::LKG_SECONDS
+        ) {
+            return null;
+        }
+        $hydrated = $this->smartUcfCredentials->hydrateShopSnapshot($retained['data']);
+        try {
+            $this->snapshotValidator->validate($hydrated, $unicid);
+        } catch (\Throwable $exception) {
+            return null;
+        }
+
+        return $hydrated;
     }
 
     /**
@@ -175,19 +249,15 @@ final class ShopConfigurationService
 
             return $this->credentialPersistence->persistValidatedSnapshot($unicid, $shopData);
         } catch (ShopConfigurationSnapshotValidationException $exception) {
-            // Keep known-good cache. Do not purge tokens.
+            // Class C: preserve the byte-identical known-good row and token.
             throw $exception;
-        } catch (AuthenticationException $exception) {
-            $this->purgePermanentFailure($unicid);
-            throw $exception;
-        } catch (HttpException $exception) {
-            if (in_array($exception->getStatusCode(), [400, 401, 403, 404], true)) {
+        } catch (\Throwable $exception) {
+            if ($this->failureClassifier->classify($exception)
+                === ShopConfigurationFailureClassifier::AUTHORITATIVE_NEGATIVE
+            ) {
                 $this->purgePermanentFailure($unicid);
             }
 
-            throw $exception;
-        } catch (InvalidPayloadException $exception) {
-            $this->purgePermanentFailure($unicid);
             throw $exception;
         }
     }

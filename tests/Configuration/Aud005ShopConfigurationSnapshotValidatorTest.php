@@ -511,14 +511,15 @@ try {
     assertAud005(!$tokens->hasToken(), 'auth still invalidates token');
 }
 
-// InvalidPayloadException still purges (empty data envelope)
+// Class-C invalid envelope preserves the known-good row and token.
 $cache->rows[$unicid] = $before;
 $tokens->save('tok3', 'Bearer', time() + 3600);
 $provider->responses[] = ['success' => true, 'data' => []];
 try {
     $service->get(true);
 } catch (InvalidPayloadException $e) {
-    assertAud005(!isset($cache->rows[$unicid]), 'empty data still purges via InvalidPayload');
+    assertAud005($cache->rows[$unicid] === $before, 'invalid envelope changed known-good cache');
+    assertAud005($tokens->hasToken(), 'invalid envelope cleared token');
 }
 
 fwrite(STDOUT, "OK (AUD-005 ShopConfigurationSnapshotValidator)\n");

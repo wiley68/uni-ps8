@@ -74,6 +74,7 @@ use PrestaShop\Module\Unipayment\Api\ShopConfigurationProviderInterface;
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCacheInterface;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationService;
+use PrestaShop\Module\Unipayment\Configuration\StaleShopConfigurationCacheInterface;
 use PrestaShop\Module\Unipayment\Infrastructure\ImmediateMutationBoundary;
 use PrestaShop\Module\Unipayment\Security\TokenRepository;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCredentialCipher;
@@ -81,7 +82,7 @@ use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCredentialPersistence;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfCredentialRepository;
 use PrestaShop\Module\Unipayment\Tests\Support\InMemorySmartUcfCredentialSettingStore;
 
-final class MemoryShopConfigurationCache implements ShopConfigurationCacheInterface
+final class MemoryShopConfigurationCache implements ShopConfigurationCacheInterface, StaleShopConfigurationCacheInterface
 {
     /** @var array<string, array<string, mixed>> */
     public $rows = [];
@@ -92,10 +93,26 @@ final class MemoryShopConfigurationCache implements ShopConfigurationCacheInterf
     /** @var int */
     public $replaceCount = 0;
 
+    /**  int */
+    public $expiresAt = 1999990000;
+
     /** @return array<string, mixed>|null */
     public function getFresh(string $unicid): ?array
     {
         return $this->fresh ? ($this->rows[$unicid] ?? null) : null;
+    }
+
+    public function getRetained(string $unicid): ?array
+    {
+        if (!isset($this->rows[$unicid])) {
+            return null;
+        }
+        return [
+            'data' => $this->rows[$unicid],
+            'fetched_at' => 'x',
+            'expires_at' => gmdate('Y-m-d H:i:s', $this->expiresAt),
+            'expires_at_timestamp' => $this->expiresAt,
+        ];
     }
 
     public function replace(string $unicid, array $shopData): bool
@@ -206,6 +223,45 @@ assertPhase3($provider->calls === 2 && $expiredRefresh['uni_zaglavie'] === 'v2',
 $provider->responses[] = ['success' => true, 'data' => unipayment_valid_shop_snapshot(['id' => 10, 'uni_zaglavie' => 'v3'])];
 $manualRefresh = $service->get(true);
 assertPhase3($provider->calls === 3 && $manualRefresh['uni_zaglavie'] === 'v3', 'forced refresh used cached data');
+
+// Frozen lifecycle: eligible presentation LKG after a transient failure.
+$cache->fresh = false;
+$cache->expiresAt = time() - 3600;
+$provider->responses[] = new ConnectionException('temporary transport failure');
+$lkg = $service->get();
+assertPhase3(($lkg['uni_zaglavie'] ?? '') === 'v3', 'eligible transient presentation did not use LKG');
+
+// The same stale snapshot must never satisfy submission.
+$provider->responses[] = new ConnectionException('temporary transport failure');
+try {
+    $service->getForSubmission();
+    assertPhase3(false, 'submission accepted LKG');
+} catch (ConnectionException $exception) {
+    assertPhase3(isset($cache->rows[$unicid]), 'strict transient failure deleted the snapshot');
+}
+
+// Class C fails the current attempt but preserves row/token; a later transient may use LKG.
+$beforeClassC = $cache->rows[$unicid];
+$provider->responses[] = ['success' => true, 'data' => []];
+try {
+    $service->get();
+    assertPhase3(false, 'invalid response used LKG in the same attempt');
+} catch (\PrestaShop\Module\Unipayment\Api\Exception\InvalidPayloadException $exception) {
+    assertPhase3($cache->rows[$unicid] === $beforeClassC, 'class C changed known-good row');
+    assertPhase3($tokens->hasToken(), 'class C cleared token');
+}
+$provider->responses[] = new ConnectionException('later temporary failure');
+assertPhase3($service->get()['uni_zaglavie'] === 'v3', 'later transient did not reconsider LKG');
+
+// The exact six-hour boundary is usable; anything older fails closed.
+$cache->expiresAt = time() - 21601;
+$provider->responses[] = new ConnectionException('temporary transport failure');
+try {
+    $service->get();
+    assertPhase3(false, 'too-old LKG was served');
+} catch (ConnectionException $exception) {
+    assertPhase3(isset($cache->rows[$unicid]), 'too-old transient deleted retained row');
+}
 
 // Transient errors retain the stored row, but are propagated instead of serving expired stale data.
 $cache->fresh = false;

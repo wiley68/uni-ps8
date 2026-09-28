@@ -74,7 +74,9 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
             }
             /** @var Unipayment $module */
             $module = $this->module;
-            $shop = $module->getShopConfigurationService()->get();
+            $action = (string) Tools::getValue('popup_action', 'calculate');
+            $configurationService = $module->getShopConfigurationService();
+            $shop = $action === 'apply' ? $configurationService->getForSubmission() : $configurationService->get();
             $calculator = new Calculator();
             $resolver = new CartSchemeResolver($calculator);
             $cartContext = (new CartContextFactory())->create($this->context->cart);
