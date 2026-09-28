@@ -22,6 +22,7 @@
       "@test:js"
     ],
     "test:php:safe": "php tests/run.php safe",
+    "test:cache-concurrency": "php tests/Configuration/ShopConfigurationSingleFlightConcurrencyProbe.php",
     "test:runtime": "php tests/run.php runtime",
     "test:destructive": "UNIPAYMENT_ALLOW_DESTRUCTIVE_DB_TESTS=1 UNIPAYMENT_TEST_DATABASE=1 php tests/run.php destructive",
     "test:all": "php tests/run.php all",
