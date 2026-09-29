@@ -375,9 +375,15 @@ expectViolations(function () use ($validator) {
 }, 'consents[1].id', 'duplicate');
 
 // 22–24 enums
-expectViolations(function () use ($validator) {
-    $validator->validate(unipayment_valid_shop_snapshot(['uni_eur' => 9]));
-}, 'uni_eur', 'invalid_enum');
+foreach ([null, 0, 1, 2, 3, 9] as $legacyMode) {
+    $snapshot = unipayment_valid_shop_snapshot();
+    if ($legacyMode === null) {
+        unset($snapshot['uni_eur']);
+    } else {
+        $snapshot['uni_eur'] = $legacyMode;
+    }
+    $validator->validate($snapshot);
+}
 expectViolations(function () use ($validator) {
     $validator->validate(unipayment_valid_shop_snapshot(['uni_proces' => 3]));
 }, 'uni_proces', 'invalid_enum');

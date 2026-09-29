@@ -28,7 +28,7 @@ assertCanonical(strpos($factorySource, 'getOrderTotal(true, \\Cart::BOTH)') !== 
 assertCanonical(strpos((string) file_get_contents($root . '/src/Cart/CartPopupApplyService.php'), 'neutralizeShipping') === false, 'cart popup still strips shipping');
 $calculator = new Calculator('2026-08-24');
 $resolver = new CartSchemeResolver($calculator);
-$shop = calculatorFixture(['uni_eur' => 0, 'uni_user' => 'demo-user', 'uni_password' => 'demo-pass']);
+$shop = calculatorFixture(['uni_user' => 'demo-user', 'uni_password' => 'demo-pass']);
 $cases = ['products only' => 1000.00, 'products + shipping' => 1050.00, 'products + taxable shipping' => 1060.00, 'products + fees' => 1025.00, 'discounts' => 900.00, 'taxes' => 1200.00, 'mixed adjustments' => 1137.50, 'final checkout total' => 987.65];
 foreach ($cases as $label => $total) {
     $cart = new CartContext([new CartLine(new ProductContext(42, [7], $total), 0, 1, 800.0)], $total);
@@ -36,13 +36,14 @@ foreach ($cases as $label => $total) {
     assertCanonical($scheme !== null && $calculator->isAvailableForAmount($shop, $total), "{$label}: eligibility diverged");
     $calculation = $calculator->calculateScheme($shop, $total, $scheme, 0.0);
     $request = new ValidatedPaymentRequest($calculation, [], [], hash('sha256', $label));
-    $order = new CreatedOrder(1, 'CANONICAL001', $total, 'BGN', 1, [], [], [['id_product' => 42, 'id_product_attribute' => 0, 'name' => 'Product', 'quantity' => 1, 'total' => 800.0]]);
+    $order = new CreatedOrder(1, 'CANONICAL001', $total, 'EUR', 1, [], [], [['id_product' => 42, 'id_product_attribute' => 0, 'name' => 'Product', 'quantity' => 1, 'total' => 800.0]]);
     $snapshot = (new FinancingSnapshotFactory(new SensitiveDataCipher()))->create($request, $order);
-    $cp = (new ControlPanelOrderPayloadBuilder())->build($snapshot, $shop);
-    $smart = (new SmartUcfPayloadBuilder())->build($shop, $snapshot);
+    $cp = (new ControlPanelOrderPayloadBuilder())->build($snapshot, $shop, $order);
+    $smart = (new SmartUcfPayloadBuilder(new \PrestaShop\Module\Unipayment\Order\OrderCurrencyGuard(static function (int $idOrder): array { return ['id_currency' => 1, 'currency_iso' => 'EUR']; })))->build($shop, $snapshot);
     assertCanonical($calculation->price === $total, "{$label}: calculation diverged");
     assertCanonical((float) $snapshot['order_total'] === $total, "{$label}: snapshot diverged");
     assertCanonical((float) $cp['price'] === $total, "{$label}: CP payload diverged");
     assertCanonical((float) $smart['totalPrice'] === $total, "{$label}: SmartUCF payload diverged");
+    assertCanonical($smart['items'][0]['singlePrice'] === '800.00', "{$label}: EUR SmartUCF unit price changed");
 }
 fwrite(STDOUT, "OK (canonical payable amount across eligibility, calculation, snapshot, CP and SmartUCF)\n");

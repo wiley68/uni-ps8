@@ -212,20 +212,32 @@ final class Aud018BankStatusSpy implements \PrestaShop\Module\Unipayment\Order\B
     }
 }
 
+function aud018EurService(...$args): PostControlPanelLifecycleService
+{
+    $args = array_pad($args, 6, null);
+    $args[] = new \PrestaShop\Module\Unipayment\Order\OrderCurrencyGuard(
+        static function (int $idOrder): array {
+            return ['id_currency' => 1, 'currency_iso' => 'EUR'];
+        }
+    );
+
+    return new PostControlPanelLifecycleService(...$args);
+}
+
 $root = dirname(__DIR__, 2);
 $order = new OrderOrchestrationResult(10, 'cp_created', 100, 'REF100', 555);
 $shopProcess2 = ['uni_proces' => 1];
 $shopProcess1 = ['uni_proces' => 0];
-$snapshot = ['currency_iso' => 'BGN', 'customer_json' => [], 'address_json' => []];
-$context = new PostControlPanelLifecycleContext(1, 'BGN');
-$replayContext = new PostControlPanelLifecycleContext(1, 'BGN', true, false);
+$snapshot = ['id_order' => 100, 'id_currency' => 1, 'currency_iso' => 'EUR', 'customer_json' => [], 'address_json' => []];
+$context = new PostControlPanelLifecycleContext(1, 'EUR');
+$replayContext = new PostControlPanelLifecycleContext(1, 'EUR', true, false);
 
 // Test A — Process 2
 $storeA = new Aud018MemorySnapshotStore();
 $storeA->seed(10, $snapshot);
 $bankSpy = new Aud018BankStatusSpy();
 $smartFake = new Aud018FakeSmartUcfPort();
-$serviceA = new PostControlPanelLifecycleService($storeA, new Aud018NoopMailDispatcher(), $bankSpy);
+$serviceA = aud018EurService($storeA, new Aud018NoopMailDispatcher(), $bankSpy);
 $resultA = $serviceA->handle($order, $shopProcess2, $context, $smartFake);
 assertAud018($resultA->outcome() === PostControlPanelLifecycleResult::OUTCOME_PROCESS2, 'A: process2 outcome');
 assertAud018($smartFake->runCalls === 0 && $smartFake->resumeCalls === 0, 'A: SmartUCF not invoked for process2');
@@ -243,7 +255,7 @@ $trustedRedirect = (new SmartUcfEndpointPolicy())->buildApplicationRedirect(
 $storeB = new Aud018MemorySnapshotStore();
 $storeB->seed(10, $snapshot);
 $smartCreated = new Aud018FakeSmartUcfPort(SmartUcfCoordinationResult::created($trustedRedirect, 'session123'));
-$resultB = (new PostControlPanelLifecycleService($storeB, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
+$resultB = (aud018EurService($storeB, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
     $order,
     $shopProcess1,
     $context,
@@ -260,7 +272,7 @@ $smartUntrusted = new Aud018FakeSmartUcfPort(
     SmartUcfCoordinationResult::created('https://evil.example/sucf-online/Request/Start/session123', 'session123')
 );
 PrestaShopLogger::$logs = [];
-$resultC = (new PostControlPanelLifecycleService($storeC, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
+$resultC = (aud018EurService($storeC, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
     $order,
     $shopProcess1,
     $context,
@@ -278,7 +290,7 @@ assertAud018(
 $storeD = new Aud018MemorySnapshotStore();
 $storeD->seed(10, $snapshot);
 $smartProcessing = new Aud018FakeSmartUcfPort(SmartUcfCoordinationResult::processing('still working'));
-$resultD = (new PostControlPanelLifecycleService($storeD, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
+$resultD = (aud018EurService($storeD, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
     $order,
     $shopProcess1,
     $context,
@@ -293,7 +305,7 @@ $storeE->seed(10, $snapshot);
 $smartUnknown = new Aud018FakeSmartUcfPort(
     SmartUcfCoordinationResult::outcomeUnknown(SmartUcfSessionCoordinator::CUSTOMER_OUTCOME_UNKNOWN)
 );
-$resultE = (new PostControlPanelLifecycleService($storeE, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
+$resultE = (aud018EurService($storeE, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
     $order,
     $shopProcess1,
     $context,
@@ -311,7 +323,7 @@ $storeF = new Aud018MemorySnapshotStore();
 $storeF->seed(10, $snapshot);
 $smartFailed = new Aud018FakeSmartUcfPort(SmartUcfCoordinationResult::failed('failed msg'));
 $failedBankSpy = new Aud018BankStatusSpy();
-$resultF = (new PostControlPanelLifecycleService($storeF, new Aud018NoopMailDispatcher(), $failedBankSpy))->handle(
+$resultF = (aud018EurService($storeF, new Aud018NoopMailDispatcher(), $failedBankSpy))->handle(
     $order,
     $shopProcess1,
     $context,
@@ -334,7 +346,7 @@ DeferredOrderMailQueue::intercept([
 ]);
 $storeG = new Aud018MemorySnapshotStore();
 $smartG = new Aud018FakeSmartUcfPort();
-$resultG = (new PostControlPanelLifecycleService($storeG, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
+$resultG = (aud018EurService($storeG, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
     $order,
     $shopProcess1,
     $context,
@@ -348,7 +360,7 @@ DeferredOrderMailQueue::discard();
 // Test H — email failure
 $storeH = new Aud018MemorySnapshotStore();
 $storeH->seed(10, $snapshot);
-$resultH = (new PostControlPanelLifecycleService(
+$resultH = (aud018EurService(
     $storeH,
     new Aud018ThrowingMailDispatcher(),
     new Aud018NoopBankStatusPersistence()
@@ -361,7 +373,7 @@ $storeI = new Aud018MemorySnapshotStore();
 $storeI->seed(10, $snapshot);
 $bankFail = new Aud018BankStatusSpy();
 $bankFail->throwOnUpdate = true;
-$resultI = (new PostControlPanelLifecycleService($storeI, new Aud018NoopMailDispatcher(), $bankFail))->handle(
+$resultI = (aud018EurService($storeI, new Aud018NoopMailDispatcher(), $bankFail))->handle(
     $order,
     $shopProcess2,
     $context,
@@ -373,7 +385,7 @@ assertAud018($resultI->isProcess2(), 'I: process2 result still returned');
 $storeJ = new Aud018MemorySnapshotStore();
 $storeJ->seed(10, $snapshot);
 $smartReplay = new Aud018FakeSmartUcfPort(SmartUcfCoordinationResult::processing('replay'));
-$resultJ = (new PostControlPanelLifecycleService($storeJ, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
+$resultJ = (aud018EurService($storeJ, new Aud018NoopMailDispatcher(), new Aud018NoopBankStatusPersistence()))->handle(
     $order,
     $shopProcess1,
     $replayContext,

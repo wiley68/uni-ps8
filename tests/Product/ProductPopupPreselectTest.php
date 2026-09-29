@@ -47,7 +47,7 @@ require dirname(__DIR__) . '/Calculator/fixtures.php';
 
 $popup = new ProductPopupCalculator(new Calculator('2026-08-17'));
 $product = new PrestaShop\Module\Unipayment\Calculator\ProductContext(42, [7, 9], 1000.0);
-$shop = calculatorFixture(['uni_eur' => 3]);
+$shop = calculatorFixture([]);
 
 $calculate = $popup->calculate(
     $shop,

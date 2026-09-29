@@ -46,28 +46,6 @@ class Unipayment extends PaymentModule
         );
     }
 
-    /**
-     * Display-only currency suffix for UI amounts (Woo: евро / лв. / лева).
-     */
-    public function getDisplayCurrencyLabel(string $iso): string
-    {
-        $iso = strtoupper(trim($iso));
-        if ($iso === 'EUR') {
-            return $this->trans('евро', [], 'Modules.Unipayment.Shop');
-        }
-        if ($iso === 'BGN') {
-            return $this->trans('лв.', [], 'Modules.Unipayment.Shop');
-        }
-
-        return $iso;
-    }
-
-    /** Dual-button BGN suffix used by installment labels (Woo: лева). */
-    public function getDisplayCurrencyLabelDualBgn(): string
-    {
-        return $this->trans('лева', [], 'Modules.Unipayment.Shop');
-    }
-
     public function install(): bool
     {
         if (!parent::install()) {
@@ -715,7 +693,7 @@ class Unipayment extends PaymentModule
             ))->present(
                 $shop,
                 (new PrestaShop\Module\Unipayment\Cart\CartContextFactory())->create($this->context->cart),
-                (string) $this->context->currency->iso_code
+                (new PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($this->context->cart, $this->context)
             );
         } catch (Throwable $exception) {
             PrestaShopLogger::addLog('UniPayment cart calculator could not be rendered: ' . get_class($exception), 2);
@@ -778,11 +756,8 @@ class Unipayment extends PaymentModule
             $shop = $this->createShopConfigurationService()->get();
             $calculator = new PrestaShop\Module\Unipayment\Calculator\Calculator();
             $cartContext = (new PrestaShop\Module\Unipayment\Cart\CartContextFactory())->createForCheckout($cart);
-            $currency = $this->context->currency;
-            if (!$currency instanceof Currency && (int) $cart->id_currency > 0) {
-                $currency = new Currency((int) $cart->id_currency);
-            }
-            if (!$currency instanceof Currency || !Validate::isLoadedObject($currency)) {
+            $currencyIso = (new PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($cart, $this->context);
+            if ($currencyIso === '') {
                 return [];
             }
             $preferenceStore = new PrestaShop\Module\Unipayment\Checkout\CheckoutPreferenceStore();
@@ -798,7 +773,7 @@ class Unipayment extends PaymentModule
                 new PrestaShop\Module\Unipayment\Checkout\CartSnapshot(),
                 new PrestaShop\Module\Unipayment\Checkout\CartSnapshotSigner(_COOKIE_KEY_),
                 new PrestaShop\Module\Unipayment\Checkout\ConsentResolver()
-            ))->present(true, $shop, $cartContext, (string) $currency->iso_code, $preference);
+            ))->present(true, $shop, $cartContext, $currencyIso, $preference);
             if ($preference !== null && empty($view['preselect_payment'])) {
                 $preferenceStore->clear($this->context->cookie);
             }

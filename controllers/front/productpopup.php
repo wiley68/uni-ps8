@@ -13,6 +13,7 @@ use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
 use PrestaShop\Module\Unipayment\Order\NativePrestaShopOrderGateway;
 use PrestaShop\Module\Unipayment\Order\OrderAttemptRepository;
 use PrestaShop\Module\Unipayment\Order\OrderConfirmationUrlBuilder;
+use PrestaShop\Module\Unipayment\Order\OrderCurrencyGuard;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationResult;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
@@ -488,6 +489,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         Unipayment $module,
         ControlPanelOrderClientAdapter $cpClient
     ): array {
+        $this->assertExistingOrderCurrency($row);
         $response = [
             'success' => true,
             'step' => 'order_created',
@@ -544,6 +546,38 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         );
 
         return $response;
+    }
+
+    /** @param array<string, mixed> $row */
+    private function assertExistingOrderCurrency(array $row): void
+    {
+        $attemptId = (int) ($row['id_attempt'] ?? 0);
+        $attempt = (new OrderAttemptRepository())->findById($attemptId);
+        $snapshot = $attemptId > 0 ? (new FinancingSnapshotRepository())->findByAttempt($attemptId) : null;
+        $this->assertExistingOrderReplayProvenance($row, $attempt, $snapshot, new OrderCurrencyGuard());
+    }
+
+    /** @param array<string, mixed> $row @param array<string, mixed>|null $attempt @param array<string, mixed>|null $snapshot */
+    private function assertExistingOrderReplayProvenance(array $row, ?array $attempt, ?array $snapshot, OrderCurrencyGuard $guard): void
+    {
+        $orderId = (int) ($row['id_order'] ?? 0);
+        if ($attempt === null || $snapshot === null
+            || (int) ($attempt['id_order'] ?? 0) !== $orderId
+            || (int) ($attempt['id_shop'] ?? 0) !== (int) $this->context->shop->id
+        ) {
+            throw new \RuntimeException('The financing order provenance is unavailable.');
+        }
+        $guard->assertNativeSnapshot($snapshot);
+        if ((int) ($snapshot['id_order'] ?? 0) !== $orderId) {
+            throw new \RuntimeException('The financing snapshot does not match the created order.');
+        }
+        $savedPayload = $attempt['cp_payload'] ?? null;
+        if ((string) ($attempt['state'] ?? '') === OrderOrchestrator::CP_CREATED
+            || (int) ($row['control_panel_order_id'] ?? 0) > 0
+            || $savedPayload !== null && $savedPayload !== ''
+        ) {
+            $guard->decodeSavedCpPayload($savedPayload);
+        }
     }
 
     /** @return array<string, mixed> */

@@ -84,7 +84,7 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
             $calculation = $popupCalculator->calculate(
                 $shop,
                 $cartContext,
-                (string) $this->context->currency->iso_code,
+                (new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($this->context->cart, $this->context),
                 $popupType,
                 $schemeType,
                 $kopCode,
@@ -188,7 +188,7 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
                 $shop,
                 new PostControlPanelLifecycleContext(
                     (int) $this->context->shop->id,
-                    (string) $this->context->currency->iso_code
+                    (new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($this->context->cart, $this->context)
                 ),
                 new SmartUcfSessionCoordinator(
                     null,

@@ -457,7 +457,8 @@ $snapshotRow = [
     'first_installment' => 0,
     'months' => 12,
     'monthly_installment' => 10,
-    'currency_iso' => 'BGN',
+    'currency_iso' => 'EUR',
+    'id_currency' => 1,
 ];
 $ref = new ReflectionClass(SmartUcfSessionCoordinator::class);
 /** @var SmartUcfSessionCoordinator $coordinator */
@@ -466,7 +467,8 @@ foreach (
     [
         'lifecycle' => $lifecycle,
         'client' => $client,
-        'payloadBuilder' => new SmartUcfPayloadBuilder(),
+        'payloadBuilder' => new SmartUcfPayloadBuilder(new \PrestaShop\Module\Unipayment\Order\OrderCurrencyGuard(static function (int $idOrder): array { return ['id_currency' => 1, 'currency_iso' => 'EUR']; })),
+        'currencyGuard' => new \PrestaShop\Module\Unipayment\Order\OrderCurrencyGuard(static function (int $idOrder): array { return ['id_currency' => 1, 'currency_iso' => 'EUR']; }),
         'classifier' => new \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfFailureClassifier(),
         'snapshots' => null,
         'cpClient' => null,
@@ -501,7 +503,8 @@ assertCred($resultOk->isCreated(), 'repaired pair proceeds');
 assertCred($client->calls === 1, 'client called once');
 
 try {
-    (new SmartUcfPayloadBuilder())->build(['uni_user' => '', 'uni_password' => 'x'], [
+    (new SmartUcfPayloadBuilder(new \PrestaShop\Module\Unipayment\Order\OrderCurrencyGuard(static function (int $idOrder): array { return ['id_currency' => 1, 'currency_iso' => 'EUR']; })))->build(['uni_user' => '', 'uni_password' => 'x'], [
+        'id_order' => 9, 'id_currency' => 1, 'currency_iso' => 'EUR',
         'order_reference' => 'R',
         'customer_json' => [],
         'lines_json' => [],

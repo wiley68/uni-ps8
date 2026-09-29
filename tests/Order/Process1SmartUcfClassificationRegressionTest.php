@@ -137,10 +137,22 @@ final class P1SmartBankSpy implements \PrestaShop\Module\Unipayment\Order\BankSt
     }
 }
 
+function p1EurService(...$args): PostControlPanelLifecycleService
+{
+    $args = array_pad($args, 6, null);
+    $args[] = new \PrestaShop\Module\Unipayment\Order\OrderCurrencyGuard(
+        static function (int $idOrder): array {
+            return ['id_currency' => 1, 'currency_iso' => 'EUR'];
+        }
+    );
+
+    return new PostControlPanelLifecycleService(...$args);
+}
+
 $order = new OrderOrchestrationResult(42, 'cp_created', 120, 'FAMWPNNSF', 373);
 $shop = ['uni_proces' => 0];
-$snapshot = ['currency_iso' => 'BGN', 'customer_json' => [], 'address_json' => []];
-$context = new PostControlPanelLifecycleContext(1, 'BGN');
+$snapshot = ['id_order' => 120, 'id_currency' => 1, 'currency_iso' => 'EUR', 'customer_json' => [], 'address_json' => []];
+$context = new PostControlPanelLifecycleContext(1, 'EUR');
 
 $trustedRedirect = (new SmartUcfEndpointPolicy())->buildApplicationRedirect(
     'https://online.ucfin.bg/sucf-online/Request/Start',
@@ -165,7 +177,7 @@ $storeB = new P1SmartMemorySnapshots();
 $storeB->seed(42, $snapshot);
 $mailB = new P1SmartMailSpy();
 $bankB = new P1SmartBankSpy();
-$resultB = (new PostControlPanelLifecycleService($storeB, $mailB, $bankB))->handle(
+$resultB = (p1EurService($storeB, $mailB, $bankB))->handle(
     $order,
     $shop,
     $context,
@@ -212,7 +224,7 @@ $storeC = new P1SmartMemorySnapshots();
 $storeC->seed(42, $snapshot);
 $mailC = new P1SmartMailSpy();
 $bankC = new P1SmartBankSpy();
-$resultC = (new PostControlPanelLifecycleService($storeC, $mailC, $bankC))->handle(
+$resultC = (p1EurService($storeC, $mailC, $bankC))->handle(
     $order,
     $shop,
     $context,
@@ -266,7 +278,7 @@ $storeD = new P1SmartMemorySnapshots();
 $storeD->seed(42, $snapshot);
 $mailD = new P1SmartMailSpy();
 $bankD = new P1SmartBankSpy();
-$resultD = (new PostControlPanelLifecycleService($storeD, $mailD, $bankD))->handle(
+$resultD = (p1EurService($storeD, $mailD, $bankD))->handle(
     $order,
     $shop,
     $context,
@@ -289,7 +301,7 @@ $storeE = new P1SmartMemorySnapshots();
 $storeE->seed(42, $snapshot);
 $mailE = new P1SmartMailSpy();
 $bankE = new P1SmartBankSpy();
-$resultE = (new PostControlPanelLifecycleService($storeE, $mailE, $bankE))->handle(
+$resultE = (p1EurService($storeE, $mailE, $bankE))->handle(
     $order,
     $shop,
     $context,

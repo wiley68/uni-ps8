@@ -12,6 +12,7 @@ use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
 use PrestaShop\Module\Unipayment\Order\ControlPanelStatusSyncService;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotRepository;
 use PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository;
+use PrestaShop\Module\Unipayment\Order\OrderCurrencyGuard;
 use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateConsumerLease;
 use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateSynchronizer;
 use PrestaShop\Module\Unipayment\SmartUcf\Certificate\CertificateSyncException;
@@ -56,6 +57,8 @@ final class SmartUcfSessionCoordinator implements \PrestaShop\Module\Unipayment\
     private $context;
     /** @var ControlPanelStatusSyncService|null */
     private $statusSync;
+    /** @var OrderCurrencyGuard */
+    private $currencyGuard;
 
     public function __construct(
         ?SmartUcfLifecycleRepository $lifecycle = null,
@@ -68,7 +71,8 @@ final class SmartUcfSessionCoordinator implements \PrestaShop\Module\Unipayment\
         ?\Context $context = null,
         ?ControlPanelClient $controlPanelApi = null,
         ?CertificateSynchronizer $certificateSynchronizer = null,
-        ?ControlPanelStatusSyncService $statusSync = null
+        ?ControlPanelStatusSyncService $statusSync = null,
+        ?OrderCurrencyGuard $currencyGuard = null
     ) {
         $this->payloadBuilder = $payloadBuilder ?? new SmartUcfPayloadBuilder();
         $this->lifecycle = $lifecycle ?? new SmartUcfLifecycleRepository();
@@ -81,6 +85,7 @@ final class SmartUcfSessionCoordinator implements \PrestaShop\Module\Unipayment\
         $this->controlPanelApi = $controlPanelApi;
         $this->certificateSynchronizer = $certificateSynchronizer;
         $this->statusSync = $statusSync;
+        $this->currencyGuard = $currencyGuard ?? new OrderCurrencyGuard();
     }
 
     private function statusSync(): ControlPanelStatusSyncService
@@ -111,6 +116,11 @@ final class SmartUcfSessionCoordinator implements \PrestaShop\Module\Unipayment\
         }
         if ($snapshot === null) {
             return SmartUcfCoordinationResult::failed(self::CUSTOMER_FAILED, true, SmartUcfFailureClassification::CLASS_PRE_SEND);
+        }
+        try {
+            $this->currencyGuard->assertNativeSnapshot($snapshot);
+        } catch (\Throwable $exception) {
+            return SmartUcfCoordinationResult::failed(self::CUSTOMER_FAILED, false, SmartUcfFailureClassification::CLASS_PRE_SEND);
         }
 
         $row = $this->lifecycle->readAndNormalize($attemptId);
@@ -184,7 +194,6 @@ final class SmartUcfSessionCoordinator implements \PrestaShop\Module\Unipayment\
             return SmartUcfCoordinationResult::processing(self::CUSTOMER_PROCESSING);
         }
 
-        $shop['_currency_iso'] = (string) ($shop['_currency_iso'] ?? ($snapshot['currency_iso'] ?? 'BGN'));
         $smartUcfPayload = null;
 
         try {

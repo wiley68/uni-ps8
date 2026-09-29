@@ -153,7 +153,7 @@ if (!$module instanceof Unipayment || !$module->active) {
 try {
     $shop = $module->getShopConfigurationService()->get();
 } catch (AuthenticationException $exception) {
-    $shop = calculatorFixture(['uni_eur' => 3]);
+    $shop = calculatorFixture([]);
 }
 
 $productId = activeProductId((int) $context->shop->id);

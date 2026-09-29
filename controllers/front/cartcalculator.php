@@ -31,7 +31,7 @@ final class UnipaymentCartCalculatorModuleFrontController extends ModuleFrontCon
             $view = (new CartCalculatorPresenter(new CartSchemeResolver($calculator), $calculator))->present(
                 $shop,
                 (new CartContextFactory())->create($this->context->cart),
-                (string) $this->context->currency->iso_code
+                (new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($this->context->cart, $this->context)
             );
 
             return ['success' => true, 'calculator' => $view];

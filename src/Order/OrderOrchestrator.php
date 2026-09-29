@@ -63,6 +63,23 @@ final class OrderOrchestrator
     {
         $attempt = $this->attempts->reserve($idShop, $idCart, $request->cartFingerprint);
         $attemptId = (int) $attempt['id_attempt'];
+        $currencyGuard = new OrderCurrencyGuard();
+        if ((int) ($attempt['id_order'] ?? 0) > 0) {
+            $existingOrder = $this->orders->load((int) $attempt['id_order']);
+            $currencyGuard->assertOrder($existingOrder);
+            $existingSnapshot = $this->snapshots->findByAttempt($attemptId);
+            if ($existingSnapshot !== null) {
+                $currencyGuard->assertMatchesSnapshot($existingOrder, $existingSnapshot);
+            } elseif ((string) $attempt['state'] === self::CP_CREATED) {
+                throw new \RuntimeException('The financing snapshot is unavailable for the created order.');
+            }
+            $savedPayload = $attempt['cp_payload'] ?? null;
+            if ((string) $attempt['state'] === self::CP_CREATED || $savedPayload !== null && $savedPayload !== '') {
+                $currencyGuard->decodeSavedCpPayload($savedPayload);
+            }
+        } elseif ((string) $attempt['state'] === self::CP_CREATED) {
+            throw new \RuntimeException('The created financing order is unavailable.');
+        }
         if ((string) $attempt['state'] === self::CP_CREATED) return $this->result($attempt);
         if ((string) $attempt['state'] === self::TERMINAL_FAILED) {
             throw new OrderOrchestrationException(
@@ -82,7 +99,7 @@ final class OrderOrchestrator
 
         $snapshot = $this->snapshots->findByAttempt($attemptId);
         if ((int) ($attempt['id_order'] ?? 0) > 0) {
-            $order = $this->orders->load((int) $attempt['id_order']);
+            $order = $existingOrder;
             if ($snapshot === null) {
                 if (abs($order->total - $request->calculation->price) > 0.01) {
                     $this->attempts->update($attemptId, ['state' => self::TERMINAL_FAILED, 'last_error_class' => 'OrderTotalMismatch']);
@@ -103,6 +120,27 @@ final class OrderOrchestrator
             }
         } else {
             $order = $this->orders->create($request, $shop);
+            try {
+                $currencyGuard->assertOrder($order);
+            } catch (\RuntimeException $exception) {
+                $this->attempts->update($attemptId, [
+                    'state' => self::TERMINAL_FAILED,
+                    'id_order' => $order->idOrder,
+                    'order_reference' => $order->reference,
+                    'last_error_class' => 'OrderCurrencyMismatch',
+                ]);
+                DeferredOrderMailQueue::discard();
+                throw new OrderOrchestrationException(
+                    'The created order currency is not EUR.',
+                    false,
+                    $exception,
+                    $order->idOrder,
+                    $attemptId,
+                    self::TERMINAL_FAILED,
+                    false,
+                    $order->reference
+                );
+            }
             $attempt = $this->attempts->update($attemptId, ['state' => self::PS_ORDER_CREATED, 'id_order' => $order->idOrder, 'order_reference' => $order->reference]);
             if (abs($order->total - $request->calculation->price) > 0.01) {
                 $this->attempts->update($attemptId, ['state' => self::TERMINAL_FAILED, 'last_error_class' => 'OrderTotalMismatch']);
@@ -122,9 +160,12 @@ final class OrderOrchestrator
             $this->saveSnapshot($attemptId, $snapshot);
         }
 
-        $payload = isset($attempt['cp_payload']) && is_string($attempt['cp_payload']) && $attempt['cp_payload'] !== '' ? json_decode($attempt['cp_payload'], true) : null;
-        if (!is_array($payload)) {
-            $payload = $this->payloads->build($snapshot, $shop);
+        $currencyGuard->assertMatchesSnapshot($order, $snapshot);
+        $savedPayload = $attempt['cp_payload'] ?? null;
+        if ($savedPayload !== null && $savedPayload !== '') {
+            $payload = $currencyGuard->decodeSavedCpPayload($savedPayload);
+        } else {
+            $payload = $this->payloads->build($snapshot, $shop, $order);
             $attempt = $this->attempts->update($attemptId, ['cp_payload' => json_encode($payload, JSON_THROW_ON_ERROR)]);
         }
         $this->attempts->update($attemptId, ['state' => self::CP_SUBMITTING, 'last_error_class' => null]);

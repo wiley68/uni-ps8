@@ -46,7 +46,7 @@ final class UnipaymentCheckoutCalculateModuleFrontController extends ModuleFront
             $calculation = (new CheckoutPaymentCalculator($calculator, new CartSchemeResolver($calculator)))->calculate(
                 $shop,
                 (new CartContextFactory())->createForCheckout($this->context->cart),
-                (string) $this->context->currency->iso_code,
+                (new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($this->context->cart, $this->context),
                 [
                     'scheme_key' => $schemeKey,
                     'kop_code' => $kopCode,

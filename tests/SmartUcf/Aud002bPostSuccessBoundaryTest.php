@@ -180,7 +180,8 @@ function aud002bCoordinatorWith(Aud002bMemoryLifecycle $lifecycle, Aud002bFakeSe
     $props = [
         'lifecycle' => $lifecycle,
         'client' => $gateway,
-        'payloadBuilder' => new \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfPayloadBuilder(),
+        'payloadBuilder' => new \PrestaShop\Module\Unipayment\SmartUcf\SmartUcfPayloadBuilder(new \PrestaShop\Module\Unipayment\Order\OrderCurrencyGuard(static function (int $idOrder): array { return ['id_currency' => 1, 'currency_iso' => 'EUR']; })),
+        'currencyGuard' => new \PrestaShop\Module\Unipayment\Order\OrderCurrencyGuard(static function (int $idOrder): array { return ['id_currency' => 1, 'currency_iso' => 'EUR']; }),
         'classifier' => new SmartUcfFailureClassifier(),
         'snapshots' => null,
         'cpClient' => null,
@@ -201,6 +202,7 @@ $snapshot = [
     'id_order' => 42,
     'order_reference' => 'POSTSUCC42',
     'currency_iso' => 'EUR',
+    'id_currency' => 1,
     'kop_code' => 'X',
     'order_total' => 100,
     'first_installment' => 0,
@@ -265,6 +267,15 @@ $result3b = $coord3->run(42, $shop, false, $snapshot);
 assertPostSuccess($result3b->isCreated(), '3 replay: created');
 assertPostSuccess($result3b->redirectUrl() === $result3->redirectUrl(), '3 replay: same redirect');
 assertPostSuccess($gateway3->createCalls === 1, '3 replay: no second createSession');
+
+// Persisted created replay and fresh create both fail before transport on non-EUR snapshots.
+foreach ([SmartUcfLifecycleStates::NOT_STARTED, SmartUcfLifecycleStates::CREATED] as $state) {
+    $badLife = new Aud002bMemoryLifecycle(array_replace($baseRow, ['smartucf_state' => $state]));
+    $badGateway = new Aud002bFakeSessionGateway();
+    $badResult = aud002bCoordinatorWith($badLife, $badGateway)->run(42, $shop, false, array_replace($snapshot, ['currency_iso' => 'BGN']));
+    assertPostSuccess($badResult->isFailed(), 'non-EUR SmartUCF snapshot accepted');
+    assertPostSuccess($badGateway->createCalls === 0 && $badLife->createSessionAuthorizedClaims === 0, 'non-EUR SmartUCF reached transport');
+}
 
 // 4) Timeout / outcome_unknown path remains non-retryable (classifier + coordinator)
 $classifier = new SmartUcfFailureClassifier();

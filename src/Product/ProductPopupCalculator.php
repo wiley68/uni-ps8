@@ -45,7 +45,7 @@ final class ProductPopupCalculator
         float $firstInstallment
     ): array {
         $allowedTypes = $popupType === 'standard' ? ['standard', 'promo'] : ($popupType === 'promo' ? ['promo'] : []);
-        if (!$this->currencyGate->supports($shop, $currencyIso) || !in_array($schemeType, $allowedTypes, true)) {
+        if (!$this->currencyGate->supports($currencyIso) || !in_array($schemeType, $allowedTypes, true)) {
             throw new UnavailableSchemeException('The selected financing scheme is unavailable.');
         }
 
@@ -91,18 +91,13 @@ final class ProductPopupCalculator
             'total_payable' => $result->totalPayable,
             'glp' => $result->glp,
             'gpr' => $result->gpr,
-            'price_display' => $this->amountDisplay($result->price, $shop),
-            'financed_amount_display' => $this->amountDisplay($result->financedAmount, $shop),
-            'monthly_installment_display' => $this->amountDisplay($result->monthlyInstallment, $shop),
-            'total_payable_display' => $this->amountDisplay($result->totalPayable, $shop),
+            'price_display' => $this->amounts->format($result->price),
+            'financed_amount_display' => $this->amounts->format($result->financedAmount),
+            'monthly_installment_display' => $this->amounts->format($result->monthlyInstallment),
+            'total_payable_display' => $this->amounts->format($result->totalPayable),
             'glp_display' => number_format(abs($result->glp), 2, '.', ''),
             'gpr_display' => number_format(abs($result->gpr), 2, '.', ''),
         ];
     }
 
-    /** @param array<string, mixed> $shop @return array{primary:string,secondary:string,dual:bool} */
-    private function amountDisplay(float $amount, array $shop): array
-    {
-        return $this->amounts->format($amount, $shop);
-    }
 }

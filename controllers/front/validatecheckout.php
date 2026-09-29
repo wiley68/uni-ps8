@@ -79,7 +79,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             $request = $validator->validate(
                 $shop,
                 $cart,
-                (string) $this->context->currency->iso_code,
+                (new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($this->context->cart, $this->context),
                 $this->postedSelection(),
                 $module->getCheckoutCustomerData()
             );
@@ -103,7 +103,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 $shop,
                 new PostControlPanelLifecycleContext(
                     $idShop,
-                    (string) $this->context->currency->iso_code
+                    (new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($this->context->cart, $this->context)
                 ),
                 new SmartUcfSessionCoordinator(
                     null,

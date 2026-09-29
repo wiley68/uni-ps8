@@ -76,6 +76,14 @@ Presentation uses Smarty/Twig templates and module assets; business rules live i
 3. **Checkout submit lock** acquired (45 s TTL) before orchestration.
 4. **Order orchestration** creates/resumes attempt, PrestaShop order, financing snapshot, CP order.
 
+### EUR financing currency invariant
+
+Financing is available only when the authoritative PrestaShop transaction currency is EUR. The shop default currency may differ. Product prices remain the active PrestaShop context prices, including normal PrestaShop tax and currency handling. Cart and checkout check the cart currency ID against the loaded currency and the active context currency; any mismatch or non-EUR ISO disables financing. No FX conversion is performed by the module.
+
+After native order creation, the order gateway reads the actual order currency ID and ISO. The financing snapshot persists those values. CP create verifies the created order against the snapshot and sends `currency = EUR`; a saved CP payload is checked again before retry or completed-attempt replay. SmartUCF payload construction, session creation and replay reload the native order currency and compare it with the snapshot before any bank request or successful replay. Process 2 handoff uses the same durable currency check before status synchronization.
+
+The temporary CP snapshot field `uni_eur` is an ignored extra field. Its presence, absence or historical value has no effect on eligibility. Customer UI shows one EUR amount and no alternate-currency amount.
+
 ### Process 1 vs Process 2
 
 Distinction comes from CP shop snapshot field **`uni_proces`**:

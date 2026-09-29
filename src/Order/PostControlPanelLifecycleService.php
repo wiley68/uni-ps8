@@ -32,6 +32,8 @@ final class PostControlPanelLifecycleService
 
     /** @var ControlPanelStatusSyncService */
     private $statusSync;
+    /** @var OrderCurrencyGuard */
+    private $currencyGuard;
 
     public function __construct(
         ?FinancingSnapshotStoreInterface $snapshots = null,
@@ -39,13 +41,15 @@ final class PostControlPanelLifecycleService
         ?BankStatusPersistencePort $bankStatus = null,
         ?SmartUcfEndpointPolicy $endpointPolicy = null,
         ?ControlPanelOrderClientInterface $cpClient = null,
-        ?ControlPanelStatusSyncService $statusSync = null
+        ?ControlPanelStatusSyncService $statusSync = null,
+        ?OrderCurrencyGuard $currencyGuard = null
     ) {
         $this->snapshots = $snapshots ?? new FinancingSnapshotRepository();
         $this->mailDispatcher = $mailDispatcher ?? new FinancingOrderMailDispatcher();
         $this->bankStatus = $bankStatus ?? new OrderBankStatusRepository();
         $this->endpointPolicy = $endpointPolicy ?? new SmartUcfEndpointPolicy();
         $this->cpClient = $cpClient;
+        $this->currencyGuard = $currencyGuard ?? new OrderCurrencyGuard();
         $this->statusSync = $statusSync ?? new ControlPanelStatusSyncService(
             $this->snapshots instanceof ControlPanelStatusSyncStoreInterface
                 ? $this->snapshots
@@ -93,6 +97,10 @@ final class PostControlPanelLifecycleService
 
             return PostControlPanelLifecycleResult::snapshotMissing();
         }
+        $this->currencyGuard->assertNativeSnapshot($snapshot);
+        if ((int) ($snapshot['id_order'] ?? 0) !== $order->idOrder) {
+            throw new \RuntimeException('The financing snapshot does not match the created order.');
+        }
 
         $process2 = ShopConfigurationFlags::isProcess2($shop);
         $finalStatus = BankStatus::successfulSend($process2);
@@ -116,7 +124,6 @@ final class PostControlPanelLifecycleService
         // Opportunistic retry of a previously pending P1 CP status sync before/alongside SmartUCF resume.
         $this->statusSync->retryPending($order->attemptId, $order->orderReference);
 
-        $shop['_currency_iso'] = $context->currencyIso;
         $smart = $context->resumeSmartUcf
             ? $smartUcfCoordinator->resume($order->attemptId, $shop, false)
             : $smartUcfCoordinator->run($order->attemptId, $shop, false, $snapshot);

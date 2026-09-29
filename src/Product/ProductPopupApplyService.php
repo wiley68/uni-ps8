@@ -105,7 +105,7 @@ final class ProductPopupApplyService
         $currencyIso = (string) $context->currency->iso_code;
 
         $allowedTypes = $popupType === 'standard' ? ['standard', 'promo'] : ($popupType === 'promo' ? ['promo'] : []);
-        if (!$this->currencyGate->supports($shop, $currencyIso) || !in_array($schemeType, $allowedTypes, true)) {
+        if (!$this->currencyGate->supports($currencyIso) || !in_array($schemeType, $allowedTypes, true)) {
             throw new UnavailableSchemeException('The selected financing scheme is unavailable.');
         }
 
@@ -143,6 +143,9 @@ final class ProductPopupApplyService
         }
 
         $cart = $context->cart;
+        if ((new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($cart, $context) === '') {
+            throw new UnavailableSchemeException('The selected financing scheme is unavailable.');
+        }
         $cartFingerprint = md5((int) $cart->id . ':' . $product->price . ':' . $schemeKey);
 
         $request = new ValidatedPaymentRequest($calcResult, $customerData, $accepted, $cartFingerprint, $acceptedConsents);

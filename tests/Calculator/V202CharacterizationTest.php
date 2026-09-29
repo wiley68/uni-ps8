@@ -82,7 +82,7 @@ $checkout = new CheckoutPaymentPresenter(
     new ConsentResolver()
 );
 $cart = new CartContext([new CartLine($product, 0, 1, 1000)], 1000);
-$view = $checkout->present(true, $shop, $cart, 'BGN');
+$view = $checkout->present(true, $shop, $cart, 'EUR');
 assertChar(is_array($view), 'checkout view present');
 $zeros = array_values(array_filter($view['schemes'], static function (array $s): bool {
     return !empty($s['zero_interest']);
@@ -100,7 +100,7 @@ foreach ($view['schemes'] as $scheme) {
     }
 }
 assertChar($short !== null, 'fixture exposes shorter standard scheme');
-$pref = $checkout->present(true, $shop, $cart, 'BGN', [
+$pref = $checkout->present(true, $shop, $cart, 'EUR', [
     'scheme_type' => $short['scheme_type'],
     'kop_code' => $short['kop_code'],
     'months' => $short['months'],

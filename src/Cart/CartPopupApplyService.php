@@ -88,10 +88,10 @@ final class CartPopupApplyService
         $filterId = (int) ($posted['filter_id'] ?? 0);
         $schemeKey = trim((string) ($posted['scheme_key'] ?? ''));
         $firstInstallment = is_numeric($posted['first_installment'] ?? null) ? (float) $posted['first_installment'] : 0.0;
-        $currencyIso = (string) $context->currency->iso_code;
+        $currencyIso = (new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($context->cart, $context);
 
         $allowedTypes = $popupType === 'standard' ? ['standard', 'promo'] : ($popupType === 'promo' ? ['promo'] : []);
-        if (!$this->currencyGate->supports($shop, $currencyIso) || !in_array($schemeType, $allowedTypes, true)) {
+        if (!$this->currencyGate->supports($currencyIso) || !in_array($schemeType, $allowedTypes, true)) {
             throw new UnavailableSchemeException('The selected financing scheme is unavailable.');
         }
 
@@ -129,6 +129,9 @@ final class CartPopupApplyService
         $cart = $context->cart;
         if (!$cart instanceof Cart || (int) $cart->id <= 0) {
             throw new \RuntimeException('The cart could not be prepared for the popup order.');
+        }
+        if ((new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($cart, $context) === '') {
+            throw new UnavailableSchemeException('The selected financing scheme is unavailable.');
         }
 
         $cartFingerprint = md5((int) $cart->id . ':' . $cartContext->total . ':' . $schemeKey);
