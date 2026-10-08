@@ -62,7 +62,6 @@ A distributable module ZIP must extract as `unipayment/` (not loose files at arc
 unipayment/
   unipayment.php
   composer.json
-  composer.lock
   vendor/                 ← required (composer install --no-dev --optimize-autoloader)
   src/
   controllers/
@@ -70,16 +69,37 @@ unipayment/
   mails/
   translations/
   config.xml
+  config/services.yml
   index.php
+  package-manifest.json
 ```
 
-Before packaging:
+From the module's Git checkout, with the existing local `composer.lock` available:
 
 ```bash
-composer install --no-dev --optimize-autoloader
+composer package
+php tools/verify-distribution.php dist/CC_PrestaShop_8.x_UNI_v.2.0.3.zip
 ```
 
-Review [`RELEASE.md`](RELEASE.md) for artifact hygiene (exclude IDE files, tests, secrets).
+The output is `dist/CC_PrestaShop_8.x_UNI_v.<MODULE_VERSION>.zip`, currently `dist/CC_PrestaShop_8.x_UNI_v.2.0.3.zip`. The build CLI needs Composer, Git, PHP SimpleXML and a PHP zip extension supporting `ZipArchive::setMtimeName` (the current PHP 8.4 build CLI supports it). Module runtime compatibility remains PHP ≥ 7.4.
+
+The command copies current tracked and non-ignored new runtime files into a private staging tree, installs locked production dependencies there using `--no-dev --prefer-dist --optimize-autoloader --no-plugins --no-scripts`, verifies the ZIP, and removes staging files. Source `vendor/`, configuration and the lockfile are not modified. Packaged Composer metadata omits dev autoload, dev requirements and project scripts; the source lockfile is a build input and is not shipped with the normalized metadata.
+
+`dist/` is local and Git-ignored. Archives must not be committed. The artifact directory receives Apache denial protection; the ZIP is created with owner-only permissions. Handle the ZIP as a sensitive deployment artifact because it retains the existing certificate passphrase constant in runtime source.
+
+### Existing PS8 configuration and credentials
+
+| Value | Existing source; packaging behavior |
+| --- | --- |
+| CP API URL | `ControlPanelClient::DEFAULT_BASE_URL`; the module factory uses that default. Source is copied unchanged; packaging performs no environment substitution. |
+| SmartUCF test/production and endpoints | CP shop configuration, selected by `ShopConfigurationFlags` and `SmartUcfSessionClient`; local shop cache/DB data are excluded. |
+| SmartUCF username/password | Received from CP, stored encrypted in PrestaShop Configuration by `SmartUcfCredentialRepository`, decrypted with shop `_NEW_COOKIE_KEY_`; shop credentials and shop encryption keys are excluded. |
+| Certificate/private key | Synchronized from CP into `keys/` at runtime by `CertificateSynchronizer`; local PEM files and synchronization state are excluded. |
+| Certificate passphrase | Existing `CertificatePairValidator::PASSPHRASE`, used by certificate validation and session/lease handling; required source code is retained unchanged. Its value must not be printed. |
+
+PS8 does not load `config/environment.php` or `secrets/smartucf-key.php`. Neither file is created, required or shipped. The existing manual installation model supplies credentials through module configuration and CP synchronization after installation, rather than carrying shop-specific secrets in the ZIP. No existing manually prepared ZIP was present in this checkout for binary comparison.
+
+Review [`RELEASE.md`](RELEASE.md) for the artifact inventory and verification policy.
 
 Install the ZIP via PrestaShop module upload or by extracting into `modules/unipayment/`.
 

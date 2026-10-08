@@ -109,6 +109,15 @@ A **packaged production artifact** must include:
 
 The module entry file loads `vendor/autoload.php` when present. Without it, namespaced classes under `src/` will not load.
 
+Build and verify the installable ZIP without changing the source `vendor/`:
+
+```bash
+composer package
+php tools/verify-distribution.php dist/CC_PrestaShop_8.x_UNI_v.2.0.3.zip
+```
+
+The filename version is read from `unipayment.php`. `dist/` is local and Git-ignored; never commit generated archives. PS8 packages retain the existing runtime configuration and certificate passphrase code; handle the ZIP as a sensitive deployment artifact. No PS9 environment or secret files are introduced.
+
 See [`docs/RELEASE.md`](docs/RELEASE.md) for release and artifact review.
 
 ## Translations

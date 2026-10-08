@@ -81,3 +81,17 @@ This captures a non-sensitive module fingerprint, runs the safe suite, and asser
 ## Optional isolated test database
 
 For destructive integration, prefer a disposable PrestaShop database such as `presta8_test` with its own `parameters.php` / shop bootstrap. Do not clone production or shared dev data automatically.
+
+## Distribution packaging regression
+
+```bash
+composer test:package
+composer package
+php tools/verify-distribution.php dist/CC_PrestaShop_8.x_UNI_v.2.0.3.zip
+```
+
+`DistributionPackageTest.php` is also included in `composer test`. It builds twice in a disposable checkout under the system temporary directory, with a locked offline dev-only dependency fixture. The checkout reads existing Git objects without creating commits or changing the live Git index. No PrestaShop bootstrap or DB writes occur; synthetic credential/certificate exclusion fixtures never touch local shop secrets.
+
+Coverage includes exact PS8 filename/version and root layout, complete runtime inventory and byte parity, executable production autoload, absence of dev dependencies/test autoload/repository content, omission of unused PS9 environment/key files, identical ZIP bytes for repeated builds, source/vendor/lockfile preservation, missing/unreadable/symlink runtime source failures, ignored-runtime rejection, archive tampering/layout rejection, staging cleanup after failed verification and preservation of the previous successful ZIP.
+
+The build CLI requires Git, Composer, PHP SimpleXML and PHP zip with `ZipArchive::setMtimeName`; this does not change the module's PHP ≥ 7.4 runtime requirement. `dist/` and generated archives remain ignored and uncommitted. See [`RELEASE.md`](RELEASE.md) for artifact sensitivity and reproducibility limits.

@@ -17,6 +17,8 @@
     }
   },
   "scripts": {
+    "package": "@php tools/build-distribution.php",
+    "test:package": "@php tests/Infrastructure/DistributionPackageTest.php",
     "test": [
       "@test:php:safe",
       "@test:js"
