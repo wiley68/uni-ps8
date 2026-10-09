@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace PrestaShop\Module\Unipayment\Security;
 
+use PrestaShop\Module\Unipayment\Api\ControlPanelDestination;
+
 final class TokenRepository
 {
     public const ACCESS_TOKEN = 'UNIPAYMENT_CP_ACCESS_TOKEN';
     public const TOKEN_TYPE = 'UNIPAYMENT_CP_TOKEN_TYPE';
     public const EXPIRES_AT = 'UNIPAYMENT_CP_TOKEN_EXPIRES_AT';
+    public const ORIGIN = 'UNIPAYMENT_CP_TOKEN_ORIGIN';
 
     private const ENCRYPTED_PREFIX = 'enc:v1:';
 
@@ -18,13 +21,19 @@ final class TokenRepository
             return false;
         }
 
+        $origin = ControlPanelDestination::root();
         return \Configuration::updateValue(self::ACCESS_TOKEN, $this->encrypt($accessToken))
             && \Configuration::updateValue(self::TOKEN_TYPE, $tokenType !== '' ? $tokenType : 'Bearer')
-            && \Configuration::updateValue(self::EXPIRES_AT, $expiresAt);
+            && \Configuration::updateValue(self::EXPIRES_AT, $expiresAt)
+            && \Configuration::updateValue(self::ORIGIN, $origin);
     }
 
     public function getAccessToken(): ?string
     {
+        // Unbound legacy tokens and tokens from another deployment are never sent.
+        if ((string) \Configuration::get(self::ORIGIN) !== ControlPanelDestination::root()) {
+            return null;
+        }
         $storedToken = (string) \Configuration::get(self::ACCESS_TOKEN);
         if (strpos($storedToken, self::ENCRYPTED_PREFIX) !== 0) {
             return null;
@@ -59,7 +68,7 @@ final class TokenRepository
     public function invalidate(): bool
     {
         $result = true;
-        foreach ([self::ACCESS_TOKEN, self::TOKEN_TYPE, self::EXPIRES_AT] as $key) {
+        foreach ([self::ACCESS_TOKEN, self::TOKEN_TYPE, self::EXPIRES_AT, self::ORIGIN] as $key) {
             $result = \Configuration::deleteByName($key) && $result;
         }
 

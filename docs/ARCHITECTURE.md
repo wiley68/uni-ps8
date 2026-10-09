@@ -357,6 +357,10 @@ order_bank_status (id_order)
 
 Service: `ShopConfigurationService` + `ShopConfigurationCache`.
 
+CP destination authority is `Api\ControlPanelDestination::CONTROL_PANEL_URL` (root origin only). `apiBase()` derives `/api/v1`; `ControlPanelClient` has no destination constructor argument. `ControlPanelDestinationPolicy` validates HTTPS/root path/443/public hostname without a CP hostname allowlist. `ControlPanelDnsResolver` validates all returned A/AAAA addresses and bounded aliases before transport; `CurlHttpTransport` pins a vetted address with TLS verification and redirects disabled. It does not use environment proxies.
+
+Tokens store a derived CP-origin marker. `shop_data` stores a local `{cp_origin, snapshot}` envelope; consumers receive only the intact snapshot. Fresh cache, retained LKG and metadata reads reject a mismatched or absent marker, as do token reads. This deliberately causes one re-authentication/re-fetch after upgrading legacy unbound records. It requires no schema migration and does not change historical order snapshots, TTL, push replacement, refresh concurrency or SmartUCF credential/certificate contracts.
+
 | Behavior                    | Detail                                                                         |
 | --------------------------- | ------------------------------------------------------------------------------ |
 | TTL                         | 24 hours (`TTL_SECONDS = 86400`)                                               |

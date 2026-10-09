@@ -12,6 +12,7 @@ if (PHP_SAPI !== 'cli') {
 
 $root = dirname(__DIR__, 2);
 require $root . '/vendor/autoload.php';
+require dirname(__DIR__) . '/Support/ControlPanelDnsFixture.php';
 
 use PrestaShop\Module\Unipayment\Api\ControlPanelClient;
 use PrestaShop\Module\Unipayment\Api\Exception\ConnectionException;
@@ -130,7 +131,7 @@ final class CertSyncFakeTransport implements HttpTransportInterface
     /** @var callable|null */
     public $handler;
 
-    public function request(string $method, string $url, array $headers, ?array $payload): HttpResponse
+    public function request(string $method, string $url, array $headers, ?array $payload, array $resolvedAddresses): HttpResponse
     {
         $this->requests[] = ['method' => $method, 'url' => $url];
         if ($this->handler !== null) {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PrestaShop\Module\Unipayment\Configuration;
 
 use PrestaShop\Module\Unipayment\Api\Exception\InvalidPayloadException;
+use PrestaShop\Module\Unipayment\Api\ControlPanelDestination;
 
 final class ShopConfigurationCache implements ShopConfigurationCacheInterface, StaleShopConfigurationCacheInterface
 {
@@ -67,16 +68,14 @@ final class ShopConfigurationCache implements ShopConfigurationCacheInterface, S
         }
 
         try {
-            $decoded = json_decode($row['shop_data'], true, 512, JSON_THROW_ON_ERROR);
+            $decoded = $this->decodeBoundSnapshot($row['shop_data']);
         } catch (\JsonException $exception) {
             $this->delete($unicid);
 
             return null;
         }
 
-        if (!is_array($decoded) || $decoded === []) {
-            $this->delete($unicid);
-
+        if ($decoded === null) {
             return null;
         }
 
@@ -100,7 +99,7 @@ final class ShopConfigurationCache implements ShopConfigurationCacheInterface, S
         }
 
         try {
-            $decoded = json_decode((string) $row['shop_data'], true, 512, JSON_THROW_ON_ERROR);
+            $decoded = $this->decodeBoundSnapshot((string) $row['shop_data']);
         } catch (\JsonException $exception) {
             return null;
         }
@@ -127,7 +126,11 @@ final class ShopConfigurationCache implements ShopConfigurationCacheInterface, S
         $now = $this->now();
         $values = [
             'unicid' => $unicid,
-            'shop_data' => $this->encode($shopData),
+            // Local storage envelope only; the CP snapshot/contract is unchanged.
+            'shop_data' => $this->encode([
+                'cp_origin' => ControlPanelDestination::root(),
+                'snapshot' => $shopData,
+            ]),
             'coeff_list' => $this->encodeOptional($shopData, 'coeff_list'),
             'kop_data' => $this->encodeOptional($shopData, 'kop'),
             'consents' => $this->encodeOptional($shopData, 'consents'),
@@ -182,11 +185,19 @@ final class ShopConfigurationCache implements ShopConfigurationCacheInterface, S
         }
 
         $row = $this->database->getRow(sprintf(
-            "SELECT `fetched_at`, `expires_at` FROM `%s` WHERE `unicid` = '%s'",
+            "SELECT `shop_data`, `fetched_at`, `expires_at` FROM `%s` WHERE `unicid` = '%s'",
             $this->tableName(),
             pSQL(trim($unicid))
         ));
         if (!is_array($row) || !isset($row['fetched_at'], $row['expires_at'])) {
+            return null;
+        }
+
+        try {
+            if ($this->decodeBoundSnapshot((string) ($row['shop_data'] ?? '')) === null) {
+                return null;
+            }
+        } catch (\JsonException $exception) {
             return null;
         }
 
@@ -197,6 +208,19 @@ final class ShopConfigurationCache implements ShopConfigurationCacheInterface, S
             'expires_at' => (string) $row['expires_at'],
             'is_fresh' => $expiresAt !== false && $expiresAt > $this->now(),
         ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function decodeBoundSnapshot(string $json): ?array
+    {
+        $stored = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($stored) || ($stored['cp_origin'] ?? null) !== ControlPanelDestination::root()
+            || !is_array($stored['snapshot'] ?? null) || $stored['snapshot'] === []
+        ) {
+            return null;
+        }
+
+        return $stored['snapshot'];
     }
 
     /** @param mixed $data */

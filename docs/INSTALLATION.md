@@ -24,7 +24,11 @@ Related:
 | Control Panel             | Shop registered in CP with matching UNICID and shared secret |
 | Writable module directory | Certificate sync writes to `{module}/keys/`                  |
 
-The module default CP API base URL is `https://uni.avalonbg.com/api/v1` (`ControlPanelClient::DEFAULT_BASE_URL`). Override only if your deployment uses a different CP endpoint (environment-specific).
+The only CP deployment value is `ControlPanelDestination::CONTROL_PANEL_URL` in `src/Api/ControlPanelDestination.php`, currently `https://uni.avalonbg.com`. Set this root origin before packaging; `/api/v1` is derived centrally. Switching to staging, production or another public CP hostname requires changing this one value only. There is no runtime constructor override, hostname allowlist, environment file or fallback URL.
+
+The root accepts HTTPS, a valid public DNS hostname, an empty path or `/`, and port 443 only. Userinfo, query strings, fragments and IP literals are rejected. Before every CP request, A/AAAA records and bounded CNAME chains are resolved; any private/reserved address rejects the whole result. Public addresses are pinned with `CURLOPT_RESOLVE` while preserving the original TLS hostname. Redirects and environment proxies are disabled. DNS failure sends no HTTP request. libcurl 7.59+ retains failover between all vetted addresses; older versions pin the first address only.
+
+CP tokens carry the derived normalized origin in `UNIPAYMENT_CP_TOKEN_ORIGIN`. The persistent shop-cache JSON contains a local `{cp_origin, snapshot}` envelope; the remote snapshot itself is unchanged. Tokens and fresh/retained cache entries from another origin, or legacy entries without an origin, are ignored and re-fetched through normal login/refresh. No DB schema migration or deployment-time bulk deletion is needed. The existing merchant UNICID/secret must still be valid in the destination CP. Historical financing snapshots and SmartUCF certificate handling are unchanged.
 
 ---
 
@@ -91,7 +95,7 @@ The command copies current tracked and non-ignored new runtime files into a priv
 
 | Value | Existing source; packaging behavior |
 | --- | --- |
-| CP API URL | `ControlPanelClient::DEFAULT_BASE_URL`; the module factory uses that default. Source is copied unchanged; packaging performs no environment substitution. |
+| CP root URL | `ControlPanelDestination::CONTROL_PANEL_URL`; every runtime factory uses the same resolver and derived `/api/v1`. Source is copied unchanged; packaging performs no environment substitution. |
 | SmartUCF test/production and endpoints | CP shop configuration, selected by `ShopConfigurationFlags` and `SmartUcfSessionClient`; local shop cache/DB data are excluded. |
 | SmartUCF username/password | Received from CP, stored encrypted in PrestaShop Configuration by `SmartUcfCredentialRepository`, decrypted with shop `_NEW_COOKIE_KEY_`; shop credentials and shop encryption keys are excluded. |
 | Certificate/private key | Synchronized from CP into `keys/` at runtime by `CertificateSynchronizer`; local PEM files and synchronization state are excluded. |

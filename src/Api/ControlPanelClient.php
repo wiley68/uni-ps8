@@ -13,8 +13,6 @@ use PrestaShop\Module\Unipayment\Security\TokenRepository;
 
 final class ControlPanelClient implements ShopConfigurationProviderInterface
 {
-    public const DEFAULT_BASE_URL = 'https://uni.avalonbg.com/api/v1';
-
     private const REFRESH_MARGIN_SECONDS = 60;
 
     /** @var ConfigurationRepository */
@@ -40,14 +38,13 @@ final class ControlPanelClient implements ShopConfigurationProviderInterface
         TokenRepository $tokens,
         HttpTransportInterface $transport,
         string $shopName,
-        string $baseUrl = self::DEFAULT_BASE_URL,
         ?callable $clock = null
     ) {
         $this->configuration = $configuration;
         $this->tokens = $tokens;
         $this->transport = $transport;
         $this->shopName = rtrim(trim($shopName), '/');
-        $this->baseUrl = rtrim($baseUrl, '/');
+        $this->baseUrl = ControlPanelDestination::apiBase();
         $this->clock = $clock ?? 'time';
     }
 
@@ -304,11 +301,13 @@ final class ControlPanelClient implements ShopConfigurationProviderInterface
             $headers['Authorization'] = $this->tokens->getTokenType() . ' ' . $token;
         }
 
+        $addresses = ControlPanelDnsResolver::resolve(ControlPanelDestination::hostname());
         $response = $this->transport->request(
             $method,
             $this->baseUrl . '/' . ltrim($path, '/'),
             $headers,
-            $payload
+            $payload,
+            $addresses
         );
         if ($response->getStatusCode() === 401) {
             throw new AuthenticationException('The Control Panel rejected the authentication.');

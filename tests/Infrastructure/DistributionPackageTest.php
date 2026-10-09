@@ -154,6 +154,8 @@ try {
     assertPackage(basename($package) === 'CC_PrestaShop_8.x_UNI_v.' . $version . '.zip', 'Exact filename and version');
     assertPackage(count($manifest['files']) + 1 === $zip->numFiles, 'Complete manifest inventory');
     assertPackage($builder->verify($package) === $zip->numFiles, 'Verifier file count');
+    assertPackage($zip->getFromName('unipayment/src/Api/ControlPanelDestination.php')
+        === file_get_contents($fixture . '/src/Api/ControlPanelDestination.php'), 'Canonical CP destination preserved unchanged');
     foreach ($builder->sourceFiles() as $relative => $absolute) {
         assertPackage(isset($manifest['files'][$relative]), 'Runtime source included: ' . $relative);
         if ($relative !== 'composer.json') {
@@ -279,6 +281,20 @@ try {
     assertPackage(glob($fixture . '/dist/.build-*') === [], 'Failed verification cleans populated staging tree');
     assertPackage(hash_file('sha256', $package) === $firstHash, 'Failed verification preserves published ZIP');
     writePackageFixture($fixture, 'config.xml', $xmlBefore);
+    // Changing the one deployment value must survive packaging without substitution.
+    $destinationSource = (string) file_get_contents($fixture . '/src/Api/ControlPanelDestination.php');
+    $futureDestination = preg_replace('/public const CONTROL_PANEL_URL = [^;]+;/',
+        "public const CONTROL_PANEL_URL = 'https://future-cp.example.org';", $destinationSource, 1);
+    writePackageFixture($fixture, 'src/Api/ControlPanelDestination.php', $futureDestination);
+    $builder->build();
+    $zip = new ZipArchive();
+    assertPackage($zip->open($package) === true, 'Future destination ZIP opens');
+    assertPackage($zip->getFromName('unipayment/src/Api/ControlPanelDestination.php') === $futureDestination,
+        'One-value future CP deployment packaged unchanged');
+    $zip->close();
+    $futureHash = hash_file('sha256', $package);
+    $builder->build();
+    assertPackage(hash_file('sha256', $package) === $futureHash, 'Changed destination build is reproducible');
     putenv('SOURCE_DATE_EPOCH=invalid');
     expectPackageFailure(static function () use ($builder): void {
         $builder->build();

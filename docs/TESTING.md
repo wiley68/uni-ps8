@@ -84,6 +84,8 @@ For destructive integration, prefer a disposable PrestaShop database such as `pr
 
 ## Distribution packaging regression
 
+`tests/Api/ControlPanelDestinationTest.php` changes only the canonical root declaration in memory in isolated CLI processes. It exercises the three deployment hosts and a future host through actual module factories/configuration services, all eight CP endpoints, legacy/cross-origin token/cache rejection, invalid-root rejection, DNS policy and cURL pinning. DNS, cURL and platform boundaries are test doubles; no live CP or database is contacted by this regression. Existing order/replay/status/certificate suites cover their unchanged lifecycle semantics.
+
 ```bash
 composer test:package
 composer package

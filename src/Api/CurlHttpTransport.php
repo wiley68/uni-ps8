@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PrestaShop\Module\Unipayment\Api;
 
 use PrestaShop\Module\Unipayment\Api\Exception\ConnectionException;
+use PrestaShop\Module\Unipayment\Api\Exception\InvalidPayloadException;
 use PrestaShop\Module\Unipayment\Api\Exception\TimeoutException;
 
 final class CurlHttpTransport implements HttpTransportInterface
@@ -21,8 +22,17 @@ final class CurlHttpTransport implements HttpTransportInterface
         $this->timeout = $timeout;
     }
 
-    public function request(string $method, string $url, array $headers, ?array $payload): HttpResponse
+    public function request(string $method, string $url, array $headers, ?array $payload, array $resolvedAddresses): HttpResponse
     {
+        $base = ControlPanelDestination::apiBase() . '/';
+        if (strpos($url, $base) !== 0 || preg_match('/[\x00-\x20\x7f?#\\\\]/', $url)
+            || $resolvedAddresses === []
+        ) {
+            throw new InvalidPayloadException('The Control Panel request destination is invalid.');
+        }
+        foreach ($resolvedAddresses as $address) {
+            ControlPanelDestinationPolicy::validateAddress($address);
+        }
         if (!function_exists('curl_init')) {
             throw new ConnectionException('The cURL PHP extension is not available.');
         }
@@ -37,6 +47,14 @@ final class CurlHttpTransport implements HttpTransportInterface
             $headerLines[] = $name . ': ' . $value;
         }
 
+        $curlVersion = curl_version();
+        $versionNumber = (int) ($curlVersion['version_number'] ?? 0);
+        // Older libcurl accepts one address; modern versions retain DNS failover.
+        $pinned = $versionNumber >= 0x073b00 ? $resolvedAddresses : [$resolvedAddresses[0]];
+        $pinned = array_map(static function (string $address) use ($versionNumber): string {
+            return strpos($address, ':') !== false && $versionNumber >= 0x073900
+                ? '[' . $address . ']' : $address;
+        }, $pinned);
         $options = [
             CURLOPT_CUSTOMREQUEST => strtoupper($method),
             CURLOPT_RETURNTRANSFER => true,
@@ -46,6 +64,10 @@ final class CurlHttpTransport implements HttpTransportInterface
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_HTTPHEADER => $headerLines,
+            CURLOPT_RESOLVE => [ControlPanelDestination::hostname() . ':443:'
+                . implode(',', $pinned)],
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_PROXY => '',
         ];
 
         if ($payload !== null) {
@@ -57,7 +79,10 @@ final class CurlHttpTransport implements HttpTransportInterface
             }
         }
 
-        curl_setopt_array($handle, $options);
+        if (!curl_setopt_array($handle, $options)) {
+            curl_close($handle);
+            throw new ConnectionException('The Control Panel request security options could not be applied.');
+        }
         $body = curl_exec($handle);
 
         if ($body === false) {

@@ -8,6 +8,8 @@ if (PHP_SAPI !== 'cli') {
 }
 
 define('_NEW_COOKIE_KEY_', 'test-key');
+require dirname(__DIR__, 2) . '/vendor/autoload.php';
+require dirname(__DIR__) . '/Support/ControlPanelDnsFixture.php';
 
 final class Configuration
 {
@@ -84,7 +86,7 @@ final class FakeTransport implements HttpTransportInterface
     /** @var array<int, array<string, mixed>> */
     public $requests = [];
 
-    public function request(string $method, string $url, array $headers, ?array $payload): HttpResponse
+    public function request(string $method, string $url, array $headers, ?array $payload, array $resolvedAddresses): HttpResponse
     {
         $this->requests[] = compact('method', 'url', 'headers', 'payload');
         $response = array_shift($this->responses);
@@ -120,7 +122,6 @@ $client = new ControlPanelClient(
     $tokens,
     $transport,
     'https://shop.example',
-    'https://cp.example/api/v1',
     static function () use (&$now): int {
         return $now;
     }
@@ -138,7 +139,7 @@ $transport->responses[] = jsonResponse(200, [
     ],
 ]);
 $client->login();
-assertPhase2($transport->requests[0]['url'] === 'https://cp.example/api/v1/auth/login', 'login endpoint mismatch');
+assertPhase2($transport->requests[0]['url'] === PrestaShop\Module\Unipayment\Api\ControlPanelDestination::apiBase() . '/auth/login', 'login endpoint mismatch');
 assertPhase2($transport->requests[0]['payload']['name'] === 'https://shop.example', 'login shop name mismatch');
 assertPhase2($tokens->getAccessToken() === 'token-one', 'login token was not stored');
 assertPhase2(Configuration::$values[TokenRepository::ACCESS_TOKEN] !== 'token-one', 'token was stored in plain text');
@@ -178,8 +179,8 @@ $transport->responses[] = jsonResponse(201, [
     ],
 ]);
 $client->createOrder(['order_id' => '100', 'name' => 'Client']);
-assertPhase2($transport->requests[2]['url'] === 'https://cp.example/api/v1/auth/refresh', 'proactive refresh endpoint mismatch');
-assertPhase2($transport->requests[3]['url'] === 'https://cp.example/api/v1/orders', 'createOrder endpoint mismatch');
+assertPhase2($transport->requests[2]['url'] === PrestaShop\Module\Unipayment\Api\ControlPanelDestination::apiBase() . '/auth/refresh', 'proactive refresh endpoint mismatch');
+assertPhase2($transport->requests[3]['url'] === PrestaShop\Module\Unipayment\Api\ControlPanelDestination::apiBase() . '/orders', 'createOrder endpoint mismatch');
 assertPhase2($transport->requests[3]['headers']['Authorization'] === 'Bearer token-two', 'refreshed token was not used');
 
 $transport->responses[] = jsonResponse(401, ['success' => false, 'error' => 'token_expired', 'message' => 'expired', 'data' => []]);
@@ -209,7 +210,7 @@ $transport->responses[] = jsonResponse(200, [
 ]);
 $client->updateOrderStatus('100', 'sent', 'cp_sent');
 assertPhase2($transport->requests[4]['method'] === 'PATCH', 'status method mismatch');
-assertPhase2($transport->requests[5]['url'] === 'https://cp.example/api/v1/auth/login', '401 did not trigger re-login');
+assertPhase2($transport->requests[5]['url'] === PrestaShop\Module\Unipayment\Api\ControlPanelDestination::apiBase() . '/auth/login', '401 did not trigger re-login');
 assertPhase2($transport->requests[6]['headers']['Authorization'] === 'Bearer token-three', '401 retry did not use new token');
 assertPhase2($transport->requests[6]['payload']['status_id'] === 'cp_sent', 'status_id contract mismatch');
 assertPhase2($transport->requests[6]['payload']['status'] === 'sent', 'status contract mismatch');
@@ -219,7 +220,7 @@ $transport->responses[] = new HttpResponse(
     '{"success":true,"error":null,"message":"ok","data":{}}'
 );
 $client->logout();
-assertPhase2($transport->requests[7]['url'] === 'https://cp.example/api/v1/auth/logout', 'logout endpoint mismatch');
+assertPhase2($transport->requests[7]['url'] === PrestaShop\Module\Unipayment\Api\ControlPanelDestination::apiBase() . '/auth/logout', 'logout endpoint mismatch');
 assertPhase2(!$tokens->hasToken(), 'logout did not invalidate the local token');
 
 $transport->responses[] = new HttpResponse(403, '<html>challenge</html>');
