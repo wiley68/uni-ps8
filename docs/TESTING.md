@@ -89,7 +89,7 @@ For destructive integration, prefer a disposable PrestaShop database such as `pr
 ```bash
 composer test:package
 composer package
-php tools/verify-distribution.php dist/CC_PrestaShop_8.x_UNI_v.2.0.3.zip
+php tools/verify-distribution.php dist/ps8_uni_2.0.3.zip
 ```
 
 `DistributionPackageTest.php` is also included in `composer test`. It builds twice in a disposable checkout under the system temporary directory, with a locked offline dev-only dependency fixture. The checkout reads existing Git objects without creating commits or changing the live Git index. No PrestaShop bootstrap or DB writes occur; synthetic credential/certificate exclusion fixtures never touch local shop secrets.

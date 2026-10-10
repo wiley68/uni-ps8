@@ -82,10 +82,10 @@ From the module's Git checkout, with the existing local `composer.lock` availabl
 
 ```bash
 composer package
-php tools/verify-distribution.php dist/CC_PrestaShop_8.x_UNI_v.2.0.3.zip
+php tools/verify-distribution.php dist/ps8_uni_2.0.3.zip
 ```
 
-The output is `dist/CC_PrestaShop_8.x_UNI_v.<MODULE_VERSION>.zip`, currently `dist/CC_PrestaShop_8.x_UNI_v.2.0.3.zip`. The build CLI needs Composer, Git, PHP SimpleXML and a PHP zip extension supporting `ZipArchive::setMtimeName` (the current PHP 8.4 build CLI supports it). Module runtime compatibility remains PHP ≥ 7.4.
+The output is `dist/ps8_uni_<MODULE_VERSION>.zip`, currently `dist/ps8_uni_2.0.3.zip`. The build CLI needs Composer, Git, PHP SimpleXML and a PHP zip extension supporting `ZipArchive::setMtimeName` (the current PHP 8.4 build CLI supports it). Module runtime compatibility remains PHP ≥ 7.4.
 
 The command copies current tracked and non-ignored new runtime files into a private staging tree, installs locked production dependencies there using `--no-dev --prefer-dist --optimize-autoloader --no-plugins --no-scripts`, verifies the ZIP, and removes staging files. Source `vendor/`, configuration and the lockfile are not modified. Packaged Composer metadata omits dev autoload, dev requirements and project scripts; the source lockfile is a build input and is not shipped with the normalized metadata.
 

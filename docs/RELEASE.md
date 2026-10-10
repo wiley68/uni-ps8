@@ -92,10 +92,10 @@ composer package
 Distributable archive name (automatically derived from the single literal `$this->version` declaration in `unipayment.php`):
 
 ```text
-dist/CC_PrestaShop_8.x_UNI_v.<MODULE_VERSION>.zip
+dist/ps8_uni_<MODULE_VERSION>.zip
 ```
 
-For the current release: `dist/CC_PrestaShop_8.x_UNI_v.2.0.3.zip`. Missing, computed or ambiguous version declarations fail the build; packaged module and XML versions must agree with the filename.
+For the current release: `dist/ps8_uni_2.0.3.zip`. Missing, computed or ambiguous version declarations fail the build; packaged module and XML versions must agree with the filename.
 
 Archive root must be:
 
@@ -125,7 +125,7 @@ Include:
 The verifier checks archive layout, paths, symlinks, required files, module/XML version, production autoload/dependency metadata, manifest checksums and byte parity against the current source. Unknown packaged source files are rejected even if the manifest is recomputed. An ignored runtime file in the source directories causes failure rather than silent omission. New non-ignored runtime files are included before they are committed; review the working tree before building. The manifest is an inventory, not a cryptographic signature.
 
 ```bash
-php tools/verify-distribution.php dist/CC_PrestaShop_8.x_UNI_v.2.0.3.zip
+php tools/verify-distribution.php dist/ps8_uni_2.0.3.zip
 ```
 
 Verification is against the **current checkout**, including its current Git SHA and local runtime edits; keep matching source when re-verifying an older artifact. A verified archive replaces the previous output only after successful validation. Failed builds remove staging and preserve any previous successful ZIP.
@@ -145,7 +145,7 @@ Entries are sorted and use fixed timestamps, permissions and compression. The de
 3. Create **one** release-preparation commit
 4. Create annotated local tag for the reviewed module version, only when explicitly requested
 5. Do **not** push, publish a GitHub Release, or upload the package unless explicitly requested
-6. Attach `CC_PrestaShop_8.x_UNI_v.<MODULE_VERSION>.zip` when distribution is approved; generated artifacts remain outside Git
+6. Attach `ps8_uni_<MODULE_VERSION>.zip` when distribution is approved; generated artifacts remain outside Git
 
 ---
 

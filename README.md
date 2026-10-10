@@ -113,7 +113,7 @@ Build and verify the installable ZIP without changing the source `vendor/`:
 
 ```bash
 composer package
-php tools/verify-distribution.php dist/CC_PrestaShop_8.x_UNI_v.2.0.3.zip
+php tools/verify-distribution.php dist/ps8_uni_2.0.3.zip
 ```
 
 The filename version is read from `unipayment.php`. `dist/` is local and Git-ignored; never commit generated archives. PS8 packages retain the existing runtime configuration and certificate passphrase code; handle the ZIP as a sensitive deployment artifact. No PS9 environment or secret files are introduced.

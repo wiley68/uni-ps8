@@ -151,7 +151,7 @@ try {
     assertPackage($zip->open($package) === true, 'ZIP opens');
     $manifest = json_decode((string) $zip->getFromName('unipayment/package-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
     $version = DistributionPackage::resolveVersion((string) file_get_contents($fixture . '/unipayment.php'));
-    assertPackage(basename($package) === 'CC_PrestaShop_8.x_UNI_v.' . $version . '.zip', 'Exact filename and version');
+    assertPackage(basename($package) === 'ps8_uni_' . $version . '.zip', 'Exact filename and version');
     assertPackage(count($manifest['files']) + 1 === $zip->numFiles, 'Complete manifest inventory');
     assertPackage($builder->verify($package) === $zip->numFiles, 'Verifier file count');
     assertPackage($zip->getFromName('unipayment/src/Api/ControlPanelDestination.php')
