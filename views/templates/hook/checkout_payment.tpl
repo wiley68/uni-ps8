@@ -9,6 +9,7 @@
         data-egn-invalid-message="{l s='Въведете валидно ЕГН (10 цифри, първите 8 — дата YYYYMMDD).' d='Modules.Unipayment.Shop'}"
         data-phone2-required-message="{l s='Полето „Втори телефон“ е задължително.' d='Modules.Unipayment.Shop'}"
         data-phone2-invalid-message="{l s='Въведете валиден втори телефонен номер.' d='Modules.Unipayment.Shop'}"
+        data-consent-context-invalid-message="{l s='Обновете страницата и изберете схема отново.' d='Modules.Unipayment.Shop'}"
         data-calculate-failed-message="{l s='Неуспешно изчисление. Моля, опитайте отново.' d='Modules.Unipayment.Shop'}"
         data-submitting-message="{l s='Заявката вече се обработва. Моля, изчакайте.' d='Modules.Unipayment.Shop'}">
         <input type="hidden" name="unipayment_checkout_submit" value="1">
@@ -155,11 +156,12 @@
                     aria-label="{l s='Съгласия' d='Modules.Unipayment.Shop'}">
                     {foreach from=$unipayment_checkout.consents item=consent}
                         <div
-                            class="unipayment-checkout__consent{if !$consent.has_checkbox} unipayment-checkout__consent--info{/if}">
+                            class="unipayment-checkout__consent{if !$consent.has_checkbox} unipayment-checkout__consent--info{/if}" data-unipayment-consent-row="{$consent.id|intval}"
+                            data-unipayment-interest-scope="{$consent.interest_scope|escape:'htmlall':'UTF-8'}" hidden>
                             {if $consent.has_checkbox}
                                 <input type="checkbox" class="unipayment-checkout__consent-checkbox"
                                     id="unipayment-checkout-consent-{$consent.id|intval}" name="unipayment_consent[]"
-                                    value="{$consent.id|intval}" data-unipayment-consent-checkbox
+                                    value="{$consent.id|intval}" data-unipayment-consent-checkbox disabled
                                     data-unipayment-consent-id="{$consent.id|intval}">
                                 <label class="unipayment-checkout__consent-label"
                                     for="unipayment-checkout-consent-{$consent.id|intval}">

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
+use PrestaShop\Module\Unipayment\Checkout\CheckoutValidationException;
+use PrestaShop\Module\Unipayment\Checkout\ConsentResolver;
 use PrestaShop\Module\Unipayment\Cart\CartContextFactory;
 use PrestaShop\Module\Unipayment\Cart\CartPopupApplyService;
 use PrestaShop\Module\Unipayment\Cart\CartPopupCalculator;
@@ -100,9 +102,9 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
             }
 
             return ['success' => true, 'calculation' => $calculation];
-        } catch (ProductPopupValidationException $exception) {
+        } catch (ProductPopupValidationException | CheckoutValidationException $exception) {
             http_response_code(422);
-            $errors = $exception->errors();
+            $errors = $exception instanceof CheckoutValidationException ? ['consents' => $exception->getMessage()] : $exception->errors();
 
             return [
                 'success' => false,
@@ -212,9 +214,9 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
             PostControlPanelLifecyclePopupMapper::apply($response, $lifecycle);
 
             return $response;
-        } catch (ProductPopupValidationException $exception) {
+        } catch (ProductPopupValidationException | CheckoutValidationException $exception) {
             http_response_code(422);
-            $errors = $exception->errors();
+            $errors = $exception instanceof CheckoutValidationException ? ['consents' => $exception->getMessage()] : $exception->errors();
 
             return [
                 'success' => false,

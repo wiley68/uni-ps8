@@ -76,6 +76,8 @@ final class ProductPopupCalculator
     {
         $scheme = $result->scheme;
 
+        $consents = new \PrestaShop\Module\Unipayment\Checkout\ConsentResolver();
+
         return [
             'scheme_key' => ProductPopupSchemeList::key($scheme),
             'scheme_type' => $scheme->type,
@@ -89,6 +91,7 @@ final class ProductPopupCalculator
             'financed_amount' => $result->financedAmount,
             'monthly_installment' => $result->monthlyInstallment,
             'total_payable' => $result->totalPayable,
+            'consent_context' => $consents->context($shop, $consents->selection($result)),
             'glp' => $result->glp,
             'gpr' => $result->gpr,
             'price_display' => $this->amounts->format($result->price),

@@ -14,13 +14,19 @@ Equivalent:
 
 ```bash
 php tests/run.php safe
-node tests/Product/ProductCalculatorJsTest.js
+composer test:js
 ```
 
 The safe suite runs unit/contract/static tests and skips:
 
 - runtime DB integration tests
 - destructive uninstall/purge tests
+
+The runner reports `passed`, `skipped`, `partial`, and `failed` separately. `skipped`
+means the runner ended with a SKIP result; `partial` means its unit assertions ran
+but an optional runtime section was skipped. Skip reasons and filenames are printed.
+Runtime sections remain disabled in the default suite. The JavaScript script runs
+both the product helper checks and the consent lifecycle/race harness.
 
 ## Runtime integration (non-destructive)
 

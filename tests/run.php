@@ -67,6 +67,8 @@ foreach ($iterator as $fileInfo) {
 sort($files);
 
 $passed = 0;
+$skipped = 0;
+$partial = 0;
 $failed = 0;
 $failures = [];
 
@@ -84,7 +86,20 @@ foreach ($files as $file) {
     $lastLine = $filtered !== [] ? (string) $filtered[array_key_last($filtered)] : '';
 
     if ($exitCode === 0 && ($lastLine === '' || str_starts_with($lastLine, 'OK') || str_starts_with($lastLine, 'SKIP'))) {
-        ++$passed;
+        $skipLines = array_values(array_filter($filtered, static function (string $line): bool {
+            return str_starts_with($line, 'SKIP');
+        }));
+        if (str_starts_with($lastLine, 'SKIP')) {
+            ++$skipped;
+        } elseif ($skipLines !== []) {
+            ++$partial;
+        } else {
+            ++$passed;
+        }
+        foreach ($skipLines as $line) {
+            $relative = str_replace(dirname(__DIR__) . DIRECTORY_SEPARATOR, '', $file);
+            fwrite(STDOUT, $relative . ': ' . $line . PHP_EOL);
+        }
         continue;
     }
 
@@ -93,7 +108,7 @@ foreach ($files as $file) {
     $failures[] = $relative . ': ' . ($lastLine !== '' ? $lastLine : 'exit ' . $exitCode);
 }
 
-fwrite(STDOUT, strtoupper($suite) . " suite: {$passed} passed, {$failed} failed" . PHP_EOL);
+fwrite(STDOUT, strtoupper($suite) . " suite: {$passed} passed, {$skipped} skipped, {$partial} partial, {$failed} failed" . PHP_EOL);
 
 if ($failures !== []) {
     foreach ($failures as $failure) {

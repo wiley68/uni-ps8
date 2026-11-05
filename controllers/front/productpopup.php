@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Calculator\UnavailableSchemeException;
+use PrestaShop\Module\Unipayment\Checkout\CheckoutValidationException;
+use PrestaShop\Module\Unipayment\Checkout\ConsentResolver;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
 use PrestaShop\Module\Unipayment\Order\BankStatus;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderClientAdapter;
@@ -108,7 +110,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
                 );
             }
             if ($action === 'apply') {
-                return $this->handleApply($shop, $product, (int) $productId, (int) $attributeId, (int) $quantity);
+                return $this->handleApply($shop, $product, (int) $productId, (int) $attributeId, (int) $quantity, $calculation);
             }
 
             if ($action === 'validate_step2') {
@@ -150,9 +152,9 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             }
 
             return ['success' => true, 'calculation' => $calculation];
-        } catch (ProductPopupValidationException $exception) {
+        } catch (ProductPopupValidationException | CheckoutValidationException $exception) {
             http_response_code(422);
-            $errors = $exception->errors();
+            $errors = $exception instanceof CheckoutValidationException ? ['consents' => $exception->getMessage()] : $exception->errors();
 
             return [
                 'success' => false,
@@ -220,7 +222,7 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
      * @param array<string, mixed> $shop
      * @return array<string, mixed>
      */
-    private function handleApply(array $shop, \PrestaShop\Module\Unipayment\Calculator\ProductContext $product, int $productId, int $attributeId, int $quantity): array
+    private function handleApply(array $shop, \PrestaShop\Module\Unipayment\Calculator\ProductContext $product, int $productId, int $attributeId, int $quantity, array $calculation): array
     {
         $posted = [
             'popup_offer_type' => Tools::getValue('popup_offer_type', ''),
@@ -258,6 +260,26 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         $module = $this->module;
         $cpApi = $module->getControlPanelClient();
         $cpClient = new ControlPanelOrderClientAdapter($cpApi);
+
+        $submission = $submissions->findByToken($token);
+        if ($submission !== null && hash_equals((string) $submission['selection_hash'], $resolved['hash'])) {
+            $effective = $calculation;
+            $attemptId = (int) ($submission['id_attempt'] ?? 0);
+            if ($attemptId > 0) {
+                $effective = (new FinancingSnapshotRepository())->findByAttempt($attemptId) ?? $effective;
+            }
+            $cartId = (int) ($submission['id_cart'] ?? 0);
+            if ($attemptId <= 0 && $cartId > 0) {
+                $attempt = (new OrderAttemptRepository())->findByIdentity(
+                    (int) $this->context->shop->id, $cartId,
+                    md5($cartId . ':' . $calculation['price'] . ':' . $calculation['scheme_key'])
+                );
+                if ($attempt !== null) {
+                    $effective = (new FinancingSnapshotRepository())->findByAttempt((int) $attempt['id_attempt']) ?? $effective;
+                }
+            }
+            (new ConsentResolver())->validate($shop, $posted['consent'], $effective);
+        }
 
         $gate = $this->resolvePopupSubmissionGate($submissions, $token, $resolved['hash'], $shop, $module, $cpClient);
         if (isset($gate['response'])) {
@@ -312,10 +334,10 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
             );
 
             return $this->buildApplySuccessResponse($shop, $module, $cpClient, $result, true);
-        } catch (ProductPopupValidationException $exception) {
+        } catch (ProductPopupValidationException | CheckoutValidationException $exception) {
             $submissions->revertProcessingWithoutCart($submissionId);
             http_response_code(422);
-            $errors = $exception->errors();
+            $errors = $exception instanceof CheckoutValidationException ? ['consents' => $exception->getMessage()] : $exception->errors();
 
             return [
                 'success' => false,
@@ -489,7 +511,8 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
         Unipayment $module,
         ControlPanelOrderClientAdapter $cpClient
     ): array {
-        $this->assertExistingOrderCurrency($row);
+        $snapshot = $this->assertExistingOrderCurrency($row);
+        $this->validateReplayConsents($shop, $snapshot, Tools::getValue('unipayment_consent', []));
         $response = [
             'success' => true,
             'step' => 'order_created',
@@ -549,12 +572,20 @@ final class UnipaymentProductPopupModuleFrontController extends ModuleFrontContr
     }
 
     /** @param array<string, mixed> $row */
-    private function assertExistingOrderCurrency(array $row): void
+    private function assertExistingOrderCurrency(array $row): array
     {
         $attemptId = (int) ($row['id_attempt'] ?? 0);
         $attempt = (new OrderAttemptRepository())->findById($attemptId);
         $snapshot = $attemptId > 0 ? (new FinancingSnapshotRepository())->findByAttempt($attemptId) : null;
         $this->assertExistingOrderReplayProvenance($row, $attempt, $snapshot, new OrderCurrencyGuard());
+
+        return $snapshot;
+    }
+
+    /** @param array<string, mixed> $shop @param array<string, mixed> $snapshot @param mixed $accepted */
+    private function validateReplayConsents(array $shop, array $snapshot, $accepted): void
+    {
+        (new ConsentResolver())->validate($shop, $accepted, $snapshot);
     }
 
     /** @param array<string, mixed> $row @param array<string, mixed>|null $attempt @param array<string, mixed>|null $snapshot */

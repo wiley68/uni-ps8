@@ -25,6 +25,7 @@
         data-invalid-email-message="{l s='Въведете валиден e-mail адрес, например name@example.com.' d='Modules.Unipayment.Shop'}"
         data-invalid-egn-message="{l s='ЕГН трябва да съдържа 10 цифри. Първите 8 трябва да са валидна дата във формат ГГГГММДД.' d='Modules.Unipayment.Shop'}"
         data-invalid-phone2-message="{l s='Вторият телефон може да съдържа цифри, интервали, +, -, ( и ).' d='Modules.Unipayment.Shop'}"
+        data-consent-context-invalid-message="{l s='Обновете страницата и изберете схема отново.' d='Modules.Unipayment.Shop'}"
         data-calculate-failed-message="{l s='Неуспешно изчисление. Моля, опитайте отново.' d='Modules.Unipayment.Shop'}"
         data-add-to-cart-failed-message="{l s='Не може да се добави в количката.' d='Modules.Unipayment.Shop'}"
         data-customer-form-missing-message="{l s='Формата за лични данни не се зареди. Моля, презаредете страницата.' d='Modules.Unipayment.Shop'}"
@@ -264,12 +265,13 @@
                                     aria-label="{l s='Съгласия' d='Modules.Unipayment.Shop'}">
                                     {foreach from=$unipayment_popup.consents item=consent}
                                         <div
-                                            class="unipayment-product-calculator__consent{if !$consent.has_checkbox} unipayment-product-calculator__consent--info{/if}">
+                                            class="unipayment-product-calculator__consent{if !$consent.has_checkbox} unipayment-product-calculator__consent--info{/if}" data-unipayment-consent-row="{$consent.id|intval}"
+                                            data-unipayment-interest-scope="{$consent.interest_scope|escape:'htmlall':'UTF-8'}" hidden>
                                             {if $consent.has_checkbox}
                                                 <input type="checkbox" class="unipayment-product-calculator__consent-checkbox"
                                                     id="unipayment-popup-consent-{$unipayment_calculator.product_id|intval}-{$consent.id|intval}"
                                                     name="unipayment_consent[]" value="{$consent.id|intval}"
-                                                    data-unipayment-consent-checkbox data-unipayment-consent-id="{$consent.id|intval}">
+                                                    data-unipayment-consent-checkbox disabled data-unipayment-consent-id="{$consent.id|intval}">
                                                 <label class="unipayment-product-calculator__consent-label"
                                                     for="unipayment-popup-consent-{$unipayment_calculator.product_id|intval}-{$consent.id|intval}">
                                                     {if $consent.url}

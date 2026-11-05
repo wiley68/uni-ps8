@@ -39,8 +39,13 @@ final class CheckoutPaymentValidator
         $this->consents = $consents;
     }
 
-    /** @param array<string, mixed> $shop @param array<string, mixed> $posted @param array<string, mixed> $customer */
-    public function validate(array $shop, CartContext $cart, string $currencyIso, array $posted, array $customer): ValidatedPaymentRequest
+    /**
+     * @param array<string, mixed> $shop
+     * @param array<string, mixed> $posted
+     * @param array<string, mixed> $customer
+     * @param array<string, mixed>|null $effectiveConsentSelection Persisted server selection only, never browser input.
+     */
+    public function validate(array $shop, CartContext $cart, string $currencyIso, array $posted, array $customer, ?array $effectiveConsentSelection = null): ValidatedPaymentRequest
     {
         if (!$this->currencyGate->supports($currencyIso)) {
             throw new CheckoutValidationException('This payment method is unavailable for the selected currency.');
@@ -65,12 +70,12 @@ final class CheckoutPaymentValidator
             throw new CheckoutValidationException('The selected financing scheme cannot be calculated.', 0, $exception);
         }
         $validatedCustomer = $this->customers->validate($shop, $customer, $posted);
-        $accepted = $this->consents->validate($shop, $posted['consent'] ?? []);
+        $accepted = $this->consents->validate($shop, $posted['consent'] ?? [], $effectiveConsentSelection ?? $this->consents->selection($calculation));
         $acceptedConsents = array_values(array_filter($this->consents->normalize($shop), static function (array $consent) use ($accepted): bool {
             return in_array($consent['id'], $accepted, true);
         }));
 
-        return new ValidatedPaymentRequest($calculation, $validatedCustomer, $accepted, $fingerprint, $acceptedConsents);
+        return new ValidatedPaymentRequest($calculation, $validatedCustomer, $accepted, $fingerprint, $acceptedConsents, $this->consents->parseAcceptedIds($posted['consent'] ?? []));
     }
 
     /** @param AvailableScheme[] $schemes */

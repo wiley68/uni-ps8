@@ -6,6 +6,8 @@ use PrestaShop\Module\Unipayment\Calculator\Calculator;
 use PrestaShop\Module\Unipayment\Cart\CartContextFactory;
 use PrestaShop\Module\Unipayment\Cart\CartSchemeResolver;
 use PrestaShop\Module\Unipayment\Checkout\CheckoutPaymentCalculator;
+use PrestaShop\Module\Unipayment\Checkout\CartSnapshot;
+use PrestaShop\Module\Unipayment\Checkout\CartSnapshotSigner;
 
 final class UnipaymentCheckoutCalculateModuleFrontController extends ModuleFrontController
 {
@@ -43,16 +45,19 @@ final class UnipaymentCheckoutCalculateModuleFrontController extends ModuleFront
             $module = $this->module;
             $shop = $module->getShopConfigurationService()->get();
             $calculator = new Calculator();
+            $cart = (new CartContextFactory())->createForCheckout($this->context->cart);
+            $currencyIso = (new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($this->context->cart, $this->context);
             $calculation = (new CheckoutPaymentCalculator($calculator, new CartSchemeResolver($calculator)))->calculate(
                 $shop,
-                (new CartContextFactory())->createForCheckout($this->context->cart),
-                (new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($this->context->cart, $this->context),
+                $cart,
+                $currencyIso,
                 [
                     'scheme_key' => $schemeKey,
                     'kop_code' => $kopCode,
                     'first_installment' => $firstRaw,
                 ]
             );
+            $calculation['cart_snapshot'] = (new CartSnapshotSigner(_COOKIE_KEY_))->sign((new CartSnapshot())->fingerprint($cart, $currencyIso));
 
             return ['success' => true, 'calculation' => $calculation];
         } catch (Throwable $exception) {

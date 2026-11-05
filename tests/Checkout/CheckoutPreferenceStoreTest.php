@@ -7,6 +7,9 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
+require_once dirname(__DIR__) . '/Support/TestSuiteGuard.php';
+
+use PrestaShop\Module\Unipayment\Tests\Support\TestSuiteGuard;
 
 use PrestaShop\Module\Unipayment\Checkout\CheckoutPreferenceStore;
 
@@ -62,7 +65,8 @@ try {
 
 $psRoot = dirname(__DIR__, 4);
 $config = $psRoot . '/config/config.inc.php';
-if (is_file($config)) {
+// The default suite must not bootstrap the shop or create guest/cookie state.
+if (TestSuiteGuard::allowsRuntimeIntegration() && is_file($config)) {
     require $config;
 
     /** @var Context $context */
@@ -80,6 +84,8 @@ if (is_file($config)) {
     assertCheckoutPreferenceStore($store->load($context->cookie, 91002, 0) === null, 'preference must be scoped to cart id');
     $store->clear($context->cookie);
     assertCheckoutPreferenceStore($store->load($context->cookie, 91001, 0) === null, 'clear must invalidate checkout preference');
+} else {
+    fwrite(STDOUT, "SKIP (checkout preference runtime section; use composer test:runtime with PS config)\n");
 }
 
 fwrite(STDOUT, "OK (Checkout preference cookie-safe persistence)\n");

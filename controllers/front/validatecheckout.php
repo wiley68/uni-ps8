@@ -66,24 +66,6 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             $module = $this->module;
             $shop = $module->getShopConfigurationService()->getForSubmission();
             $cart = (new CartContextFactory())->createForCheckout($this->context->cart);
-            $calculator = new Calculator();
-            $validator = new CheckoutPaymentValidator(
-                $calculator,
-                new CartSchemeResolver($calculator),
-                new CurrencyGate(),
-                new CartSnapshot(),
-                new CartSnapshotSigner(_COOKIE_KEY_),
-                new CustomerFieldValidator(),
-                new ConsentResolver()
-            );
-            $request = $validator->validate(
-                $shop,
-                $cart,
-                (new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($this->context->cart, $this->context),
-                $this->postedSelection(),
-                $module->getCheckoutCustomerData()
-            );
-            $shop['_is_mobile'] = $this->context->isMobile();
             $cpApi = $module->getControlPanelClient();
             $cpClient = new ControlPanelOrderClientAdapter($cpApi);
             $orchestrator = new OrderOrchestrator(
@@ -95,6 +77,27 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 new ControlPanelOrderPayloadBuilder(),
                 new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository()
             );
+            $currencyIso = (new \PrestaShop\Module\Unipayment\Calculator\CartCurrencyGuard())->supportedIso($this->context->cart, $this->context);
+            $cartSnapshot = new CartSnapshot();
+            $calculator = new Calculator();
+            $validator = new CheckoutPaymentValidator(
+                $calculator,
+                new CartSchemeResolver($calculator),
+                new CurrencyGate(),
+                $cartSnapshot,
+                new CartSnapshotSigner(_COOKIE_KEY_),
+                new CustomerFieldValidator(),
+                new ConsentResolver()
+            );
+            $request = $validator->validate(
+                $shop,
+                $cart,
+                $currencyIso,
+                $this->postedSelection(),
+                $module->getCheckoutCustomerData(),
+                $orchestrator->consentSelection($idShop, $idCart, $cartSnapshot->fingerprint($cart, $currencyIso), []) ?: null
+            );
+            $shop['_is_mobile'] = $this->context->isMobile();
             $result = $orchestrator->orchestrate($idShop, $idCart, $request, $shop, 'checkout');
             (new CheckoutPreferenceStore())->clear($this->context->cookie);
 

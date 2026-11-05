@@ -7,6 +7,7 @@ namespace PrestaShop\Module\Unipayment\Order;
 use PrestaShop\Module\Unipayment\Api\Exception\ConnectionException;
 use PrestaShop\Module\Unipayment\Api\Exception\HttpException;
 use PrestaShop\Module\Unipayment\Checkout\ValidatedPaymentRequest;
+use PrestaShop\Module\Unipayment\Checkout\ConsentResolver;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationFlags;
 
 final class OrderOrchestrator
@@ -58,9 +59,33 @@ final class OrderOrchestrator
         $this->mailDispatcher = $mailDispatcher;
     }
 
+    /**
+     * Read-only preflight; reservation below still determines the final operation.
+     * @param array<string, mixed> $fallback @return array<string, mixed>
+     */
+    public function consentSelection(int $idShop, int $idCart, string $fingerprint, array $fallback): array
+    {
+        $attempt = $this->attempts->findByIdentity($idShop, $idCart, $fingerprint);
+        $snapshot = $attempt !== null ? $this->snapshots->findByAttempt((int) $attempt['id_attempt']) : null;
+
+        return $snapshot ?? $fallback;
+    }
+
+    /** @param array<string, mixed> $shop @param array<string, mixed> $selection */
+    private function validateConsents(ValidatedPaymentRequest $request, array $shop, array $selection): void
+    {
+        $consents = new ConsentResolver();
+        $request->acceptedConsentIds = $consents->validate($shop, $request->submittedConsentIds, $selection);
+        $request->acceptedConsents = array_values(array_filter($consents->normalize($shop), static function (array $consent) use ($request): bool {
+            return in_array($consent['id'], $request->acceptedConsentIds, true);
+        }));
+    }
+
     /** @param array<string, mixed> $shop */
     public function orchestrate(int $idShop, int $idCart, ValidatedPaymentRequest $request, array $shop, string $submissionSource = 'checkout'): OrderOrchestrationResult
     {
+        $selection = (new ConsentResolver())->selection($request->calculation);
+        $this->validateConsents($request, $shop, $this->consentSelection($idShop, $idCart, $request->cartFingerprint, $selection));
         $attempt = $this->attempts->reserve($idShop, $idCart, $request->cartFingerprint);
         $attemptId = (int) $attempt['id_attempt'];
         $currencyGuard = new OrderCurrencyGuard();
@@ -70,6 +95,7 @@ final class OrderOrchestrator
             $existingSnapshot = $this->snapshots->findByAttempt($attemptId);
             if ($existingSnapshot !== null) {
                 $currencyGuard->assertMatchesSnapshot($existingOrder, $existingSnapshot);
+                $this->validateConsents($request, $shop, $existingSnapshot);
             } elseif ((string) $attempt['state'] === self::CP_CREATED) {
                 throw new \RuntimeException('The financing snapshot is unavailable for the created order.');
             }
@@ -98,6 +124,7 @@ final class OrderOrchestrator
         }
 
         $snapshot = $this->snapshots->findByAttempt($attemptId);
+        $this->validateConsents($request, $shop, $snapshot ?? $selection);
         if ((int) ($attempt['id_order'] ?? 0) > 0) {
             $order = $existingOrder;
             if ($snapshot === null) {
@@ -161,6 +188,7 @@ final class OrderOrchestrator
         }
 
         $currencyGuard->assertMatchesSnapshot($order, $snapshot);
+        $this->validateConsents($request, $shop, $snapshot);
         $savedPayload = $attempt['cp_payload'] ?? null;
         if ($savedPayload !== null && $savedPayload !== '') {
             $payload = $currencyGuard->decodeSavedCpPayload($savedPayload);

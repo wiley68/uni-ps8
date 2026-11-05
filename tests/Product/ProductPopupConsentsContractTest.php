@@ -34,6 +34,6 @@ assertProductPopupConsentsContract(strpos($javascript, 'resetConsents()') !== fa
 assertProductPopupConsentsContract(strpos($css, '[data-unipayment-calculator] .unipayment-product-calculator__consents') !== false, 'consent CSS is not module-scoped');
 assertProductPopupConsentsContract(strpos($presenter, "'consents' => \$this->consents->normalize(\$shop)") !== false, 'popup presenter must expose normalized CP consents');
 assertProductPopupConsentsContract(strpos($controller, "Tools::getValue('unipayment_consent', [])") !== false, 'popup apply must read posted consent ids');
-assertProductPopupConsentsContract(strpos($applyService, '$this->consents->validate($shop, $posted[\'consent\'] ?? [])') !== false, 'popup apply must re-validate consents server-side');
+assertProductPopupConsentsContract(strpos($applyService, '$this->consents->validate($shop, $posted[\'consent\'] ?? [], $consentSelection)') !== false, 'popup apply must re-validate consents server-side');
 
 fwrite(STDOUT, "OK (Product popup Step 2 consents contract)\n");

@@ -3,6 +3,7 @@
 
     var CALCULATE_DELAY = 900;
     var submitting = false;
+    var mounted = [];
 
     function parseConfig(root) {
         try {
@@ -63,6 +64,11 @@
         var calculateRequest = null;
         var lastCalculation = null;
         var previousFirstLocked = null;
+        var sequence = 0;
+        var consents = window.createUnipaymentShopConsents(root);
+        var consentGeneration = 0;
+        var disposed = false;
+        mounted.push(root);
 
         function showError(message) {
             if (!errorBox) return;
@@ -128,12 +134,16 @@
             var gpr = root.querySelector('[data-unipayment-display="gpr"]');
             if (glp) glp.textContent = (scheme.glp_display || "0.00") + "%";
             if (gpr) gpr.textContent = (scheme.gpr_display || "0.00") + "%";
-            lastCalculation = scheme;
-            showError("");
+            consentGeneration = consents.begin(selectionIdentity());
+            lastCalculation = consents.apply(consentGeneration, scheme.consent_context) ? scheme : null;
+            showError(lastCalculation ? "" : t(root, "data-consent-context-invalid-message", "Обновете страницата и изберете схема отново."));
         }
 
         function applyCalculation(calculation) {
+            if (!consents.apply(consentGeneration, calculation.consent_context)) throw new Error("consent_context");
             lastCalculation = calculation;
+            var cartSnapshot = root.querySelector('input[name="unipayment_cart_snapshot"]');
+            if (cartSnapshot && calculation.cart_snapshot) cartSnapshot.value = calculation.cart_snapshot;
             setDisplay(root, "price", calculation.price_display);
             setDisplay(
                 root,
@@ -170,7 +180,20 @@
             showError("");
         }
 
+        function selectionIdentity() {
+            var scheme = selectedScheme() || {};
+            return JSON.stringify([scheme.kop_code, scheme.months, scheme.filter_id, scheme.scheme_type]);
+        }
+
+        function invalidateCalculation() {
+            sequence += 1;
+            lastCalculation = null;
+            consentGeneration = consents.begin(selectionIdentity());
+        }
+
         function requestCalculation() {
+            invalidateCalculation();
+            var requestSequence = sequence;
             var endpoint = root.getAttribute("data-calculate-endpoint");
             var scheme = selectedScheme();
             if (!endpoint || !scheme)
@@ -208,6 +231,7 @@
             return fetch(endpoint, options)
                 .then(function (response) {
                     return response.json().then(function (body) {
+                        if (disposed || root.isConnected === false || requestSequence !== sequence) throw new Error("stale");
                         if (!response.ok || !body.success)
                             throw new Error(body.message || "calculation");
                         applyCalculation(body.calculation);
@@ -215,9 +239,10 @@
                     });
                 })
                 .catch(function (error) {
-                    if (error.name === "AbortError") throw error;
+                    if (error.name === "AbortError" || error.message === "stale" || disposed || root.isConnected === false || requestSequence !== sequence) throw error;
+                    lastCalculation = null;
                     showError(
-                        t(
+                        error.message === "consent_context" ? t(root, "data-consent-context-invalid-message", "Обновете страницата и изберете схема отново.") : t(
                             root,
                             "data-calculate-failed-message",
                             "Неуспешно изчисление. Моля, опитайте отново.",
@@ -228,6 +253,7 @@
         }
 
         function scheduleCalculate() {
+            invalidateCalculation();
             window.clearTimeout(calculateTimer);
             calculateTimer = window.setTimeout(function () {
                 requestCalculation().catch(function () {});
@@ -235,14 +261,7 @@
         }
 
         function consentsOk() {
-            var boxes = root.querySelectorAll(
-                "[data-unipayment-consent-checkbox]",
-            );
-            if (!boxes.length) return true;
-            for (var i = 0; i < boxes.length; i += 1) {
-                if (!boxes[i].checked) return false;
-            }
-            return true;
+            return consents.ready();
         }
 
         function process2Ok() {
@@ -300,6 +319,10 @@
                         "Заявката вече се обработва. Моля, изчакайте.",
                     ),
                 );
+                return false;
+            }
+            if (disposed || root.isConnected === false || !lastCalculation || !consents.resolved()) {
+                showError("Изчакайте изчислението или обновете страницата.");
                 return false;
             }
             if (!consentsOk()) {
@@ -375,38 +398,54 @@
             });
         }
 
+        function submit(event) {
+            if (!validateBeforeSubmit()) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                return false;
+            }
+            syncHidden();
+            markSubmitting();
+            return true;
+        }
         if (form) {
-            form.addEventListener("submit", function (event) {
-                if (!validateBeforeSubmit()) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    return false;
-                }
-                syncHidden();
-                markSubmitting();
-                return true;
-            });
+            // PrestaShop triggers jQuery submit after its asynchronous orderability check.
+            if (window.jQuery) window.jQuery(form).on("submit.unipaymentConsents", submit);
+            else form.addEventListener("submit", submit);
         }
 
-        document.addEventListener(
-            "click",
-            function (event) {
-                var button = event.target.closest(
-                    "#payment-confirmation button",
-                );
-                if (!button) return;
-                var payment = document.querySelector(
-                    'input[name="payment-option"][data-module-name="unipayment"]',
-                );
-                if (!payment || !payment.checked) return;
-                if (!root.offsetParent && root.hidden) return;
-                if (!validateBeforeSubmit()) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                }
-            },
-            true,
-        );
+        function confirmClick(event) {
+            var button = event.target.closest(
+                "#payment-confirmation button",
+            );
+            if (!button) return;
+            var payment = document.querySelector(
+                'input[name="payment-option"][data-module-name="unipayment"]',
+            );
+            if (!payment || !payment.checked) return;
+            if (!root.offsetParent && root.hidden) return;
+            if (!validateBeforeSubmit()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        }
+        document.addEventListener("click", confirmClick, true);
+        root.unipaymentCheckoutInvalidate = function () {
+            window.clearTimeout(calculateTimer);
+            invalidateCalculation();
+        };
+        root.unipaymentCheckoutRecalculate = function () {
+            requestCalculation().catch(function () {});
+        };
+        root.unipaymentCheckoutDestroy = function () {
+            disposed = true;
+            root.unipaymentCheckoutInvalidate();
+            consents.destroy();
+            if (calculateRequest) calculateRequest.abort();
+            if (form && window.jQuery) window.jQuery(form).off("submit.unipaymentConsents", submit);
+            else if (form) form.removeEventListener("submit", submit);
+            document.removeEventListener("click", confirmClick, true);
+        };
 
         if (
             config.preselect_payment &&
@@ -430,7 +469,28 @@
     }
 
     function initialize() {
+        mounted = mounted.filter(function (root) {
+            if (root.isConnected !== false) return true;
+            root.unipaymentCheckoutDestroy();
+            return false;
+        });
         document.querySelectorAll("[data-unipayment-checkout]").forEach(setup);
+    }
+
+    function invalidateForms() {
+        mounted.forEach(function (root) { root.unipaymentCheckoutInvalidate(); });
+    }
+    function refreshForms() {
+        invalidateForms();
+        initialize();
+        mounted.forEach(function (root) { root.unipaymentCheckoutRecalculate(); });
+    }
+    // Invalidate before delivery/cart AJAX, not only after its response.
+    document.addEventListener("change", function (event) {
+        if (event.target.closest && event.target.closest("#js-delivery, #checkout-addresses-step")) invalidateForms();
+    }, true);
+    if (typeof MutationObserver === "function") {
+        new MutationObserver(initialize).observe(document.body, { childList: true, subtree: true });
     }
 
     if (document.readyState === "loading") {
@@ -439,7 +499,9 @@
         initialize();
     }
     if (window.prestashop && typeof window.prestashop.on === "function") {
-        window.prestashop.on("updatedDeliveryForm", initialize);
+        window.prestashop.on("updateCart", invalidateForms);
+        window.prestashop.on("updatedCart", refreshForms);
+        window.prestashop.on("updatedDeliveryForm", refreshForms);
         window.prestashop.on("changedCheckoutStep", initialize);
     }
 })();

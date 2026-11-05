@@ -11,6 +11,9 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
+require_once dirname(__DIR__) . '/Support/TestSuiteGuard.php';
+
+use PrestaShop\Module\Unipayment\Tests\Support\TestSuiteGuard;
 
 use PrestaShop\Module\Unipayment\Product\ProductPopupCheckoutPreselectionException;
 use PrestaShop\Module\Unipayment\Product\ProductPopupPreselectOperationGuard;
@@ -113,7 +116,8 @@ assertPreselectGuard(
 
 $psRoot = dirname(__DIR__, 4);
 $config = $psRoot . '/config/config.inc.php';
-if (is_file($config)) {
+// The default suite must not bootstrap the shop or create guest/cookie state.
+if (TestSuiteGuard::allowsRuntimeIntegration() && is_file($config)) {
     require $config;
 
     $cookie = new Cookie('ps-preselect-guard-' . bin2hex(random_bytes(3)));
@@ -129,6 +133,8 @@ if (is_file($config)) {
         !isset($cookie->{ProductPopupPreselectOperationGuard::LEGACY_MUTATION_COOKIE}),
         'legacy mutation marker must be cleared safely'
     );
+} else {
+    fwrite(STDOUT, "SKIP (preselect guard cookie runtime section; use composer test:runtime with PS config)\n");
 }
 
 fwrite(STDOUT, "OK (Product popup preselect operation guard)\n");

@@ -297,10 +297,11 @@ try {
 
 // Phase 4 preparation: direct CP push replacement is a full snapshot and makes no outbound request.
 $callsBeforePush = $provider->calls;
-$pushed = unipayment_valid_shop_snapshot(['id' => 10, 'consents' => [['id' => 5, 'name' => 'C', 'mandatory' => 1]]]);
+$pushed = unipayment_valid_shop_snapshot(['id' => 10, 'consents' => [['id' => 5, 'name' => 'C', 'mandatory' => 1, 'interest_scope' => 'nonzero_interest']]]);
 assertPhase3($service->replaceSnapshot($unicid, $pushed), 'push snapshot replacement failed');
 assertPhase3(!isset($cache->rows[$unicid]['uni_user']), 'push cache strips credentials');
 assertPhase3(($cache->rows[$unicid]['consents'][0]['name'] ?? '') === 'C', 'push snapshot was merged instead of replaced');
+assertPhase3(($cache->rows[$unicid]['consents'][0]['interest_scope'] ?? '') === 'nonzero_interest', 'push cache must preserve consent interest scope');
 assertPhase3($provider->calls === $callsBeforePush, 'push replacement made an outbound request');
 $hydratedPush = $service->get();
 assertPhase3(($hydratedPush['uni_user'] ?? '') === 'demo-user', 'push path hydrates credentials');
