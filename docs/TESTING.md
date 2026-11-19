@@ -28,6 +28,19 @@ but an optional runtime section was skipped. Skip reasons and filenames are prin
 Runtime sections remain disabled in the default suite. The JavaScript script runs
 both the product helper checks and the consent lifecycle/race harness.
 
+### 2.0.4 release verification — 2026-11-19
+
+UNI-PS8-ADS-001 removes the merchant advertisement switch and ignores legacy local advertising values at runtime. CP visibility, cache TTL, push replacement, manual refresh and fallback remain authoritative and unchanged. No schema migration or financial/payment flow change is included. Owner browser acceptance on PrestaShop 8.2.5: **PS01–PS08, 8/8 PASS**; UNI-PS8-ADS-002 audit: **READY**.
+
+- Advertising hooks: **26/26 isolated scenarios PASS**, with in-memory DB/configuration and intercepted DNS/cURL only.
+- Release safe suite: **92 passed, 7 skipped, 2 partial, 0 failed**, including `DistributionPackageTest.php` with disposable packaging fixtures.
+- Both JavaScript tests PASS, including **76 consent assertions**; changed/new PHP syntax, Composer validation and `git diff --check` PASS.
+- ADS-001/ADS-002 baseline: **91 passed, 8 skipped, 2 partial, 0 failed**. The eighth skip was ZIP generation excluded by those tasks; release verification now executes and passes that test.
+
+The seven remaining skips are the runtime suites for CP status-sync CAS empty strings, order bank-status persistence, Product Buy checkout preselection, guest identity, popup submission repository, SmartUCF lifecycle repository, and destructive uninstall/purge. The two partial results are the checkout preference and popup preselect operation-guard tests: unit assertions pass; live runtime sections are skipped. No installed-shop DB integration or bank operation is executed.
+
+The restored production `vendor/` lacks the `Tests\Support` dev autoload mapping. Verification uses a temporary `auto_prepend_file` autoloader through `PHP_INI_SCAN_DIR`; it leaves installed `vendor/` unchanged. Test fixtures and the bootstrap live under a private system temporary directory and are removed afterward. `composer test:verify-dev-state` is not run because it bootstraps the installed shop.
+
 ## Runtime integration (non-destructive)
 
 Explicit opt-in for tests that bootstrap PrestaShop and mutate scoped temporary records:
@@ -95,7 +108,7 @@ For destructive integration, prefer a disposable PrestaShop database such as `pr
 ```bash
 composer test:package
 composer package
-php tools/verify-distribution.php dist/ps8_uni_2.0.3.zip
+php tools/verify-distribution.php dist/ps8_uni_2.0.4.zip
 ```
 
 `DistributionPackageTest.php` is also included in `composer test`. It builds twice in a disposable checkout under the system temporary directory, with a locked offline dev-only dependency fixture. The checkout reads existing Git objects without creating commits or changing the live Git index. No PrestaShop bootstrap or DB writes occur; synthetic credential/certificate exclusion fixtures never touch local shop secrets.

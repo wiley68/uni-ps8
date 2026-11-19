@@ -2,6 +2,14 @@
 
 All notable production releases of the UniPayment PrestaShop 8 module are documented here.
 
+## 2.0.4 — 2026-11-19
+
+- UNI-PS8-ADS-001: remove the merchant-side advertisement visibility switch; Control Panel `uni_container_status` remains the sole advertisement visibility setting, subject to existing homepage, module and shop eligibility conditions.
+- Ignore legacy `UNIPAYMENT_ADVERTISING_ENABLED` values at runtime and preserve stored values and uninstall cleanup.
+- Preserve existing CP cache, push replacement, manual refresh and fallback behavior, advertising presentation and assets.
+- Owner browser acceptance on PrestaShop 8.2.5: PS01–PS08, 8/8 PASS.
+- No database schema migration, upgrade script, financial calculation or payment/order flow change.
+
 ## 2.0.3 — 2026-09-18
 
 - Satrudnik operational failure notification for canonical statuses `bank_send_failed_cp` and `bank_send_failed_smartucf` (best-effort, once-guard via `leasing_email_sent`).

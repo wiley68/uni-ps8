@@ -43,7 +43,7 @@ $tables = ModuleSchemaInventory::tableNames();
 assertAud006Db(ModuleSchemaInventory::installAll($db), 'precondition install full module schema');
 
 $repo = new ConfigurationRepository();
-$repo->save(true, 'aud006-test-unicid', 'aud006-test-secret-value-xxxx', false, false);
+$repo->save(true, 'aud006-test-unicid', 'aud006-test-secret-value-xxxx', false);
 $tokens = new TokenRepository();
 $tokens->save('aud006-access-token', 'Bearer', time() + 3600);
 Configuration::updateValue('UNIPAYMENT_CHECKOUT_LOCK_1_1', (string) (time() + 60));

@@ -27,41 +27,37 @@ assertAdvertisingGate(!$gate->allowsPage('order'), 'checkout must not load homep
 assertAdvertisingGate(!$gate->allowsPage('category'), 'category listing must not load homepage advertising');
 
 assertAdvertisingGate(
-    $gate->allowsLocalSettings(true, true, true, 'SHOP-1'),
-    'enabled module + advertising flag + UNICID must pass the local settings gate'
+    $gate->allowsLocalSettings(true, true, 'SHOP-1'),
+    'enabled module + UNICID must pass the local settings gate'
 );
 assertAdvertisingGate(
-    !$gate->allowsLocalSettings(false, true, true, 'SHOP-1'),
+    !$gate->allowsLocalSettings(false, true, 'SHOP-1'),
     'inactive module must not enqueue homepage advertising'
 );
 assertAdvertisingGate(
-    !$gate->allowsLocalSettings(true, false, true, 'SHOP-1'),
+    !$gate->allowsLocalSettings(true, false, 'SHOP-1'),
     'disabled UNIPAYMENT_ENABLED must not enqueue homepage advertising'
 );
 assertAdvertisingGate(
-    !$gate->allowsLocalSettings(true, true, false, 'SHOP-1'),
-    'UNIPAYMENT_ADVERTISING_ENABLED=0 must not enqueue homepage advertising'
-);
-assertAdvertisingGate(
-    !$gate->allowsLocalSettings(true, true, true, ''),
+    !$gate->allowsLocalSettings(true, true, ''),
     'missing UNICID must not enqueue homepage advertising'
 );
 assertAdvertisingGate(
-    !$gate->allowsLocalSettings(true, true, true, '   '),
+    !$gate->allowsLocalSettings(true, true, '   '),
     'whitespace UNICID must not enqueue homepage advertising'
 );
 
 assertAdvertisingGate(
-    $gate->allowsAssets('index', true, true, true, 'SHOP-1'),
+    $gate->allowsAssets('index', true, true, 'SHOP-1'),
     'homepage + local settings must allow asset enqueue'
 );
 assertAdvertisingGate(
-    !$gate->allowsAssets('product', true, true, true, 'SHOP-1'),
+    !$gate->allowsAssets('product', true, true, 'SHOP-1'),
     'valid settings on a non-home page must still skip advertising assets'
 );
 assertAdvertisingGate(
-    !$gate->allowsAssets('index', true, true, false, 'SHOP-1'),
-    'homepage with advertising disabled must skip advertising assets'
+    !$gate->allowsAssets('index', true, false, 'SHOP-1'),
+    'homepage with module disabled must skip advertising assets'
 );
 
 assertAdvertisingGate($gate->allowsShop(['uni_status' => 1, 'uni_container_status' => 1]), 'active CP shop + container must render');

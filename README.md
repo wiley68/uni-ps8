@@ -5,9 +5,9 @@ Native PrestaShop 8 module for **UniCredit financing** (credit calculator, check
 | Item                  | Value                        |
 | --------------------- | ---------------------------- |
 | Module technical name | `unipayment`                 |
-| Current version       | `2.0.3`                      |
+| Current version       | `2.0.4`                      |
 | Repository root       | Module root (this directory) |
-| Current state         | First production release     |
+| Current state         | Centralized advertisement control |
 
 The repository is a working PrestaShop module, not a skeleton. Install, calculators, checkout, order orchestration, configuration cache, SmartUCF, signed inbound APIs, and persistence are implemented.
 
@@ -15,7 +15,7 @@ The repository is a working PrestaShop module, not a skeleton. Install, calculat
 
 Verified against the current codebase:
 
-- **Homepage / promotional advertising** — optional homepage content when advertising is enabled and shop configuration allows it (`HomepageAdvertisingPresenter`)
+- **Homepage / promotional advertising** — Control Panel `uni_container_status` controls visibility, subject to existing homepage, module and shop eligibility conditions (`HomepageAdvertisingPresenter`)
 - **Product financing calculator** — AJAX product calculator and popup apply flow
 - **Cart financing calculator** — cart scheme intersection and checkout selection
 - **Checkout payment method** — `PaymentModule` / `paymentOptions` hook
@@ -81,12 +81,13 @@ Merchant-facing module settings (Back Office → Modules → UniPayment → Conf
 | Enable module         | Master on/off (`UNIPAYMENT_ENABLED`)              |
 | UNICID                | Shop identifier for Control Panel authentication  |
 | Shared secret         | CP/module shared secret; stored encrypted at rest |
-| Advertising enabled   | Homepage promotional content gate                 |
 | Debug enabled         | Diagnostic behavior (see code for current scope)  |
 | Product button action | Add to cart vs buy (`add_to_cart` / `buy`)        |
 | Button top spacing    | Product page button offset (0–200 px)             |
 
 Business financing rules (KOP, coefficients, Process 1/2 flag, SmartUCF endpoints, consents, etc.) come from the **Control Panel shop configuration snapshot**, not from editable duplicate settings in the module.
+
+Since 2.0.4 (UNI-PS8-ADS-001), advertisement visibility is controlled only through CP. Legacy `UNIPAYMENT_ADVERTISING_ENABLED` values are ignored at runtime and preserved in storage; CP cache, push, refresh and fallback behavior are unchanged. No schema migration or financial/payment flow change is required. Owner acceptance on PrestaShop 8.2.5: PS01–PS08, 8/8 PASS.
 
 Do not commit real UNICID, secrets, certificates, or tokens.
 
@@ -113,7 +114,7 @@ Build and verify the installable ZIP without changing the source `vendor/`:
 
 ```bash
 composer package
-php tools/verify-distribution.php dist/ps8_uni_2.0.3.zip
+php tools/verify-distribution.php dist/ps8_uni_2.0.4.zip
 ```
 
 The filename version is read from `unipayment.php`. `dist/` is local and Git-ignored; never commit generated archives. PS8 packages retain the existing runtime configuration and certificate passphrase code; handle the ZIP as a sensitive deployment artifact. No PS9 environment or secret files are introduced.

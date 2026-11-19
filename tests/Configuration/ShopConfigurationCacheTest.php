@@ -71,6 +71,7 @@ use PrestaShop\Module\Unipayment\Api\Exception\AuthenticationException;
 use PrestaShop\Module\Unipayment\Api\Exception\ConnectionException;
 use PrestaShop\Module\Unipayment\Api\Exception\HttpException;
 use PrestaShop\Module\Unipayment\Api\ShopConfigurationProviderInterface;
+use PrestaShop\Module\Unipayment\Advertising\HomepageAdvertisingPresenter;
 use PrestaShop\Module\Unipayment\Configuration\ConfigurationRepository;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationCacheInterface;
 use PrestaShop\Module\Unipayment\Configuration\ShopConfigurationService;
@@ -220,7 +221,7 @@ $expiredRefresh = $service->get();
 assertPhase3($provider->calls === 2 && $expiredRefresh['uni_zaglavie'] === 'v2', 'expired cache was not refreshed');
 
 // Manual refresh: bypass a fresh cache row.
-$provider->responses[] = ['success' => true, 'data' => unipayment_valid_shop_snapshot(['id' => 10, 'uni_zaglavie' => 'v3'])];
+$provider->responses[] = ['success' => true, 'data' => unipayment_valid_shop_snapshot(['id' => 10, 'uni_zaglavie' => 'v3', 'uni_container_status' => 1])];
 $manualRefresh = $service->get(true);
 assertPhase3($provider->calls === 3 && $manualRefresh['uni_zaglavie'] === 'v3', 'forced refresh used cached data');
 
@@ -230,6 +231,7 @@ $cache->expiresAt = time() - 3600;
 $provider->responses[] = new ConnectionException('temporary transport failure');
 $lkg = $service->get();
 assertPhase3(($lkg['uni_zaglavie'] ?? '') === 'v3', 'eligible transient presentation did not use LKG');
+assertPhase3((new HomepageAdvertisingPresenter())->present($lkg, false, '/logo.svg') !== null, 'eligible LKG must preserve CP-authorized advertising');
 
 // The same stale snapshot must never satisfy submission.
 $provider->responses[] = new ConnectionException('temporary transport failure');

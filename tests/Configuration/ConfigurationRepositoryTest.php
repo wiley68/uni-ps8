@@ -77,7 +77,7 @@ if (!$repository->install() || !$repository->isEnabled()) {
     exit(1);
 }
 if (
-    $repository->isAdvertisingEnabled()
+    Configuration::$values[ConfigurationRepository::ADVERTISING_ENABLED] !== false
     || $repository->isDebugEnabled()
     || $repository->isSyncBankRejectionStateEnabled()
     || $repository->getProductButtonAction() !== ConfigurationRepository::BUTTON_ACTION_ADD_TO_CART
@@ -88,12 +88,12 @@ if (
 }
 
 $plainSecret = 'local-test-value';
-if (!$repository->save(false, '123e4567-e89b-12d3-a456-426614174000', $plainSecret, true, true, ConfigurationRepository::BUTTON_ACTION_BUY, 24, true)) {
+if (!$repository->save(false, '123e4567-e89b-12d3-a456-426614174000', $plainSecret, true, ConfigurationRepository::BUTTON_ACTION_BUY, 24, true)) {
     fwrite(STDERR, "FAIL: configuration was not saved\n");
     exit(1);
 }
 if (
-    !$repository->isAdvertisingEnabled()
+    Configuration::$values[ConfigurationRepository::ADVERTISING_ENABLED] !== false
     || !$repository->isDebugEnabled()
     || !$repository->isSyncBankRejectionStateEnabled()
     || $repository->getProductButtonAction() !== ConfigurationRepository::BUTTON_ACTION_BUY
@@ -120,7 +120,7 @@ if (Configuration::$values[ConfigurationRepository::SECRET] !== $storedSecret) {
     exit(1);
 }
 
-$repository->save(true, '123e4567-e89b-12d3-a456-426614174000', null, false, false, 'invalid', -10);
+$repository->save(true, '123e4567-e89b-12d3-a456-426614174000', null, false, 'invalid', -10);
 if (
     $repository->getProductButtonAction() !== ConfigurationRepository::BUTTON_ACTION_ADD_TO_CART
     || $repository->getButtonTopSpacing() !== 0
@@ -129,6 +129,28 @@ if (
     exit(1);
 }
 
+foreach ([0, 1, null] as $legacyValue) {
+    unset(Configuration::$values[ConfigurationRepository::ADVERTISING_ENABLED]);
+    if ($legacyValue !== null) {
+        Configuration::$values[ConfigurationRepository::ADVERTISING_ENABLED] = $legacyValue;
+    }
+    $repository->save(true, '123e4567-e89b-12d3-a456-426614174000', null, true, ConfigurationRepository::BUTTON_ACTION_BUY, 24, true);
+    if (
+        (Configuration::$values[ConfigurationRepository::ADVERTISING_ENABLED] ?? null) !== $legacyValue
+        || !$repository->isEnabled()
+        || !$repository->isDebugEnabled()
+        || !$repository->isSyncBankRejectionStateEnabled()
+        || $repository->getProductButtonAction() !== ConfigurationRepository::BUTTON_ACTION_BUY
+        || $repository->getButtonTopSpacing() !== 24
+        || Configuration::$values[ConfigurationRepository::SECRET] !== $storedSecret
+    ) {
+        fwrite(STDERR, "FAIL: save changed the legacy advertising value or unrelated settings\n");
+        exit(1);
+    }
+}
+
+// Only the in-memory Configuration double is touched by this lifecycle check.
+Configuration::$values[ConfigurationRepository::ADVERTISING_ENABLED] = 1;
 if (!$repository->uninstall() || Configuration::$values !== []) {
     fwrite(STDERR, "FAIL: module configuration was not removed\n");
     exit(1);

@@ -82,10 +82,10 @@ From the module's Git checkout, with the existing local `composer.lock` availabl
 
 ```bash
 composer package
-php tools/verify-distribution.php dist/ps8_uni_2.0.3.zip
+php tools/verify-distribution.php dist/ps8_uni_2.0.4.zip
 ```
 
-The output is `dist/ps8_uni_<MODULE_VERSION>.zip`, currently `dist/ps8_uni_2.0.3.zip`. The build CLI needs Composer, Git, PHP SimpleXML and a PHP zip extension supporting `ZipArchive::setMtimeName` (the current PHP 8.4 build CLI supports it). Module runtime compatibility remains PHP ≥ 7.4.
+The output is `dist/ps8_uni_<MODULE_VERSION>.zip`, currently `dist/ps8_uni_2.0.4.zip`. The build CLI needs Composer, Git, PHP SimpleXML and a PHP zip extension supporting `ZipArchive::setMtimeName` (the current PHP 8.4 build CLI supports it). Module runtime compatibility remains PHP ≥ 7.4.
 
 The command copies current tracked and non-ignored new runtime files into a private staging tree, installs locked production dependencies there using `--no-dev --prefer-dist --optimize-autoloader --no-plugins --no-scripts`, verifies the ZIP, and removes staging files. Source `vendor/`, configuration and the lockfile are not modified. Packaged Composer metadata omits dev autoload, dev requirements and project scripts; the source lockfile is a build input and is not shipped with the normalized metadata.
 
@@ -132,13 +132,14 @@ Back Office → Modules → UniPayment → Configure:
 | Enable              | Master switch                                                 |
 | UNICID              | Control Panel shop identifier                                 |
 | Shared secret       | Must match Control Panel; stored encrypted (`enc:v1:` prefix) |
-| Advertising         | Homepage promotional block                                    |
 | Debug               | Module debug flag                                             |
 | Product button      | Add to cart vs buy                                            |
 | Button spacing      | Pixel offset for product button                               |
 | Sync bank rejection | Optional PS order-state sync on bank rejection                |
 
 After saving credentials, the shop configuration cache is cleared and will refresh on next use.
+
+Advertisement visibility is managed in Control Panel through `uni_container_status`, subject to the existing homepage, module enablement, UNICID and `uni_status` checks. Version 2.0.4 removes the merchant advertising switch (UNI-PS8-ADS-001). Existing local advertising values are preserved and ignored at runtime; cache TTL, CP push replacement, manual refresh and fallback remain unchanged. This release requires no schema migration or upgrade script and does not change financial calculations or payment/order flows. Owner acceptance on PrestaShop 8.2.5: PS01–PS08, 8/8 PASS.
 
 **Do not** enter production secrets into documentation or tickets.
 

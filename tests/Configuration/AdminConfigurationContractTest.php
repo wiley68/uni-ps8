@@ -21,9 +21,12 @@ assertAdminConfiguration(substr_count($template, '<button ') === 3, 'admin UI mu
 foreach (['submitUnipaymentConnect', 'submitUnipaymentLogout', 'Control Panel status'] as $removed) {
     assertAdminConfiguration(strpos($template, $removed) === false && strpos($module, "Tools::isSubmit('{$removed}')") === false, "removed admin control {$removed} is still exposed");
 }
-foreach (['UNIPAYMENT_ADVERTISING_ENABLED', 'UNIPAYMENT_DEBUG_ENABLED', 'UNIPAYMENT_PRODUCT_BUTTON_ACTION', 'UNIPAYMENT_BUTTON_TOP_SPACING'] as $field) {
+foreach (['UNIPAYMENT_ENABLED', 'UNIPAYMENT_UNICID', 'UNIPAYMENT_SECRET', 'UNIPAYMENT_DEBUG_ENABLED', 'UNIPAYMENT_PRODUCT_BUTTON_ACTION', 'UNIPAYMENT_BUTTON_TOP_SPACING'] as $field) {
     assertAdminConfiguration(strpos($template, 'name="' . $field . '"') !== false, "admin setting {$field} is missing");
 }
+assertAdminConfiguration(strpos($template, 'UNIPAYMENT_ADVERTISING_ENABLED') === false, 'obsolete advertising control is still exposed');
+assertAdminConfiguration(strpos($module, 'UNIPAYMENT_ADVERTISING_ENABLED') === false, 'module still loads or submits the obsolete advertising setting');
+assertAdminConfiguration(strpos($module, 'unipayment_advertising_enabled') === false, 'obsolete advertising view variable is still assigned');
 assertAdminConfiguration(strpos($module, '$credentialsChanged =') !== false, 'credential-change detection was removed');
 assertAdminConfiguration(strpos($module, '$tokens->invalidate();') !== false, 'credential change no longer invalidates tokens');
 assertAdminConfiguration(strpos($module, 'ShopConfigurationCache())->clear();') !== false, 'credential change no longer clears shop cache');
