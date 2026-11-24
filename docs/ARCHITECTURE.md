@@ -91,14 +91,14 @@ Distinction comes from CP shop snapshot field **`uni_proces`**:
 |                    | Process 1                                | Process 2                  |
 | ------------------ | ---------------------------------------- | -------------------------- |
 | `uni_proces`       | `0` (default)                            | `1`                        |
-| EGN / second phone | Not required                             | Required at checkout/popup |
+| EGN / second phone | Empty hidden fields in Classic Checkout  | Omitted from the form      |
 | SmartUCF           | Session started after successful CP order | Skipped                    |
 | Post-submit UX     | SmartUCF redirect or native confirmation | Native order confirmation  |
 | CP create          | Same canonical create schema             | Same canonical create schema |
 
 **Authoritative public bank-status rules** (labels and when each applies): see **§3.1** below. Do not treat internal lifecycle / sync / retry states as public bank statuses.
 
-Helper: `ShopConfigurationFlags::isProcess2($shop)`.
+Helper: `ShopConfigurationFlags::isProcess2($shop)`. Product and Cart collect first name, last name, address, primary phone and email. Checkout reads the same five required values from the native customer and address. Mandatory consents are validated separately.
 
 ### After successful CP order
 
@@ -237,7 +237,6 @@ Used on pre-defined surfaces (admin UniCredit panel, Thank You when applicable, 
 
 **Allowed Process 2 adaptations** (only where privacy/business rules already permit):
 
-- admin surfaces may add **ЕГН** and/or **Втори телефон**;
 - customer Process 2 confirmation may add the agreed confirmation **Съобщение**;
 - never add diagnostic/lifecycle fields to this block.
 
@@ -459,8 +458,8 @@ Lock is released on validation/retryable errors; **not** released on success (ex
 | Data               | Storage                                                                                                                                              |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Customer / address | Plain JSON columns on financing snapshot                                                                                                             |
-| EGN, second phone  | Encrypted in `sensitive_payload` (`SensitiveDataCipher`)                                                                                             |
-| Email audience     | `EmailAudience::CUSTOMER` vs `ADMIN` — separate rendering; customer never receives EGN                                                               |
+| EGN, second phone  | New snapshots store `sensitive_payload = null`. Historical snapshots may retain the encrypted values. |
+| Email audience     | `EmailAudience::CUSTOMER` vs `ADMIN` — separate rendering; neither audience displays EGN or second phone                                                               |
 | Retention          | After 180 days (`created_at < cutoff`): redact `customer_json`, `address_json`, `sensitive_payload`; preserve `consents_json` and financing metadata |
 
 Opportunistic cleanup: `FinancingSnapshotRetentionService::maybeRun()` after snapshot save; max once per 24 h; batch 200 rows.

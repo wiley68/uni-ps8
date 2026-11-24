@@ -8,19 +8,21 @@ Release and packaging checklist for the UniPayment PrestaShop module.
 
 | Item           | Value                                      |
 | -------------- | ------------------------------------------ |
-| Module version | **2.0.4** (`unipayment.php`, `config.xml`, `config_bg.xml`) |
-| Project status | **Centralized advertisement banner control** |
+| Module version | **2.0.5** (`unipayment.php`, `config.xml`, `config_bg.xml`) |
+| Project status | **Process 2 customer field removal** |
 | Release notes  | [`../CHANGELOG.md`](../CHANGELOG.md)       |
 
 `2.0.0` remains the first production version. `2.0.1` is the canonical-amount and order-status lifecycle remediation. `2.0.2` is the scheme presentation, Cart representative, and Checkout parity release. `2.0.3` adds Satrudnik operational failure email for canonical bank-send failures.
 
 `2.0.4` (2026-11-19, UNI-PS8-ADS-001) removes the merchant advertisement switch. CP `uni_container_status` controls visibility under the existing homepage/module/shop conditions. Legacy local values are ignored at runtime and retained in storage; uninstall cleanup, CP cache TTL, push replacement, manual refresh and fallback are preserved. No schema migration, upgrade script or financial/payment flow change is required.
 
+`2.0.5` (2026-11-24, UNI-PS8-PROCESS2-FIELDS-001) removes EGN and secondary phone from Process 2 submission, new snapshots and presentation. Existing snapshots remain available for recovery. The release uses the existing database schema.
+
 ---
 
 ## 2. Version policy
 
-- Module version is **`2.0.4`** for this release
+- Module version is **`2.0.5`** for this release
 - Version metadata must stay consistent in `unipayment.php`, every module `config*.xml`, `FinancingSnapshotFactory` and `SmartUcfDiagnosticJournal`
 - **No historical upgrade scripts** for development-only schema iterations
 - After this release, future schema/configuration changes **must** use versioned PrestaShop upgrade files (`upgrade/upgrade-x.y.z.php`)
@@ -33,7 +35,7 @@ See [`INSTALLATION.md`](INSTALLATION.md) §8.
 
 ### Version and packaging
 
-- [x] Current module version is **2.0.4**
+- [x] Current module version is **2.0.5**
 - [x] Version in `unipayment.php`, `config.xml` and `config_bg.xml`
 - [ ] `composer package` installs production Composer dependencies in a private staging tree
 - [ ] Package includes production `vendor/`, all runtime source, module assets, mail templates and translations
@@ -99,7 +101,7 @@ Distributable archive name (automatically derived from the single literal `$this
 dist/ps8_uni_<MODULE_VERSION>.zip
 ```
 
-For the current release: `dist/ps8_uni_2.0.4.zip`. Missing, computed or ambiguous version declarations fail the build; packaged module and XML versions must agree with the filename.
+For the current release: `dist/ps8_uni_2.0.5.zip`. Missing, computed or ambiguous version declarations fail the build; packaged module and XML versions must agree with the filename.
 
 Archive root must be:
 
@@ -129,7 +131,7 @@ Include:
 The verifier checks archive layout, paths, symlinks, required files, module/XML version, production autoload/dependency metadata, manifest checksums and byte parity against the current source. Unknown packaged source files are rejected even if the manifest is recomputed. An ignored runtime file in the source directories causes failure rather than silent omission. New non-ignored runtime files are included before they are committed; review the working tree before building. The manifest is an inventory, not a cryptographic signature.
 
 ```bash
-php tools/verify-distribution.php dist/ps8_uni_2.0.4.zip
+php tools/verify-distribution.php dist/ps8_uni_2.0.5.zip
 ```
 
 Verification is against the **current checkout**, including its current Git SHA and local runtime edits; keep matching source when re-verifying an older artifact. A verified archive replaces the previous output only after successful validation. Failed builds remove staging and preserve any previous successful ZIP.

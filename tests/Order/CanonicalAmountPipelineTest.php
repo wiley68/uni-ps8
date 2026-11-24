@@ -19,7 +19,6 @@ use PrestaShop\Module\Unipayment\Checkout\ValidatedPaymentRequest;
 use PrestaShop\Module\Unipayment\Order\ControlPanelOrderPayloadBuilder;
 use PrestaShop\Module\Unipayment\Order\CreatedOrder;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotFactory;
-use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfPayloadBuilder;
 function assertCanonical(bool $ok, string $message): void { if (!$ok) { fwrite(STDERR, "FAIL: {$message}\n"); exit(1); } }
 $factorySource = (string) file_get_contents($root . '/src/Cart/CartContextFactory.php');
@@ -37,7 +36,7 @@ foreach ($cases as $label => $total) {
     $calculation = $calculator->calculateScheme($shop, $total, $scheme, 0.0);
     $request = new ValidatedPaymentRequest($calculation, [], [], hash('sha256', $label));
     $order = new CreatedOrder(1, 'CANONICAL001', $total, 'EUR', 1, [], [], [['id_product' => 42, 'id_product_attribute' => 0, 'name' => 'Product', 'quantity' => 1, 'total' => 800.0]]);
-    $snapshot = (new FinancingSnapshotFactory(new SensitiveDataCipher()))->create($request, $order);
+    $snapshot = (new FinancingSnapshotFactory())->create($request, $order);
     $cp = (new ControlPanelOrderPayloadBuilder())->build($snapshot, $shop, $order);
     $smart = (new SmartUcfPayloadBuilder(new \PrestaShop\Module\Unipayment\Order\OrderCurrencyGuard(static function (int $idOrder): array { return ['id_currency' => 1, 'currency_iso' => 'EUR']; })))->build($shop, $snapshot);
     assertCanonical($calculation->price === $total, "{$label}: calculation diverged");

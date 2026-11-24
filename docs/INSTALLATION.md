@@ -82,10 +82,10 @@ From the module's Git checkout, with the existing local `composer.lock` availabl
 
 ```bash
 composer package
-php tools/verify-distribution.php dist/ps8_uni_2.0.4.zip
+php tools/verify-distribution.php dist/ps8_uni_2.0.5.zip
 ```
 
-The output is `dist/ps8_uni_<MODULE_VERSION>.zip`, currently `dist/ps8_uni_2.0.4.zip`. The build CLI needs Composer, Git, PHP SimpleXML and a PHP zip extension supporting `ZipArchive::setMtimeName` (the current PHP 8.4 build CLI supports it). Module runtime compatibility remains PHP ≥ 7.4.
+The output is `dist/ps8_uni_<MODULE_VERSION>.zip`, currently `dist/ps8_uni_2.0.5.zip`. The build CLI needs Composer, Git, PHP SimpleXML and a PHP zip extension supporting `ZipArchive::setMtimeName` (the current PHP 8.4 build CLI supports it). Module runtime compatibility remains PHP ≥ 7.4.
 
 The command copies current tracked and non-ignored new runtime files into a private staging tree, installs locked production dependencies there using `--no-dev --prefer-dist --optimize-autoloader --no-plugins --no-scripts`, verifies the ZIP, and removes staging files. Source `vendor/`, configuration and the lockfile are not modified. Packaged Composer metadata omits dev autoload, dev requirements and project scripts; the source lockfile is a build input and is not shipped with the normalized metadata.
 
@@ -178,12 +178,12 @@ Checklist for a development or staging shop:
 - [ ] Cart calculator shows common schemes
 - [ ] UniPayment visible at checkout
 - [ ] **Process 1** test order: CP order created; SmartUCF redirect (if configured)
-- [ ] **Process 2** test order: EGN required; order confirmation; admin email contains EGN; customer email does not
+- [ ] **Process 2** test order: submit Product, Cart and Classic Checkout with first name, last name, address, primary phone and email, plus mandatory consents; verify order confirmation, emails and Back Office without EGN or secondary phone
 - [ ] Signed CP callback accepted (shop-cache push or bank status test from CP)
 - [ ] Admin order view shows financing details
 - [ ] Uninstall on a **test** instance only if validating purge behavior
 
-Use test data only. Do not use real customer EGN in non-production logs.
+Use synthetic test data only. Upgrading preserves historical snapshots and does not trigger a historical cleanup.
 
 ---
 

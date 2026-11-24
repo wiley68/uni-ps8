@@ -41,7 +41,6 @@ use PrestaShop\Module\Unipayment\Calculator\FirstInstallmentState;
 use PrestaShop\Module\Unipayment\Checkout\ValidatedPaymentRequest;
 use PrestaShop\Module\Unipayment\Order\CreatedOrder;
 use PrestaShop\Module\Unipayment\Order\FinancingSnapshotFactory;
-use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 use PrestaShop\Module\Unipayment\Product\PopupPreferredAddressSelector;
 
 function assertAud010(bool $ok, string $message): void
@@ -94,7 +93,7 @@ $purgerSrc = (string) file_get_contents($root . '/src/Uninstall/ModuleDataPurger
 assertAud010(strpos($purgerSrc, 'ps_address') === false && strpos($purgerSrc, 'Address::') === false, '19: AUD-006 does not delete native addresses');
 
 $moduleSrc = (string) file_get_contents($root . '/unipayment.php');
-assertAud010(strpos($moduleSrc, "version = '2.0.4'") !== false, 'version 2.0.4');
+assertAud010(strpos($moduleSrc, "version = '2.0.5'") !== false, 'version 2.0.5');
 
 // Snapshot financing email overlay
 $scheme = new AvailableScheme('standard', 'K1', 12, 0, null, ['coeff' => 1.0]);
@@ -141,7 +140,7 @@ $order = new CreatedOrder(
     ],
     []
 );
-$factory = new FinancingSnapshotFactory(new SensitiveDataCipher());
+$factory = new FinancingSnapshotFactory();
 $popupSnap = $factory->create($request, $order, 'product_popup');
 assertAud010($popupSnap['customer_json']['email'] === 'financing@example.com', '24: popup snapshot email = financing email');
 $checkoutSnap = $factory->create($request, $order, 'checkout');

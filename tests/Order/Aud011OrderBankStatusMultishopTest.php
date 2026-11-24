@@ -171,7 +171,7 @@ assertAud011(
     preg_match('/if \(\$result === null\)[\s\S]*404/', $ctrlSrc) === 1,
     '404 path preserved for not found'
 );
-assertAud011(strpos($moduleSrc = (string) file_get_contents($root . '/unipayment.php'), "version = '2.0.4'") !== false, 'version 2.0.4');
+assertAud011(strpos($moduleSrc = (string) file_get_contents($root . '/unipayment.php'), "version = '2.0.5'") !== false, 'version 2.0.5');
 
 function makeAud011Repo(Aud011FakeDb $db): OrderBankStatusRepository
 {

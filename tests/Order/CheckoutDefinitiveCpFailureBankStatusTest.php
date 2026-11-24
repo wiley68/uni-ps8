@@ -30,7 +30,6 @@ use PrestaShop\Module\Unipayment\Order\OrderAttemptStoreInterface;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\PrestaShopOrderGatewayInterface;
-use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 
 if (!defined('_NEW_COOKIE_KEY_')) {
     define('_NEW_COOKIE_KEY_', 'checkout-cp-fail-status-key');
@@ -276,7 +275,7 @@ foreach (
         new CheckoutCpStatusSnapshots(),
         new CheckoutCpStatusOrders($created),
         new CheckoutCpStatusCp(),
-        new FinancingSnapshotFactory(new SensitiveDataCipher()),
+        new FinancingSnapshotFactory(),
         new ControlPanelOrderPayloadBuilder(),
         $bank,
         $mail

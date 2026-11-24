@@ -293,7 +293,7 @@ Note: `smartucf_state` / retry / error-class fields are **internal service lifec
 
 - Snapshot `leasing_email_sent` flag
 - Recipient: customer email from snapshot; admin from `PS_SHOP_EMAIL`
-- Process 2: admin should include EGN; customer must not
+- Process 2: customer and admin variants exclude EGN and secondary phone, including when regenerated from a historical snapshot. The customer confirmation message remains.
 - Duplicate recipient: only one admin-variant send
 - PrestaShop mail configuration / SMTP logs (generic)
 

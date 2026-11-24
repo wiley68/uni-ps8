@@ -23,9 +23,6 @@ use PrestaShop\Module\Unipayment\Checkout\SchemeSelection;
 
 function assertWooCheckout(bool $condition, string $message): void { if (!$condition) { fwrite(STDERR, "FAIL: {$message}\n"); exit(1); } }
 $validator = new CustomerFieldValidator();
-foreach (['1990010199', '1990130199', '9001011234'] as $egn) {
-    assertWooCheckout(call_user_func('mtuc_validate_bulgarian_egn', $egn) === $validator->validEgn($egn), 'EGN validation parity differs');
-}
 foreach (['+359 888 123', 'abc', ''] as $phone) {
     assertWooCheckout(call_user_func('mtuc_validate_customer_phone', $phone) === $validator->validPhone($phone), 'phone validation parity differs');
 }

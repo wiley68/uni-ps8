@@ -24,7 +24,6 @@ use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleContext;
 use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecyclePopupMapper;
 use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleService;
 use PrestaShop\Module\Unipayment\Order\PostOrderPopupFailureResponse;
-use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 use PrestaShop\Module\Unipayment\Product\GuestCustomerFactory;
 use PrestaShop\Module\Unipayment\Product\ProductPopupCustomerValidator;
 use PrestaShop\Module\Unipayment\Product\ProductPopupValidationException;
@@ -146,8 +145,6 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
             'address' => Tools::getValue('address', ''),
             'phone' => Tools::getValue('phone', ''),
             'email' => Tools::getValue('email', ''),
-            'egn' => Tools::getValue('egn', ''),
-            'phone2' => Tools::getValue('phone2', ''),
             'consent' => Tools::getValue('unipayment_consent', []),
         ];
 
@@ -160,7 +157,7 @@ final class UnipaymentCartPopupModuleFrontController extends ModuleFrontControll
             new FinancingSnapshotRepository(),
             new NativePrestaShopOrderGateway($module, $this->context),
             $cpClient,
-            new FinancingSnapshotFactory(new SensitiveDataCipher()),
+            new FinancingSnapshotFactory(),
             new ControlPanelOrderPayloadBuilder(),
             new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository()
         );

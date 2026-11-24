@@ -2,6 +2,12 @@
 
 All notable production releases of the UniPayment PrestaShop 8 module are documented here.
 
+## 2.0.5 — 2026-11-24
+
+- Remove EGN and secondary phone from Process 2 Product, Cart and Classic Checkout, including field validation and persistence in new financing snapshots.
+- Omit both fields from merchant and administrative emails and Back Office financing details, including when rendering historical orders.
+- Preserve Process 1, the Control Panel contract, financial calculations and order recovery.
+
 ## 2.0.4 — 2026-11-19
 
 - UNI-PS8-ADS-001: remove the merchant-side advertisement visibility switch; Control Panel `uni_container_status` remains the sole advertisement visibility setting, subject to existing homepage, module and shop eligibility conditions.

@@ -31,14 +31,17 @@ assertProductPopupContract(strpos($template, 'class="unipayment-product-calculat
 assertProductPopupContract(strpos($template, 'unipayment_popup.banner_url') !== false && strpos($template, 'unipayment_popup.banner_url_mobile') !== false, 'CP responsive banner sources missing');
 assertProductPopupContract(strpos($template, 'data-unipayment-step="2" hidden') !== false, 'Step 2 placeholder contract missing');
 assertProductPopupContract(strpos($template, "s='Попълване на лични данни'") !== false, 'Woo Step 2 heading missing');
+assertProductPopupContract(strpos($controller, "if (\$action === 'validate_step2')") !== false, 'validate_step2 action is missing');
+foreach (['egn', 'phone2'] as $legacyField) {
+    assertProductPopupContract(strpos($controller, "getValue('" . $legacyField . "'") === false, "Product controller read {$legacyField}");
+}
 $step2Fields = ['first_name', 'last_name', 'address', 'phone', 'email'];
 foreach ($step2Fields as $field) {
     assertProductPopupContract(substr_count($template, 'name="' . $field . '"') === 1, "Step 2 field {$field} must occur exactly once");
 }
-assertProductPopupContract(strpos($template, '{if $unipayment_require_egn}') !== false, 'Process 2 extra fields must be gated');
-assertProductPopupContract(substr_count($template, 'name="egn"') === 1 && substr_count($template, 'name="phone2"') === 1, 'Process 2 Step 2 fields EGN and secondary phone must occur once');
-assertProductPopupContract(substr_count($template, 'aria-required="true"') === 7, 'all five base Step 2 fields plus Process 2 EGN and secondary phone must be required');
-foreach (['Име', 'Фамилия', 'Адрес', 'Мобилен телефон', 'E-Mail', 'ЕГН', 'Втори телефон', 'Назад', 'Изпрати'] as $step2Label) {
+assertProductPopupContract(substr_count($template, 'name="egn"') === 0 && substr_count($template, 'name="phone2"') === 0, 'Process 2 Step 2 fields EGN and secondary phone must be absent');
+assertProductPopupContract(substr_count($template, 'aria-required="true"') === 5, 'the five base Step 2 fields must be required');
+foreach (['Име', 'Фамилия', 'Адрес', 'Мобилен телефон', 'E-Mail', 'Назад', 'Изпрати'] as $step2Label) {
     assertProductPopupContract(strpos($template, $step2Label) !== false, "missing Step 2 label {$step2Label}");
 }
 assertProductPopupContract(strpos($template, 'data-unipayment-step="3" hidden') !== false, 'final informational placeholder missing');
@@ -61,7 +64,7 @@ assertProductPopupContract(strpos($javascript, 'payload.set("scheme_key", fields
 assertProductPopupContract(strpos($javascript, 'calculationPayload("apply")') !== false, 'Step 2 submit must send the Step 1 identity for authoritative apply');
 assertProductPopupContract(strpos($javascript, 'issue_submission_token') !== false, 'Step 1→2 must issue popup_submission_token');
 assertProductPopupContract(strpos($javascript, 'popup_submission_token') !== false, 'apply must send popup_submission_token');
-assertProductPopupContract(strpos($javascript, 'payload.set("phone2"') !== false, 'Process 2 secondary phone must be sent with apply');
+assertProductPopupContract(strpos($javascript, 'payload.set("phone2"') === false && strpos($javascript, 'payload.set("egn"') === false, 'apply must omit the removed fields');
 assertProductPopupContract(strpos($javascript, 'event.target.closest("[data-unipayment-back]")') !== false && strpos($javascript, 'setStep(1)') !== false, 'Step 2 Back navigation missing');
 assertProductPopupContract(strpos($javascript, 'input.value = input.defaultValue') !== false, 'Cancel/new popup flow must reset transient Step 2 values');
 assertProductPopupContract(strpos($template, '<form class="unipayment-product-calculator__customer-form"') === false, 'Step 2 must not create an invalid form nested inside the Product add-to-cart form');

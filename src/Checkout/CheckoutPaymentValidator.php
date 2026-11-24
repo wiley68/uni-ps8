@@ -69,7 +69,7 @@ final class CheckoutPaymentValidator
         } catch (UnavailableSchemeException $exception) {
             throw new CheckoutValidationException('The selected financing scheme cannot be calculated.', 0, $exception);
         }
-        $validatedCustomer = $this->customers->validate($shop, $customer, $posted);
+        $validatedCustomer = $this->customers->validate($customer);
         $accepted = $this->consents->validate($shop, $posted['consent'] ?? [], $effectiveConsentSelection ?? $this->consents->selection($calculation));
         $acceptedConsents = array_values(array_filter($this->consents->normalize($shop), static function (array $consent) use ($accepted): bool {
             return in_array($consent['id'], $accepted, true);

@@ -26,7 +26,7 @@ assertCheckoutUi(strpos($template, 'страницата на UniCredit') !== fa
 assertCheckoutUi(strpos($template, "s='Брой месеци за погасяване'") !== false, 'months label must be present');
 assertCheckoutUi(strpos($template, "s='Първоначална вноска /евро/'") !== false, 'first installment label must be present');
 assertCheckoutUi(strpos($template, "s='Обща сума на заема'") !== false, 'loan amount label must be present');
-assertCheckoutUi(strpos($template, "s='ЕГН'") !== false && strpos($template, "s='Втори телефон'") !== false, 'Process 2 fields must be present');
+assertCheckoutUi(strpos($template, "s='ЕГН'") === false && strpos($template, "s='Втори телефон'") === false, 'removed Process 2 fields must be absent');
 assertCheckoutUi(strpos($template, 'data-unipayment-consent-checkbox') !== false, 'checkout consents must expose checkbox actions');
 assertCheckoutUi(strpos($template, 'unipayment-checkout__consent--info') !== false, 'optional consent info rows must remain');
 assertCheckoutUi(strpos($css, '--unipayment-checkout-red: #ed1c24') !== false, 'checkout CSS must use UniCredit red token');

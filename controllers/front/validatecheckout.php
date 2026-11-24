@@ -25,7 +25,6 @@ use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
 use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleContext;
 use PrestaShop\Module\Unipayment\Order\PostControlPanelLifecycleService;
-use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
 use PrestaShop\Module\Unipayment\SmartUcf\SmartUcfSessionCoordinator;
 
 final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontController
@@ -73,7 +72,7 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
                 new FinancingSnapshotRepository(),
                 new NativePrestaShopOrderGateway($module, $this->context),
                 $cpClient,
-                new FinancingSnapshotFactory(new SensitiveDataCipher()),
+                new FinancingSnapshotFactory(),
                 new ControlPanelOrderPayloadBuilder(),
                 new PrestaShop\Module\Unipayment\Order\OrderBankStatusRepository()
             );
@@ -210,8 +209,6 @@ final class UnipaymentValidateCheckoutModuleFrontController extends ModuleFrontC
             'kop_code' => (string) Tools::getValue('unipayment_kop_code', ''),
             'first_installment' => Tools::getValue('unipayment_first_installment', 0),
             'cart_snapshot' => (string) Tools::getValue('unipayment_cart_snapshot', ''),
-            'egn' => (string) Tools::getValue('unipayment_egn', ''),
-            'phone2' => (string) Tools::getValue('unipayment_phone2', ''),
             'consent' => Tools::getValue('unipayment_consent', []),
         ];
     }

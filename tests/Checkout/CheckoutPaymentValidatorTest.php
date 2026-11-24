@@ -85,9 +85,15 @@ $withConsent = $validator->validate($consentShop, $cart, 'EUR', $base + ['consen
 assertCheckout($withConsent->acceptedConsentIds === [7], 'mandatory consent validation failed');
 
 $process2 = calculatorFixture(['uni_proces' => 1]);
-expectCheckoutFailure(function () use ($validator, $process2, $cart, $base, $customer): void { $validator->validate($process2, $cart, 'EUR', $base + ['egn' => 'bad', 'phone2' => 'x'], $customer); }, 'invalid customer field accepted');
-$processRequest = $validator->validate($process2, $cart, 'EUR', $base + ['egn' => '1990010199', 'phone2' => '+359 2 123'], $customer);
-assertCheckout($processRequest->customer['egn'] === '1990010199', 'valid Process 2 customer fields failed');
+$processRequest = $validator->validate($process2, $cart, 'EUR', $base, $customer);
+assertCheckout($processRequest->customer === $customer, 'Process 2 must accept the five basic customer fields');
+$obsolete = $base + ['egn' => 'bad', 'phone2' => ['ignored']];
+assertCheckout($validator->validate($process2, $cart, 'EUR', $obsolete, $customer)->customer === $processRequest->customer, 'obsolete fields changed validated customer data');
+foreach (['phone' => '---', 'email' => 'invalid', 'address' => ''] as $field => $invalid) {
+    expectCheckoutFailure(function () use ($validator, $process2, $cart, $base, $customer, $field, $invalid): void {
+        $validator->validate($process2, $cart, 'EUR', $base, array_replace($customer, [$field => $invalid]));
+    }, "Process 2 accepted invalid {$field}");
+}
 
 $lockedShop = calculatorFixture(['uni_typekop' => 1, 'kop' => ['by_schema' => ['filters' => [[
     'id' => 11, 'product_id' => 42, 'category_id' => null, 'uni_meseci' => '24', 'uni_promo' => 0, 'uni_parva' => 1, 'uni_kop' => 'PRODUCT',

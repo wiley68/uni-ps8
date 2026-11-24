@@ -5,7 +5,7 @@ Native PrestaShop 8 module for **UniCredit financing** (credit calculator, check
 | Item                  | Value                        |
 | --------------------- | ---------------------------- |
 | Module technical name | `unipayment`                 |
-| Current version       | `2.0.4`                      |
+| Current version       | `2.0.5`                      |
 | Repository root       | Module root (this directory) |
 | Current state         | Centralized advertisement control |
 
@@ -114,7 +114,7 @@ Build and verify the installable ZIP without changing the source `vendor/`:
 
 ```bash
 composer package
-php tools/verify-distribution.php dist/ps8_uni_2.0.4.zip
+php tools/verify-distribution.php dist/ps8_uni_2.0.5.zip
 ```
 
 The filename version is read from `unipayment.php`. `dist/` is local and Git-ignored; never commit generated archives. PS8 packages retain the existing runtime configuration and certificate passphrase code; handle the ZIP as a sensitive deployment artifact. No PS9 environment or secret files are introduced.

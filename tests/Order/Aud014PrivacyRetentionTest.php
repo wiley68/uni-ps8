@@ -133,7 +133,10 @@ function assertAud014(bool $ok, string $message): void
 
 function assertNoEgnInOutput(array $rows, string $text, string $html, string $egn = '9001011234'): void
 {
-    assertAud014(!isset($rows['ЕГН']), 'EGN row must be absent');
+    assertAud014(!isset($rows['ЕГН']) && !isset($rows['Втори телефон']), 'legacy rows must be absent');
+    foreach (['0888123456', 'Втори телефон'] as $removed) {
+        assertAud014(strpos($text, $removed) === false && strpos($html, $removed) === false, 'secondary phone must be absent');
+    }
     assertAud014(strpos($text, $egn) === false, 'EGN must not appear in text body');
     assertAud014(strpos($html, $egn) === false, 'EGN must not appear in HTML body');
     assertAud014(stripos($text, 'ЕГН') === false && stripos($html, 'ЕГН') === false, 'EGN label must be absent');
@@ -158,7 +161,7 @@ function aud014Process2Snapshot(SensitiveDataCipher $cipher, string $egn = '9001
     ];
 }
 
-$presenter = new LeasingOrderEmailPresenter(new SensitiveDataCipher(new PhpEncryption('aud014-test-key')));
+$presenter = new LeasingOrderEmailPresenter();
 $cipher = new SensitiveDataCipher(new PhpEncryption('aud014-test-key'));
 $process1Shop = ['uni_proces' => 0];
 $process2Shop = ['uni_proces' => 1];
@@ -184,14 +187,15 @@ assertNoEgnInOutput($customerRows, $customerText, $customerHtml);
 assertAud014(strpos($customerText, LeasingOrderEmailPresenter::process2ConfirmationMessage()) !== false, 'C: customer Process 2 message retained');
 assertAud014(strpos((string) ($customerVars['{unipayment_leasing_txt}'] ?? ''), '9001011234') === false, 'C: mail vars must not contain EGN');
 
-// Test D — Process 2 admin includes full EGN
+// Test D — Process 2 admin ignores a historical encrypted snapshot
 $adminRows = $presenter->adminRowsFromSnapshot($snapshotP2, $process2Shop);
 $adminText = $presenter->renderText($adminRows);
-assertAud014(($adminRows['ЕГН'] ?? '') === '9001011234', 'D: admin rows must include EGN');
-assertAud014(strpos($adminText, '9001011234') !== false, 'D: admin text must include EGN');
+assertNoEgnInOutput($adminRows, $adminText, $presenter->renderHtml($adminRows));
+assertAud014($adminRows !== [], 'D: historical financing rows remain visible');
+assertAud014(!isset($adminRows['Съобщение']), 'D: confirmation is customer-only');
 
 // Test E — independent customer/admin bodies
-assertAud014($customerText !== $adminText, 'E: customer and admin bodies must differ when EGN is admin-only');
+assertAud014($customerText !== $adminText, 'E: customer and admin bodies must differ because confirmation is customer-only');
 
 final class Aud014MemorySnapshots implements FinancingSnapshotStoreInterface
 {
@@ -223,7 +227,7 @@ $dupSnapshot = aud014Process2Snapshot($cipher);
 $dupSnapshot['customer_json'] = ['email' => 'same@example.com'];
 (new LeasingEmailNotifier($snapshotsF, $presenter))->notify($dupSnapshot, 7, $process2Shop);
 assertAud014(count(Mail::$sent) === 1, 'F: duplicate recipient must receive one email');
-assertAud014(strpos((string) Mail::$sent[0]['message'], '9001011234') !== false, 'F: duplicate recipient gets admin content');
+assertAud014(Mail::$sent[0]['message'] === trim($adminText), 'F: duplicate recipient gets admin content without legacy fields');
 Configuration::$values['PS_SHOP_EMAIL'] = 'admin@example.com';
 
 // Test G — no EGN in logs (static contract)
@@ -425,7 +429,7 @@ assertAud014($serviceP->maybeRun() === 0, 'P: cleanup failure returns zero witho
 
 $orchestratorSrc = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Order/OrderOrchestrator.php');
 assertAud014(strpos($orchestratorSrc, 'FinancingSnapshotRetentionService') !== false, 'retention triggered after snapshot save');
-assertAud014(strpos((string) file_get_contents(dirname(__DIR__, 2) . '/unipayment.php'), "version = '2.0.4'") !== false, 'version is 2.0.4');
+assertAud014(strpos((string) file_get_contents(dirname(__DIR__, 2) . '/unipayment.php'), "version = '2.0.5'") !== false, 'version is 2.0.5');
 
 $redactedSnapshot = aud014Process2Snapshot($cipher);
 $redactedSnapshot['customer_json'] = [];

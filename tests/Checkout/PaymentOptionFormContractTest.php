@@ -26,12 +26,19 @@ $requiredNames = [
     'unipayment_scheme_key',
     'unipayment_kop_code',
     'unipayment_first_installment',
-    'unipayment_egn',
-    'unipayment_phone2',
     'unipayment_consent[]',
 ];
 foreach ($requiredNames as $name) {
     assertPaymentForm(strpos($template, 'name="' . $name . '"') !== false, "missing submitted field {$name}");
+}
+
+$process1Block = explode('{/if}', explode('{if !$unipayment_checkout.process2}', $template, 2)[1] ?? '', 2)[0];
+$controller = (string) file_get_contents($root . '/controllers/front/validatecheckout.php');
+foreach (['unipayment_egn', 'unipayment_phone2'] as $legacyName) {
+    assertPaymentForm(strpos($controller, "getValue('" . $legacyName . "'") === false, "controller read obsolete field {$legacyName}");
+    $attribute = 'name="' . $legacyName . '"';
+    assertPaymentForm(substr_count($template, $attribute) === 1, "unexpected occurrence of {$legacyName}");
+    assertPaymentForm(strpos($process1Block, 'type="hidden" ' . $attribute . ' value=""') !== false, "missing empty Process 1 field {$legacyName}");
 }
 
 assertPaymentForm(strpos($module, '->setForm($this->fetch(') !== false, 'PaymentOption does not use setForm()');

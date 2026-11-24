@@ -28,9 +28,7 @@ $MSG_FIRST = 'Името може да съдържа само букви, ин�
 $MSG_LAST = 'Фамилията може да съдържа само букви, интервал, тире и апостроф.';
 $MSG_ADDRESS = 'Адресът може да съдържа букви, цифри, интервали и стандартни знаци. Не използвайте символи като <, >, =, +, @, {, }, _, $, %, !, ?.';
 $MSG_PHONE = 'Телефонът може да съдържа цифри, интервали, +, -, ( и ).';
-$MSG_PHONE2 = 'Вторият телефон може да съдържа цифри, интервали, +, -, ( и ).';
 $MSG_EMAIL = 'Въведете валиден e-mail адрес, например name@example.com.';
-$MSG_EGN = 'ЕГН трябва да съдържа 10 цифри. Първите 8 трябва да са валидна дата във формат ГГГГММДД.';
 $MSG_REQUIRED = 'Полето е задължително.';
 
 $validator = new ProductPopupCustomerValidator();
@@ -102,31 +100,10 @@ try {
 }
 
 try {
-    $validator->validate(array_merge($base, ['egn' => '1990010199', 'phone2' => '---']), true);
-    assertAud010Ux(false, '16: phone2 invalid');
-} catch (ProductPopupValidationException $e) {
-    assertAud010Ux(($e->errors()['phone2'] ?? '') === $MSG_PHONE2, '16: phone2 precise message');
-}
-
-try {
     $validator->validate(array_merge($base, ['email' => 'not-an-email']));
     assertAud010Ux(false, '17: invalid email');
 } catch (ProductPopupValidationException $e) {
     assertAud010Ux(($e->errors()['email'] ?? '') === $MSG_EMAIL, '17: helpful email message');
-}
-
-try {
-    $validator->validate(array_merge($base, ['egn' => '123', 'phone2' => '0888123456']), true);
-    assertAud010Ux(false, '18: short EGN');
-} catch (ProductPopupValidationException $e) {
-    assertAud010Ux(($e->errors()['egn'] ?? '') === $MSG_EGN, '18: EGN length message');
-}
-
-try {
-    $validator->validate(array_merge($base, ['egn' => '1990130199', 'phone2' => '0888123456']), true);
-    assertAud010Ux(false, '19: invalid EGN date');
-} catch (ProductPopupValidationException $e) {
-    assertAud010Ux(($e->errors()['egn'] ?? '') === $MSG_EGN, '19: EGN date message');
 }
 
 // Legacy prefilled invalid name (points 26–29): same guidance as manual entry.

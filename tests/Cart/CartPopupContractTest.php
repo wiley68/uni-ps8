@@ -22,6 +22,11 @@ $jsProduct = (string) file_get_contents($root . '/views/js/product-calculator.js
 $controller = (string) file_get_contents($root . '/controllers/front/cartpopup.php');
 $apply = (string) file_get_contents($root . '/src/Cart/CartPopupApplyService.php');
 
+foreach (['egn', 'phone2'] as $legacyField) {
+    assertCartPopupContract(strpos($template, 'name="' . $legacyField . '"') === false, "cart template collected {$legacyField}");
+    assertCartPopupContract(strpos($controller, "getValue('" . $legacyField . "'") === false, "cart apply read {$legacyField}");
+}
+
 assertCartPopupContract(strpos($template, 'data-unipayment-source="cart"') !== false, 'cart root must declare source=cart');
 assertCartPopupContract(strpos($template, 'data-unipayment-calculator') !== false, 'cart must reuse product popup JS root');
 assertCartPopupContract(strpos($template, "s='Цена на количката'") !== false, 'cart popup must label cart total');

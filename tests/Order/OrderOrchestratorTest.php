@@ -39,8 +39,8 @@ use PrestaShop\Module\Unipayment\Order\OrderAttemptStoreInterface;
 use PrestaShop\Module\Unipayment\Order\BankStatus;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrationException;
 use PrestaShop\Module\Unipayment\Order\OrderOrchestrator;
-use PrestaShop\Module\Unipayment\Order\PrestaShopOrderGatewayInterface;
 use PrestaShop\Module\Unipayment\Order\SensitiveDataCipher;
+use PrestaShop\Module\Unipayment\Order\PrestaShopOrderGatewayInterface;
 
 function assertOrder(bool $condition, string $message): void
 {
@@ -165,22 +165,25 @@ $cart = new CartContext([new CartLine(new ProductContext(42, [7], 1050), 3, 2, 1
 $scheme = (new CartSchemeResolver($calculator))->resolve($shop, $cart)->standardSchemes[0];
 $calculation = $calculator->calculateScheme($shop, 1050, $scheme, 100);
 $request = new ValidatedPaymentRequest($calculation, ['first_name' => 'Ivan', 'last_name' => 'Ivanov', 'phone' => '+359888123', 'email' => 'ivan@example.com', 'egn' => '1990010199', 'phone2' => '+3592123'], [7], hash('sha256', 'cart'), [['id' => 7, 'name' => 'Terms', 'url' => 'https://example.com/terms', 'mandatory' => true]]);
-$created = new CreatedOrder(55, 'ABCD12345', 1050, 'EUR', 1, ['first_name' => 'Ivan', 'last_name' => 'Ivanov', 'phone' => '+359888123', 'email' => 'ivan@example.com'], ['invoice' => ['address1' => 'Sofia 1'], 'delivery' => ['address1' => 'Sofia 2']], [['id_product' => 42, 'id_product_attribute' => 3, 'name' => 'Product_Name', 'quantity' => 2, 'total' => 1000]]);
+$created = new CreatedOrder(55, 'ABCD12345', 1050, 'EUR', 1, ['first_name' => 'Ivan', 'last_name' => 'Ivanov', 'phone' => '+359888123', 'email' => 'ivan@example.com', 'egn' => '1990010199', 'phone2' => '+3592123'], ['invoice' => ['address1' => 'Sofia 1'], 'delivery' => ['address1' => 'Sofia 2']], [['id_product' => 42, 'id_product_attribute' => 3, 'name' => 'Product_Name', 'quantity' => 2, 'total' => 1000]]);
 $attempts = new MemoryAttempts();
 $snapshots = new MemorySnapshots();
 $orders = new FakeOrders($created);
 $cp = new FakeCp();
 $cp->queue[] = ['data' => ['id' => 901]];
-$orchestrator = new OrderOrchestrator($attempts, $snapshots, $orders, $cp, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder());
+$orchestrator = new OrderOrchestrator($attempts, $snapshots, $orders, $cp, new FinancingSnapshotFactory(), new ControlPanelOrderPayloadBuilder());
 $result = $orchestrator->orchestrate(1, 9, $request, $shop);
 assertOrder($result->state === OrderOrchestrator::CP_CREATED && $result->controlPanelOrderId === 901, 'first submit failed');
 assertOrder($orders->created === 1 && count($cp->calls) === 1, 'first submit counts invalid');
 assertOrder($orders->amounts === [1050.0], 'validateOrder amount is not the final tax-inclusive checkout total');
 assertOrder($snapshots->rows[1]['control_panel_order_id'] === 901, 'CP ID not snapshotted');
-assertOrder(strpos((string)$snapshots->rows[1]['sensitive_payload'], '1990010199') === false, 'EGN stored plaintext');
+assertOrder(array_key_exists('sensitive_payload', $snapshots->rows[1]) && $snapshots->rows[1]['sensitive_payload'] === null, 'new snapshot must store a null sensitive payload');
 assertOrder(!isset($snapshots->rows[1]['customer_json']['egn']) && !isset($snapshots->rows[1]['customer_json']['phone2']), 'sensitive fields leaked into generic JSON');
-assertOrder((new SensitiveDataCipher())->decrypt($snapshots->rows[1]['sensitive_payload'])['egn'] === '1990010199', 'encrypted EGN not recoverable');
+$historicalPayload = (new SensitiveDataCipher())->encrypt(['egn' => '1990010199', 'phone2' => '+3592123']);
+assertOrder(is_string($historicalPayload), 'historical fixture must be encrypted');
+$snapshots->rows[1]['sensitive_payload'] = $historicalPayload;
 $again = $orchestrator->orchestrate(1, 9, $request, array_replace($shop, ['uni_shema_current' => 24]));
+assertOrder($snapshots->rows[1]['sensitive_payload'] === $historicalPayload, 'recovery modified the historical payload');
 assertOrder($again->idOrder === 55 && $orders->created === 1 && count($cp->calls) === 1, 'double submit created duplicates');
 assertOrder($snapshots->rows[1]['months'] === $calculation->scheme->months && $snapshots->rows[1]['kop_code'] === $calculation->scheme->kopCode, 'configuration change altered immutable snapshot');
 assertOrder(array_keys($cp->calls[0]) === ['order_id', 'name', 'phone', 'email', 'address', 'address2', 'price', 'vnoska', 'gpr', 'vnoski', 'parva', 'products_id', 'products_name', 'products_q', 'type_client', 'currency', 'version'], 'Process 1 CP create must not claim SmartUCF success');
@@ -189,7 +192,7 @@ assertOrder($cp->calls[0]['products_id'] === '3' && $cp->calls[0]['products_name
 $lockedAttempts = new MemoryAttempts();
 $lockedAttempts->reserve(1, 99, $request->cartFingerprint);
 $lockedOrders = new FakeOrders($created);
-$lockedFlow = new OrderOrchestrator($lockedAttempts, new MemorySnapshots(), $lockedOrders, new FakeCp(), new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder());
+$lockedFlow = new OrderOrchestrator($lockedAttempts, new MemorySnapshots(), $lockedOrders, new FakeCp(), new FinancingSnapshotFactory(), new ControlPanelOrderPayloadBuilder());
 try {
     $lockedFlow->orchestrate(1, 99, $request, $shop);
     assertOrder(false, 'concurrent reservation accepted');
@@ -205,7 +208,7 @@ $c2 = new FakeCp();
 $c2->queue[] = new ConnectionException('timeout');
 $c2->queue[] = ['data' => ['id' => 902]];
 $bank2 = new MemoryBankStatus();
-$flow2 = new OrderOrchestrator($a2, $s2, $o2, $c2, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder(), $bank2);
+$flow2 = new OrderOrchestrator($a2, $s2, $o2, $c2, new FinancingSnapshotFactory(), new ControlPanelOrderPayloadBuilder(), $bank2);
 try {
     $flow2->orchestrate(1, 10, $request, $shop);
     assertOrder(false, 'timeout accepted');
@@ -228,7 +231,7 @@ foreach ([[404, false, OrderOrchestrator::TERMINAL_FAILED], [409, false, OrderOr
     $c = new FakeCp();
     $bank = new MemoryBankStatus();
     $c->queue[] = new HttpException($status, []);
-    $flow = new OrderOrchestrator($a, $s, $o, $c, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder(), $bank);
+    $flow = new OrderOrchestrator($a, $s, $o, $c, new FinancingSnapshotFactory(), new ControlPanelOrderPayloadBuilder(), $bank);
     try {
         $flow->orchestrate(2, $status, $request, $shop);
         assertOrder(false, "HTTP $status accepted");
@@ -251,7 +254,7 @@ $missingIdOrders = new FakeOrders($created);
 $missingIdCp = new FakeCp();
 $missingIdBank = new MemoryBankStatus();
 $missingIdCp->queue[] = ['data' => []];
-$missingIdFlow = new OrderOrchestrator($missingIdAttempts, $missingIdSnapshots, $missingIdOrders, $missingIdCp, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder(), $missingIdBank);
+$missingIdFlow = new OrderOrchestrator($missingIdAttempts, $missingIdSnapshots, $missingIdOrders, $missingIdCp, new FinancingSnapshotFactory(), new ControlPanelOrderPayloadBuilder(), $missingIdBank);
 try {
     $missingIdFlow->orchestrate(4, 12, $request, $shop);
     assertOrder(false, 'missing CP id accepted');
@@ -264,7 +267,7 @@ assertOrder($missingIdBank->updates !== [] && $missingIdBank->updates[0]['status
 $badOrder = new CreatedOrder(56, 'BADTOTAL', 1049, 'EUR', 1, $created->customer, $created->addresses, $created->lines);
 $badOrders = new FakeOrders($badOrder);
 $badCp = new FakeCp();
-$badFlow = new OrderOrchestrator(new MemoryAttempts(), new MemorySnapshots(), $badOrders, $badCp, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder());
+$badFlow = new OrderOrchestrator(new MemoryAttempts(), new MemorySnapshots(), $badOrders, $badCp, new FinancingSnapshotFactory(), new ControlPanelOrderPayloadBuilder());
 try {
     $badFlow->orchestrate(3, 11, $request, $shop);
     assertOrder(false, 'total mismatch accepted');
@@ -318,7 +321,7 @@ $s2->rows[1] = $savedSnapshot;
 $nonEurOrder = new CreatedOrder(57, 'NON EUR', 1050, 'BGN', 2, $created->customer, $created->addresses, $created->lines);
 $nonEurOrders = new FakeOrders($nonEurOrder);
 $nonEurCp = new FakeCp();
-$nonEurFlow = new OrderOrchestrator(new MemoryAttempts(), new MemorySnapshots(), $nonEurOrders, $nonEurCp, new FinancingSnapshotFactory(new SensitiveDataCipher()), new ControlPanelOrderPayloadBuilder());
+$nonEurFlow = new OrderOrchestrator(new MemoryAttempts(), new MemorySnapshots(), $nonEurOrders, $nonEurCp, new FinancingSnapshotFactory(), new ControlPanelOrderPayloadBuilder());
 try {
     $nonEurFlow->orchestrate(3, 13, $request, $shop);
     assertOrder(false, 'native BGN order accepted');

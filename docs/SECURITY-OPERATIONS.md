@@ -17,7 +17,7 @@ Related: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`RECOVERY.md`](RECOVERY.md)
 ### Encryption at rest
 
 - Shared secret and CP tokens use PrestaShop shop encryption with prefix `enc:v1:` (`ConfigurationRepository`).
-- EGN and second phone in financing snapshots use `SensitiveDataCipher` (shop key–based).
+- New financing snapshots store `sensitive_payload = null`. Historical snapshots can still contain shop-key-encrypted EGN and secondary phone.
 
 ### Rules
 
@@ -216,12 +216,16 @@ Recovery: see [`RECOVERY.md`](RECOVERY.md) §9.
 
 ## 7. PII handling
 
+### Optional historical cleanup
+
+Historical cleanup requires separate explicit approval. Start with a dry-run count of the approved shop scope and snapshots with non-null `sensitive_payload`, without decrypting or displaying their contents. After approval, limit an idempotent, batched cleanup to setting that column to `NULL`. Verify affected counts and compare order and CP links, financing terms, consent records and recovery fields before and after. Treat previously delivered emails and backup retention separately.
+
 ### Email policy
 
 | Flow      | Customer email                        | Admin email (`PS_SHOP_EMAIL`)             |
 | --------- | ------------------------------------- | ----------------------------------------- |
-| Process 1 | No EGN                                | No EGN                                    |
-| Process 2 | No EGN (confirmation message allowed) | **Full EGN** + second phone (operational) |
+| Process 1 | No EGN or secondary phone             | No EGN or secondary phone                 |
+| Process 2 | Confirmation without either field     | No EGN or secondary phone                 |
 
 Implementation: `LeasingOrderEmailPresenter::customerRowsFromSnapshot()` / `adminRowsFromSnapshot()`, `LeasingEmailNotifier`.
 
@@ -229,7 +233,7 @@ Emails that include UniCredit leasing information must follow the **standard lea
 
 If customer email equals shop email → **admin variant only**, sent once.
 
-EGN decryption occurs only for Process 2 admin rendering paths.
+The presenter ignores the historical encrypted column for both audiences and the Back Office. The existing 180-day retention policy still applies.
 
 Process 1 native `order_conf` is deferred until SmartUCF completes and is **discarded** if Control Panel create-order fails after the PrestaShop order exists, so success-bank wording is not sent for that failure.
 
@@ -279,7 +283,7 @@ In scope for this module:
 
 Organizational controls (outside module code):
 
-- Secure mailbox access for Process 2 admin emails containing EGN
+- Restrict access to historical mailbox archives that may contain legacy Process 2 fields
 - Backup retention policies
 - WAF / network restrictions between CP and shop
 
