@@ -1,6 +1,25 @@
 (function () {
     "use strict";
 
+    function relocateAdvertising() {
+        var advertising = document.querySelector("[data-unipayment-advertising]");
+        if (!advertising || !document.body) {
+            return false;
+        }
+
+        if (advertising.parentNode !== document.body) {
+            document.body.appendChild(advertising);
+        }
+
+        return true;
+    }
+
+    if (!relocateAdvertising() && document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", relocateAdvertising, {
+            once: true,
+        });
+    }
+
     document.addEventListener("click", function (event) {
         var toggle = event.target.closest(
             "[data-unipayment-advertising-toggle]",
