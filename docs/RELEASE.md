@@ -124,7 +124,7 @@ Include:
 
 - `vendor/` (production dependencies/autoload from staged `composer install --no-dev --prefer-dist --optimize-autoloader --no-plugins --no-scripts`)
 - `unipayment.php`, `index.php`, `logo.png`, `src/`, `controllers/`, `views/`, `mails/`, `config/`, `config.xml`, `upgrade/`, `translations/`
-- Production-only `composer.json` and a `package-manifest.json` with file inventory/checksums, source Git SHA, dirty flag and fixed ZIP timestamp
+- Production-only `composer.json` and a `package-manifest.json` with file inventory/checksums, source Git SHA, dirty flag and the common ZIP timestamp
 
 `composer.lock` must exist locally and is copied into staging to reproduce dependency installation. It remains unchanged in source; it is removed from the ZIP after normalizing packaged Composer metadata. The source `vendor/` is never used as package input or modified.
 
@@ -136,7 +136,11 @@ php tools/verify-distribution.php dist/ps8_uni_2.0.5.zip
 
 Verification is against the **current checkout**, including its current Git SHA and local runtime edits; keep matching source when re-verifying an older artifact. A verified archive replaces the previous output only after successful validation. Failed builds remove staging and preserve any previous successful ZIP.
 
-Entries are sorted and use fixed timestamps, permissions and compression. The default timestamp is the HEAD commit timestamp; `SOURCE_DATE_EPOCH` can supply an explicit ZIP-range timestamp. Identical inputs with the same Composer/PHP/zip toolchain produce identical ZIP bytes. Toolchain changes may change generated Composer files or compression output.
+Every entry, including generated files and the manifest itself, receives one current UTC timestamp captured during the build and rounded down to an even second for ZIP DOS precision. The manifest's `source_date_epoch` field stores that same normalized Unix epoch. The Git commit date and inherited `SOURCE_DATE_EPOCH` no longer affect timestamps. The builder sets process `TZ=UTC` for the entire ZIP write and restores its original state, including unset and empty values. The caller's PHP default timezone is untouched. Entry ordering, permissions and compression settings are fixed.
+
+Builds in different two-second intervals have different timestamp fields and manifest bytes, so the archive hash can change with identical inputs. Builds in the same interval can share a timestamp. Toolchain changes may also affect generated Composer files or compression output. Retain the exact tested installer for delivery and record its SHA-256.
+
+ZIP DOS timestamps carry no timezone label. An extraction tool may interpret the stored UTC clock time as local time. Placement into `{prestashop}/modules/unipayment/` may preserve the extracted mtime or assign a new one, depending on the tool and copy method. After placement, verify the installed PHP bytes and filesystem mtimes at the final module path. Web PHP OPcache adds its own revalidation interval when `opcache.validate_timestamps` is enabled. If it is disabled, use the deployment's OPcache invalidation or restart procedure for the serving PHP process. The ZIP timestamps alone cannot confirm that PrestaShop replaced a file or that PHP is executing the new bytes.
 
 `dist/` is local, ignored and must never be added to Git. It receives an Apache `.htaccess` denial file and fresh build directories/ZIPs have private filesystem permissions. PS8 does not use an environment file or separate SmartUCF key file. The ZIP nevertheless contains the existing certificate passphrase constant as part of required runtime source; treat it as a sensitive deployment artifact and do not publish it indiscriminately. See [`INSTALLATION.md`](INSTALLATION.md) §3 for configuration/credential provenance.
 

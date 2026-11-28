@@ -17,20 +17,23 @@ function assertPackage(bool $condition, string $message): void
     }
 }
 
-function expectPackageFailure(callable $operation, string $message): void
+function expectPackageFailure(callable $operation, string $message, ?string $expectedError = null): void
 {
     try {
         $operation();
     } catch (RuntimeException $exception) {
+        if ($expectedError !== null && strpos($exception->getMessage(), $expectedError) !== 0) {
+            throw $exception;
+        }
         return;
     }
     throw new RuntimeException($message);
 }
 
 /** Run fixture tooling without exposing command output on failure. */
-function runPackageFixture(array $command, string $cwd): string
+function runPackageFixture(array $command, string $cwd, ?array $environment = null): string
 {
-    $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, $cwd);
+    $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, $cwd, $environment);
     assertPackage(is_resource($process), 'Fixture process starts');
     $output = stream_get_contents($pipes[1]);
     fclose($pipes[1]);
@@ -45,6 +48,145 @@ function writePackageFixture(string $root, string $path, string $bytes): void
         mkdir(dirname($root . '/' . $path), 0700, true);
     }
     assertPackage(file_put_contents($root . '/' . $path, $bytes) === strlen($bytes), 'Fixture write');
+}
+
+function setPackageFixtureEnv(string $name, $value): void
+{
+    if (!putenv($value === false ? $name : $name . '=' . $value)) {
+        throw new RuntimeException('Could not set fixture environment: ' . $name);
+    }
+}
+
+/** Inspect the classic ZIP headers emitted for this small, file-only fixture. */
+function inspectPackageFixture(string $path, int $start, int $end): array
+{
+    $zip = new ZipArchive();
+    assertPackage($zip->open($path) === true, 'Open archive for raw metadata comparison');
+    try {
+        $manifest = json_decode($zip->getFromName('unipayment/package-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
+        $epoch = $manifest['source_date_epoch'];
+        assertPackage(is_int($epoch) && $epoch % 2 === 0 && $epoch >= intdiv($start, 2) * 2
+            && $epoch <= intdiv($end, 2) * 2, 'Manifest epoch is a current even second in the measured build interval');
+        $dosTime = (int) gmdate('G', $epoch) * 2048 + (int) gmdate('i', $epoch) * 32 + intdiv((int) gmdate('s', $epoch), 2);
+        $dosDate = ((int) gmdate('Y', $epoch) - 1980) * 512 + (int) gmdate('n', $epoch) * 32 + (int) gmdate('j', $epoch);
+        $dos = pack('vv', $dosTime, $dosDate);
+        $raw = file_get_contents($path);
+        $endOffset = strlen($raw) - 22;
+        $endRecord = unpack('a4signature/x6/vcount/Vsize/Voffset/vcommentLength', $raw, $endOffset);
+        assertPackage($endRecord['signature'] === "PK\x05\x06" && $endRecord['count'] === $zip->numFiles
+            && $endRecord['commentLength'] === 0 && $endRecord['offset'] + $endRecord['size'] === $endOffset,
+            'Classic ZIP end record describes the complete central directory');
+
+        $offset = $endRecord['offset'];
+        $hashes = [];
+        $names = [];
+        for ($index = 0; $index < $zip->numFiles; ++$index) {
+            $central = unpack('a4signature/x4/vflags/vmethod/a4dos/Vcrc/x8/vname/vextra/vcomment/x4/Vattributes/Vlocal', $raw, $offset);
+            $local = unpack('a4signature/x2/vflags/vmethod/a4dos/Vcrc/x8/vname/vextra', $raw, $central['local']);
+            $name = $zip->getNameIndex($index);
+            assertPackage($central['signature'] === "PK\x01\x02" && $local['signature'] === "PK\x03\x04"
+                && substr($raw, $offset + 46, $central['name']) === $name
+                && substr($raw, $central['local'] + 30, $local['name']) === $name,
+                'Local and central headers identify the same entry: ' . $name);
+            assertPackage($central['dos'] === $dos && $local['dos'] === $dos, 'Both DOS fields match the UTC manifest epoch: ' . $name);
+            assertPackage(($central['flags'] & 8) === 0 && $local['flags'] === $central['flags']
+                && $central['method'] === ZipArchive::CM_DEFLATE && $local['method'] === $central['method']
+                && ($central['attributes'] >> 16) === 0100644, 'ZIP flags, compression and file mode: ' . $name);
+            $bytes = $zip->getFromIndex($index);
+            assertPackage(is_string($bytes) && $central['crc'] === $local['crc']
+                && sprintf('%08x', $central['crc']) === hash('crc32b', $bytes),
+                'Calculated CRC-32 and both ZIP header CRCs match: ' . $name);
+            $names[] = $name;
+            $relative = substr($name, strlen('unipayment/'));
+            if ($relative !== 'package-manifest.json') {
+                $hashes[$relative] = hash('sha256', $bytes);
+            }
+            $offset += 46 + $central['name'] + $central['extra'] + $central['comment'];
+        }
+        assertPackage($offset === $endOffset && $hashes === $manifest['files'], 'Ordered manifest hashes match the independent inventory');
+
+        return [$manifest, $names];
+    } finally {
+        $zip->close();
+    }
+}
+
+function buildPackageFixture(DistributionPackage $builder, $timezone): array
+{
+    setPackageFixtureEnv('TZ', $timezone);
+    $start = time();
+    $path = $builder->build();
+    $end = time();
+    assertPackage(getenv('TZ') === $timezone && date_default_timezone_get() === 'Pacific/Auckland',
+        'Successful build preserves the exact process and PHP timezone states');
+    assertPackage((fileperms($path) & 0777) === 0600, 'Published fixture ZIP has mode 0600');
+    [$manifest, $names] = inspectPackageFixture($path, $start, $end);
+
+    return [$path, $manifest, $names];
+}
+
+function waitForPackageEpoch(int $minimum): void
+{
+    $deadline = hrtime(true) + 5_000_000_000;
+    while (time() < $minimum && hrtime(true) < $deadline) {
+        usleep(20_000);
+    }
+    assertPackage(time() >= $minimum, 'Reached the requested DOS interval within five seconds');
+}
+
+function extractPackageFixture(string $archive, string $directory): void
+{
+    mkdir($directory, 0700);
+    $environment = getenv();
+    unset($environment['UNZIP'], $environment['UNZIPOPT']);
+    $environment['TZ'] = 'UTC';
+    runPackageFixture(['unzip', '-tq', $archive], $directory, $environment);
+    runPackageFixture(['unzip', '-q', $archive, '-d', $directory], $directory, $environment);
+
+    runPackageFixture([PHP_BINARY, '-r',
+        'require "vendor/autoload.php"; if (!class_exists("PrestaShop\\\\Module\\\\Unipayment\\\\Security\\\\SystemClock")'
+        . ' || class_exists("PackagingDevFixture\\\\Marker")'
+        . ' || class_exists("PrestaShop\\\\Module\\\\Unipayment\\\\Tests\\\\Support\\\\TestSuiteGuard")) { exit(1); }',
+    ], $directory . '/unipayment');
+}
+
+/** Fault injection for the private copy of the builder used only by failure tests. */
+final class PackageFailureZipArchive extends ZipArchive
+{
+    public static string $failure;
+
+    #[\ReturnTypeWillChange]
+    public function open(string $filename, int $flags = 0)
+    {
+        assertPackage(getenv('TZ') === 'UTC', 'Process timezone is UTC during ZIP open');
+
+        return parent::open($filename, $flags);
+    }
+
+    public function setMtimeName(string $name, int $timestamp, int $flags = 0): bool
+    {
+        assertPackage(getenv('TZ') === 'UTC', 'Process timezone is UTC during timestamp assignment');
+        if (self::$failure === 'timestamp') {
+            $name = 'unipayment/nonexistent-timestamp-fixture.php';
+        }
+
+        return parent::setMtimeName($name, $timestamp, $flags);
+    }
+
+    public function close(): bool
+    {
+        assertPackage(getenv('TZ') === 'UTC', 'Process timezone is UTC during ZIP close');
+        if (self::$failure === 'close') {
+            // libzip reads addFile() sources at close. Removing one forces a native error.
+            assertPackage(unlink(dirname($this->filename) . '/unipayment/unipayment.php'), 'Remove a private staged file before ZIP close');
+            $closed = @parent::close();
+            assertPackage($closed === false, 'Native ZIP close fails with a missing staged input');
+
+            return $closed;
+        }
+
+        return parent::close();
+    }
 }
 
 foreach ([
@@ -83,13 +225,14 @@ foreach ([
 
 $root = dirname(__DIR__, 2);
 $source = (new DistributionPackage($root))->sourceFiles();
+$sourceVendorFiles = ['vendor/composer/autoload_classmap.php', 'vendor/composer/autoload_psr4.php'];
 $before = [];
-foreach (array_merge($source, [
-    'composer.lock' => $root . '/composer.lock',
-    'vendor/composer/autoload_classmap.php' => $root . '/vendor/composer/autoload_classmap.php',
-    'vendor/composer/autoload_psr4.php' => $root . '/vendor/composer/autoload_psr4.php',
-]) as $relative => $absolute) {
+foreach ($source + ['composer.lock' => $root . '/composer.lock'] as $relative => $absolute) {
     $before[$relative] = hash_file('sha256', $absolute);
+}
+$sourceVendorBefore = [];
+foreach ($sourceVendorFiles as $relative) {
+    $sourceVendorBefore[$relative] = is_file($root . '/' . $relative) ? hash_file('sha256', $root . '/' . $relative) : null;
 }
 
 // A private disposable checkout uses existing Git objects read-only. No commits
@@ -97,8 +240,11 @@ foreach (array_merge($source, [
 $testRoot = sys_get_temp_dir() . '/unipayment-package-test-' . bin2hex(random_bytes(8));
 mkdir($testRoot, 0700);
 $originalEpoch = getenv('SOURCE_DATE_EPOCH');
-putenv('SOURCE_DATE_EPOCH=1700000000');
+$originalTimezone = getenv('TZ');
+$originalPhpTimezone = date_default_timezone_get();
 try {
+    setPackageFixtureEnv('SOURCE_DATE_EPOCH', '1700000000');
+    date_default_timezone_set('Pacific/Auckland');
     $fixture = $testRoot . '/source';
     mkdir($fixture, 0700);
     foreach ($source as $relative => $absolute) {
@@ -112,7 +258,10 @@ try {
         $common = $root . '/' . $common;
     }
     writePackageFixture($fixture, '.git/objects/info/alternates', realpath($common . '/objects') . "\n");
-    writePackageFixture($fixture, '.git/HEAD', trim(runPackageFixture(['git', 'rev-parse', 'HEAD'], $root)) . "\n");
+    $sourceHead = trim(runPackageFixture(['git', 'rev-parse', 'HEAD'], $root));
+    $commitEpoch = (int) trim(runPackageFixture(['git', 'show', '-s', '--format=%ct', 'HEAD'], $root));
+    $commitDosEpoch = intdiv($commitEpoch, 2) * 2;
+    writePackageFixture($fixture, '.git/HEAD', $sourceHead . "\n");
     runPackageFixture(['git', 'read-tree', 'HEAD'], $fixture);
 
     // A real locked dev-only path dependency proves --no-dev removes packages,
@@ -133,14 +282,24 @@ try {
     writePackageFixture($fixture, 'secrets/smartucf-key.php', '<?php // synthetic excluded fixture');
     writePackageFixture($fixture, 'config/environment.php', '<?php // unused PS9 fixture');
     writePackageFixture($fixture, 'tests/ExcludedTest.php', '<?php');
-    writePackageFixture($fixture, 'src/PackagingRuntimeFixture.php', '<?php // new, untracked runtime source');
+    $runtimeFixture = 'src/PackagingRuntimeFixture.php';
+    $firstBytes = '<?php return "first";';
+    $secondBytes = '<?php return "second";';
+    $firstSourceMtime = 1009843200;
+    $secondSourceMtime = 1072915200;
+    writePackageFixture($fixture, $runtimeFixture, $firstBytes);
+    assertPackage(touch($fixture . '/' . $runtimeFixture, $firstSourceMtime), 'Set historical mtime on the first source fixture');
     writePackageFixture($fixture, 'vendor/source-marker.txt', 'source vendor must remain untouched');
     $lockBefore = hash_file('sha256', $fixture . '/composer.lock');
     $builder = new DistributionPackage($fixture);
-    $package = $builder->build();
+    waitForPackageEpoch($commitDosEpoch + 2);
+    [$package, $manifest, $firstNames] = buildPackageFixture($builder, false);
+    $firstEpoch = $manifest['source_date_epoch'];
+    assertPackage($manifest['source_git_sha'] === $sourceHead && $manifest['source_dirty'] === true,
+        'Manifest retains HEAD and records dirty fixture source');
+    assertPackage(!in_array($firstEpoch, [$commitDosEpoch, $firstSourceMtime, 1700000000], true),
+        'First timestamp differs from HEAD, historical source mtime and inherited epoch');
     $firstHash = hash_file('sha256', $package);
-    $builder->build();
-    assertPackage(hash_file('sha256', $package) === $firstHash, 'Identical inputs produce identical ZIP bytes');
     assertPackage(hash_file('sha256', $fixture . '/composer.lock') === $lockBefore, 'Source lockfile unchanged');
     assertPackage(file_get_contents($fixture . '/vendor/source-marker.txt') === 'source vendor must remain untouched', 'Source vendor unchanged');
     assertPackage(!is_file($fixture . '/vendor/autoload.php'), 'Composer installs only in staging');
@@ -149,7 +308,6 @@ try {
 
     $zip = new ZipArchive();
     assertPackage($zip->open($package) === true, 'ZIP opens');
-    $manifest = json_decode((string) $zip->getFromName('unipayment/package-manifest.json'), true, 512, JSON_THROW_ON_ERROR);
     $version = DistributionPackage::resolveVersion((string) file_get_contents($fixture . '/unipayment.php'));
     assertPackage(basename($package) === 'ps8_uni_' . $version . '.zip', 'Exact filename and version');
     assertPackage(count($manifest['files']) + 1 === $zip->numFiles, 'Complete manifest inventory');
@@ -172,15 +330,28 @@ try {
     }
     $metadata = json_decode((string) $zip->getFromName('unipayment/composer.json'), true, 512, JSON_THROW_ON_ERROR);
     assertPackage(!isset($metadata['autoload-dev']) && !isset($metadata['require-dev']) && !isset($metadata['scripts']), 'Production Composer metadata');
-    $extracted = $testRoot . '/extracted';
-    mkdir($extracted, 0700);
-    assertPackage($zip->extractTo($extracted), 'Verified ZIP extracts');
     $zip->close();
-    runPackageFixture([PHP_BINARY, '-r',
-        'require "vendor/autoload.php"; if (!class_exists("PrestaShop\\\\Module\\\\Unipayment\\\\Security\\\\SystemClock")'
-        . ' || class_exists("PackagingDevFixture\\\\Marker")'
-        . ' || class_exists("PrestaShop\\\\Module\\\\Unipayment\\\\Tests\\\\Support\\\\TestSuiteGuard")) { exit(1); }',
-    ], $extracted . '/unipayment');
+    $firstExtracted = $testRoot . '/first-extracted';
+    extractPackageFixture($package, $firstExtracted);
+    $firstPhp = $firstExtracted . '/unipayment/' . $runtimeFixture;
+    assertPackage(file_get_contents($firstPhp) === $firstBytes && filemtime($firstPhp) === $firstEpoch,
+        'First extracted PHP bytes and UTC mtime match the archive');
+    $nativeZip = new ZipArchive();
+    assertPackage($nativeZip->open($package) === true && $nativeZip->extractTo($testRoot . '/native-extracted')
+        && $nativeZip->close(), 'Verified ZIP extracts through PHP');
+
+    runPackageFixture(['cp', '-R', $firstExtracted . '/unipayment/vendor/.', $fixture . '/vendor'], $fixture);
+    $localAutoload = 'vendor/composer/autoload_psr4.php';
+    writePackageFixture($fixture, $localAutoload, file_get_contents($fixture . '/' . $localAutoload) . "\n// Local fixture marker.\n");
+    $fixtureVendorHashes = [];
+    foreach ($manifest['files'] as $relative => $packageHash) {
+        if (strpos($relative, 'vendor/') === 0) {
+            $hash = hash_file('sha256', $fixture . '/' . $relative);
+            assertPackage(is_string($hash) && ($relative === $localAutoload ? $hash !== $packageHash : $hash === $packageHash),
+                'Generated source vendor fixture exists: ' . $relative);
+            $fixtureVendorHashes[$relative] = $hash;
+        }
+    }
 
     $cases = ['missing', 'tampered', 'extra-runtime', 'dev', 'git', 'nested-dist', 'temp', 'autoload',
         'metadata', 'installed', 'manifest', 'root', 'traversal', 'symlink', 'version', 'xml', 'ps9', 'sha'];
@@ -275,12 +446,97 @@ try {
     unlink($fixture . '/src/HiddenRuntime.php');
     $xmlBefore = (string) file_get_contents($fixture . '/config.xml');
     writePackageFixture($fixture, 'config.xml', '<module><version>99.99.99</version></module>');
+    setPackageFixtureEnv('TZ', 'Europe/Sofia');
     expectPackageFailure(static function () use ($builder): void {
         $builder->build();
-    }, 'Build accepted inconsistent module XML version');
+    }, 'Build accepted inconsistent module XML version', 'Packaged XML version does not match module version.');
+    assertPackage(getenv('TZ') === 'Europe/Sofia' && date_default_timezone_get() === 'Pacific/Auckland',
+        'Post-generation verification failure preserves caller timezones');
     assertPackage(glob($fixture . '/dist/.build-*') === [], 'Failed verification cleans populated staging tree');
     assertPackage(hash_file('sha256', $package) === $firstHash, 'Failed verification preserves published ZIP');
     writePackageFixture($fixture, 'config.xml', $xmlBefore);
+
+    $faultBuilder = str_replace(
+        ['namespace PrestaShop\\Module\\Unipayment\\Build;', 'use ZipArchive;'],
+        ['namespace UnipaymentPackageFaultFixture;', 'use PackageFailureZipArchive as ZipArchive;'],
+        file_get_contents($root . '/tools/DistributionPackage.php'),
+        $replacements
+    );
+    assertPackage($replacements === 2, 'Only the namespace and ZIP class import change in the private fault fixture');
+    writePackageFixture($testRoot, 'FaultDistributionPackage.php', $faultBuilder);
+    require $testRoot . '/FaultDistributionPackage.php';
+    $failingBuilder = new UnipaymentPackageFaultFixture\DistributionPackage($fixture);
+    foreach ([
+        ['timestamp', false, 'ZIP entry could not be written:'],
+        ['close', '', 'ZIP could not be finalized.'],
+    ] as [$failure, $timezone, $expectedError]) {
+        PackageFailureZipArchive::$failure = $failure;
+        setPackageFixtureEnv('TZ', $timezone);
+        expectPackageFailure(static function () use ($failingBuilder): void {
+            $failingBuilder->build();
+        }, 'Build published despite ZIP ' . $failure . ' failure', $expectedError);
+        assertPackage(getenv('TZ') === $timezone && date_default_timezone_get() === 'Pacific/Auckland',
+            'ZIP ' . $failure . ' failure preserves caller timezones');
+        assertPackage(hash_file('sha256', $package) === $firstHash, 'ZIP ' . $failure . ' failure preserves previous ZIP bytes');
+        assertPackage(glob($fixture . '/dist/.build-*') === [], 'ZIP ' . $failure . ' failure cleans staging');
+    }
+
+    $historical = $testRoot . '/historical/' . basename($package);
+    mkdir(dirname($historical), 0700);
+    assertPackage(copy($package, $historical) && $zip->open($historical) === true, 'Open private historical-package fixture');
+    $historicalManifest = $manifest;
+    $historicalManifest['source_date_epoch'] = 1700000001;
+    assertPackage($zip->addFromString('unipayment/package-manifest.json', json_encode($historicalManifest, JSON_THROW_ON_ERROR)),
+        'Write historical manifest with an odd epoch');
+    foreach ($firstNames as $name) {
+        assertPackage($zip->setMtimeName($name, 1700000001), 'Set historical timestamp for ' . $name);
+    }
+    assertPackage($zip->close() && $builder->verify($historical) === count($firstNames),
+        'Standalone verifier still accepts the historical timestamp policy');
+
+    writePackageFixture($fixture, $runtimeFixture, $secondBytes);
+    assertPackage(touch($fixture . '/' . $runtimeFixture, $secondSourceMtime), 'Set different historical mtime on the second source fixture');
+    setPackageFixtureEnv('SOURCE_DATE_EPOCH', 'invalid');
+    waitForPackageEpoch($firstEpoch + 2);
+    [$package, $secondManifest, $secondNames] = buildPackageFixture($builder, '');
+    $secondEpoch = $secondManifest['source_date_epoch'];
+    assertPackage($secondEpoch > $firstEpoch && !in_array($secondEpoch, [$commitDosEpoch, $secondSourceMtime], true),
+        'Second timestamp comes from a later build interval despite the invalid override');
+    assertPackage($secondNames === $firstNames, 'Successive builds have the same ordered inventory');
+    $expectedManifest = $manifest;
+    $expectedManifest['source_date_epoch'] = $secondEpoch;
+    $expectedManifest['files'][$runtimeFixture] = hash('sha256', $secondBytes);
+    assertPackage($secondManifest === $expectedManifest, 'Only the changed PHP hash and build epoch differ in the manifest');
+
+    $secondExtracted = $testRoot . '/second-extracted';
+    extractPackageFixture($package, $secondExtracted);
+    $secondPhp = $secondExtracted . '/unipayment/' . $runtimeFixture;
+    assertPackage(file_get_contents($fixture . '/' . $runtimeFixture) === $secondBytes
+        && file_get_contents($secondPhp) === $secondBytes && filemtime($secondPhp) === $secondEpoch,
+        'Second source bytes and extracted bytes match with the second build mtime');
+
+    $placed = $testRoot . '/placed-first.php';
+    runPackageFixture(['cp', '-p', $firstPhp, $placed], $testRoot);
+    assertPackage(file_get_contents($placed) === $firstBytes && filemtime($placed) === $firstEpoch,
+        'Timestamp-preserving placement keeps the extracted mtime and PHP bytes');
+    $copied = $testRoot . '/copied-first.php';
+    $copyStart = time();
+    assertPackage(copy($firstPhp, $copied), 'Ordinarily copy the extracted file');
+    $copiedMtime = filemtime($copied);
+    assertPackage(file_get_contents($copied) === $firstBytes && $copiedMtime >= $copyStart && $copiedMtime <= time()
+        && $copiedMtime !== $firstEpoch, 'Ordinary copying keeps PHP bytes and assigns a new filesystem mtime');
+    fwrite(STDOUT, sprintf(
+        "UTC epoch and extracted mtime A=%d B=%d; placement preserved=%d ordinary copy=%d (%d entries per archive)\n",
+        $firstEpoch, $secondEpoch, filemtime($placed), $copiedMtime, count($secondNames)
+    ));
+
+    foreach (['UTC', 'Europe/Sofia', 'America/New_York'] as $timezone) {
+        [, $otherManifest, $otherNames] = buildPackageFixture($builder, $timezone);
+        $expectedManifest['source_date_epoch'] = $otherManifest['source_date_epoch'];
+        assertPackage($otherNames === $secondNames && $otherManifest === $expectedManifest,
+            'Caller timezone affects neither inventory nor manifest content beyond the build epoch: ' . $timezone);
+    }
+
     // Changing the one deployment value must survive packaging without substitution.
     $destinationSource = (string) file_get_contents($fixture . '/src/Api/ControlPanelDestination.php');
     $futureDestination = preg_replace('/public const CONTROL_PANEL_URL = [^;]+;/',
@@ -292,20 +548,16 @@ try {
     assertPackage($zip->getFromName('unipayment/src/Api/ControlPanelDestination.php') === $futureDestination,
         'One-value future CP deployment packaged unchanged');
     $zip->close();
-    $futureHash = hash_file('sha256', $package);
-    $builder->build();
-    assertPackage(hash_file('sha256', $package) === $futureHash, 'Changed destination build is reproducible');
-    putenv('SOURCE_DATE_EPOCH=invalid');
-    expectPackageFailure(static function () use ($builder): void {
-        $builder->build();
-    }, 'Invalid build timestamp accepted');
-    assertPackage(glob($fixture . '/dist/.build-*') === [], 'Failed build stages cleaned');
-} finally {
-    if ($originalEpoch === false) {
-        putenv('SOURCE_DATE_EPOCH');
-    } else {
-        putenv('SOURCE_DATE_EPOCH=' . $originalEpoch);
+    assertPackage(hash_file('sha256', $fixture . '/composer.lock') === $lockBefore, 'Source lockfile unchanged after repeated builds');
+    assertPackage(file_get_contents($fixture . '/vendor/source-marker.txt') === 'source vendor must remain untouched', 'Source vendor marker preserved');
+    foreach ($fixtureVendorHashes as $relative => $hash) {
+        assertPackage(hash_file('sha256', $fixture . '/' . $relative) === $hash, 'Generated source vendor preserved: ' . $relative);
     }
+    assertPackage(glob($fixture . '/dist/.build-*') === [], 'All build stages cleaned');
+} finally {
+    setPackageFixtureEnv('SOURCE_DATE_EPOCH', $originalEpoch);
+    setPackageFixtureEnv('TZ', $originalTimezone);
+    date_default_timezone_set($originalPhpTimezone);
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($testRoot, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
     foreach ($iterator as $entry) {
         if ($entry->isDir() && !$entry->isLink()) {
@@ -321,7 +573,12 @@ try {
     rmdir($testRoot);
 }
 foreach ($before as $relative => $hash) {
-    assertPackage(hash_file('sha256', $root . '/' . $relative) === $hash, 'Live source tree unchanged: ' . $relative);
+    assertPackage(is_string($hash) && hash_file('sha256', $root . '/' . $relative) === $hash, 'Live source tree unchanged: ' . $relative);
+}
+foreach ($sourceVendorBefore as $relative => $hash) {
+    $path = $root . '/' . $relative;
+    assertPackage($hash === null ? !file_exists($path) : is_string($hash) && hash_file('sha256', $path) === $hash,
+        'Live source vendor file remains absent or byte-identical: ' . $relative);
 }
 
-fwrite(STDOUT, "OK (isolated repeatable PS8 ZIP, production dependency/autoload, source parity, 20 archive rejection cases and source guards)\n");
+fwrite(STDOUT, "OK (isolated PS8 ZIP timestamps, CRC, production autoload, source parity, 20 archive rejection cases and source guards)\n");
