@@ -33,11 +33,11 @@ assertSilentBuyContract(strpos($javascript, 'createPreselectOperationToken') !==
 assertSilentBuyContract(strpos($javascript, 'preselect_operation_token') !== false, 'buy flow must send operation token with preselect request');
 assertSilentBuyContract(strpos($javascript, 'redirectToCheckout(') !== false, 'buy flow must redirect directly to checkout');
 assertSilentBuyContract(
-    (bool) preg_match('/handleSecondary\\([\\s\\S]*?createPreselectOperationToken\\([\\s\\S]*?requestCalculation\\("preselect"\\)[\\s\\S]*?redirectToCheckout\\(/', $javascript),
+    (bool) preg_match('/handleSecondary\\([\\s\\S]*?createPreselectOperationToken\\([\\s\\S]*?requestCalculation\\("preselect", selection\\)[\\s\\S]*?redirectToCheckout\\(/', $javascript),
     'buy flow must bind operation token before preselect redirect'
 );
 assertSilentBuyContract(
-    (bool) preg_match('/handleSecondary\\([\\s\\S]*?requestCalculation\\("preselect"\\)[\\s\\S]*?redirectToCheckout\\(/', $javascript),
+    (bool) preg_match('/handleSecondary\\([\\s\\S]*?requestCalculation\\("preselect", selection\\)[\\s\\S]*?redirectToCheckout\\(/', $javascript),
     'buy flow must not chain preselect into native add-to-cart click'
 );
 assertSilentBuyContract(strpos($javascript, 'secondaryActionUsesNativeAddToCart') !== false, 'secondary action mode split must remain explicit');

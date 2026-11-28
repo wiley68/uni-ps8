@@ -2,7 +2,16 @@
     "use strict";
 
     var selector = "[data-unipayment-calculator]";
+    var productDetailsSelector =
+        "#product-details[data-product], .js-product-details[data-product]";
+    var productDetailsElementSelector = "#product-details, .js-product-details";
+    var unrelatedProductSelector = ".product-miniature, .quickview";
+    var quantitySelector = '#quantity_wanted, input[name="qty"], input[name="quantity"]';
     var domRefreshTimer = null;
+    var pendingProductUpdateHint = null;
+    var productSelectionUpdating = false;
+    var productRequiringLiveAttribute = null;
+    var productSelectionRevision = 0;
 
     function parseConfig(root) {
         try {
@@ -12,24 +21,89 @@
         }
     }
 
-    function productAttributeId(doc) {
-        var productDetails = doc.querySelector(
-            "#product-details[data-product]",
-        );
-        if (productDetails) {
-            try {
-                var productState = JSON.parse(
-                    productDetails.getAttribute("data-product") || "{}",
-                );
-                var stateAttributeId =
-                    parseInt(productState.id_product_attribute, 10) || 0;
-                if (stateAttributeId > 0) return stateAttributeId;
-            } catch (error) {
-                // Fall back to the theme's hidden field when the PrestaShop state is unavailable.
-            }
+    function nonNegativeInteger(value) {
+        if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+            value = Number(value);
         }
-        var field = doc.querySelector('input[name="id_product_attribute"]');
-        return field ? Math.max(0, parseInt(field.value, 10) || 0) : 0;
+        return Number.isSafeInteger(value) && value >= 0 ? value : null;
+    }
+
+    function readProductDetails(details) {
+        if (!details) return null;
+        try {
+            return JSON.parse(details.getAttribute("data-product"));
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function productForm(doc, root, productId) {
+        function ownsProduct(form) {
+            var field = form.elements.namedItem("id_product");
+            return field && nonNegativeInteger(field.value) === productId;
+        }
+
+        var form = root.closest("form");
+        if (form) {
+            return form.id === "add-to-cart-or-refresh" && ownsProduct(form) ? form : null;
+        }
+        // displayProductAdditionalInfo can render next to the main form.
+        var forms = doc.querySelectorAll("form#add-to-cart-or-refresh");
+        return forms.length === 1 && ownsProduct(forms[0]) ? forms[0] : null;
+    }
+
+    function productAttributeId(doc, root, updateHint, fallback) {
+        var productId = nonNegativeInteger(root.getAttribute("data-product-id"));
+        if (!productId) return 0;
+        var confirmed = updateHint && updateHint.productId === productId
+            ? updateHint.attributeId
+            : null;
+
+        // Hummingbird's details can sit outside the main form and product container.
+        var details = doc.querySelectorAll(productDetailsSelector);
+        var selected = null;
+        for (var index = 0; index < details.length; index += 1) {
+            if (details[index].closest(unrelatedProductSelector)) continue;
+            var state = readProductDetails(details[index]);
+            if (!state || nonNegativeInteger(state.id_product) !== productId)
+                continue;
+            var attributeId = nonNegativeInteger(state.id_product_attribute);
+            if (attributeId === null) continue;
+            if (selected !== null && attributeId !== selected) return null;
+            selected = attributeId;
+        }
+        if (selected === null) {
+            var form = productForm(doc, root, productId);
+            var field = form && form.elements.namedItem("id_product_attribute");
+            if (field) selected = nonNegativeInteger(field.value);
+        }
+        if (selected !== null)
+            return confirmed === null || selected === confirmed ? selected : null;
+        if (confirmed !== null) return confirmed;
+        return fallback === undefined ? 0 : fallback;
+    }
+
+    function productUpdateHint(doc, payload) {
+        if (
+            !payload ||
+            payload.is_quick_view ||
+            typeof payload.product_details !== "string"
+        ) return null;
+        var attributeId = nonNegativeInteger(payload.id_product_attribute);
+        if (attributeId === null) return null;
+
+        // Native refresh identifies the product in the returned details fragment.
+        var fragment = doc.createElement("template");
+        fragment.innerHTML = payload.product_details;
+        var details = fragment.content.querySelectorAll(productDetailsSelector);
+        if (details.length !== 1) return null;
+        var state = readProductDetails(details[0]);
+        var productId = state && nonNegativeInteger(state.id_product);
+        if (!productId) return null;
+        return state.id_product_attribute === undefined ||
+            nonNegativeInteger(state.id_product_attribute) === attributeId
+            ? { productId: productId, attributeId: attributeId }
+            : null;
     }
 
     function buttonInstallmentLabel(offer) {
@@ -109,6 +183,7 @@
 
     if (typeof module === "object" && module.exports) {
         module.exports.productAttributeId = productAttributeId;
+        module.exports.productUpdateHint = productUpdateHint;
         module.exports.buttonInstallmentLabel = buttonInstallmentLabel;
         module.exports.popupCalculationIdentity = popupCalculationIdentity;
         module.exports.popupCalculationSchemeFields =
@@ -123,10 +198,23 @@
         return;
     }
 
-    function quantity() {
-        var field = document.querySelector(
-            '#quantity_wanted, input[name="qty"], input[name="quantity"]',
-        );
+    function quantity(root, productId) {
+        var field;
+        if (root) {
+            var form = productForm(document, root, productId);
+            field = form && form.querySelector(quantitySelector);
+            if (!field) {
+                var fields = Array.prototype.filter.call(
+                    document.querySelectorAll(quantitySelector),
+                    function (input) { return !input.closest("form"); },
+                );
+                var namedQuantity = fields.filter(function (input) { return input.id === "quantity_wanted"; });
+                if (namedQuantity.length === 1) field = namedQuantity[0];
+                else if (fields.length === 1) field = fields[0];
+            }
+        } else {
+            field = document.querySelector(quantitySelector);
+        }
         return field ? Math.max(1, parseInt(field.value, 10) || 1) : 1;
     }
 
@@ -201,9 +289,59 @@
         var consents = window.createUnipaymentShopConsents(root);
         var consentGeneration = 0;
 
+        function selectionKey(productId, attributeId, currentQuantity) {
+            return productId + ":" + attributeId + ":" + currentQuantity;
+        }
+
+        function readSelection() {
+            var productId = root.getAttribute("data-product-id") || "0";
+            if (isCartSource) {
+                return { productId: productId, attributeId: 0, quantity: quantity() };
+            }
+            if (productSelectionUpdating) return null;
+            var numericProductId = nonNegativeInteger(productId);
+            var previousAttribute = verifiedProductId === productId ? verifiedAttribute : null;
+            var fallback = verifiedRevision === productSelectionRevision ? previousAttribute : null;
+            if (fallback === null && previousAttribute <= 0 && numericProductId !== productRequiringLiveAttribute) {
+                fallback = 0;
+            }
+            var attributeId = productAttributeId(document, root, pendingProductUpdateHint, fallback);
+            if (attributeId === null) return null;
+            verifiedAttribute = attributeId;
+            verifiedProductId = productId;
+            verifiedRevision = productSelectionRevision;
+            var currentQuantity = quantity(root, numericProductId);
+            return {
+                productId: productId,
+                attributeId: attributeId,
+                quantity: currentQuantity,
+                key: selectionKey(productId, attributeId, currentQuantity),
+            };
+        }
+
+        function matchesSelection(key) {
+            if (isCartSource) return true;
+            var selection = readSelection();
+            return !!selection && selection.key === key;
+        }
+
         function setSecondaryDisabled(disabled) {
             if (secondaryButton) secondaryButton.disabled = !!disabled;
         }
+        var initialProductId = root.getAttribute("data-product-id");
+        var initialAttributeId = !isCartSource && nonNegativeInteger(initialProductId)
+            ? productAttributeId(document, root, null, null)
+            : null;
+        var verifiedAttribute = initialAttributeId;
+        var verifiedProductId = initialProductId;
+        var verifiedRevision = productSelectionRevision;
+        // displayProductAdditionalInfo renders the offer for one unit.
+        var initialOfferQuantity = 1;
+        var offerSelectionKey = initialAttributeId === null
+            ? ""
+            : selectionKey(initialProductId, initialAttributeId, initialOfferQuantity);
+        var observedSelectionKey = offerSelectionKey;
+        var calculationSelectionKey = "";
         var lastCalculation = null;
         var lastOpenTrigger = null;
         var calculateTimer = null;
@@ -213,9 +351,11 @@
         var applyInFlight = false;
         var refreshTimer = null;
         var refreshRequest = null;
+        var refreshRequestKey = "";
         var refreshSequence = 0;
-        var lastRequestKey = "";
+        var refreshedOfferKey = "";
         var redirectPending = false;
+        var pendingPreselect = null;
         var popupSubmissionToken = "";
         var preselectOperationToken = "";
 
@@ -685,19 +825,17 @@
             applyInFlight = false;
             window.clearTimeout(calculateTimer);
             calculateTimer = null;
-            if (
-                calculateRequest &&
-                typeof calculateRequest.abort === "function"
-            )
-                calculateRequest.abort();
-            calculateRequest = null;
+            abortCalculationRequest();
             calculateSequence += 1;
             consentGeneration = consents.begin(null);
             lastCalculation = null;
+            calculationSelectionKey = "";
             redirectPending = false;
+            pendingPreselect = null;
             popupSubmissionToken = "";
             preselectOperationToken = "";
             root.unipaymentPopupSubmissionToken = "";
+            if (!isCartSource) root.unipaymentSelectedFinancing = null;
             activeType = "";
             root.classList.remove("unipayment-product-calculator--error");
             first.value = "0";
@@ -798,12 +936,13 @@
                 element.textContent = display ? display.primary : "";
         }
 
-        function applyCalculation(calculation) {
+        function applyCalculation(calculation, key) {
             if (!consents.apply(consentGeneration, calculation.consent_context)) {
                 lastCalculation = null;
                 throw new Error("consent_context");
             }
             lastCalculation = calculation;
+            calculationSelectionKey = key;
             displayAmount("price", calculation.price_display);
             displayAmount(
                 "financed_amount",
@@ -833,7 +972,10 @@
             updateSubmitState(false);
         }
 
-        function calculationPayload(action) {
+        function calculationPayload(action, selection) {
+            if (!selection || (!isCartSource && action !== "calculate" &&
+                (!lastCalculation || calculationSelectionKey !== selection.key)))
+                return null;
             var scheme = selectedScheme();
             if (!scheme) return null;
             var identity = popupCalculationIdentity(
@@ -849,15 +991,9 @@
             var payload = new URLSearchParams();
             payload.set("token", root.getAttribute("data-popup-token") || "");
             payload.set("popup_action", action || "calculate");
-            payload.set(
-                "id_product",
-                root.getAttribute("data-product-id") || "0",
-            );
-            payload.set(
-                "id_product_attribute",
-                String(productAttributeId(document)),
-            );
-            payload.set("quantity", String(quantity()));
+            payload.set("id_product", selection.productId);
+            payload.set("id_product_attribute", String(selection.attributeId));
+            payload.set("quantity", String(selection.quantity));
             payload.set("popup_offer_type", activeType);
             payload.set("scheme_key", fields.scheme_key);
             payload.set("scheme_type", fields.scheme_type);
@@ -888,6 +1024,7 @@
             var scheme = selectedScheme() || {};
             calculateSequence += 1;
             lastCalculation = null;
+            calculationSelectionKey = "";
             consentGeneration = consents.begin(JSON.stringify([scheme.kop_code, scheme.months, scheme.filter_id, scheme.scheme_type]));
             applyButton.disabled = true;
             setSecondaryDisabled(true);
@@ -897,25 +1034,60 @@
             }
         }
 
-        function requestCalculation(action) {
+        function invalidatePreview() {
+            invalidateCalculation();
+            if (applyInFlight) return;
+            popupSubmissionToken = "";
+            root.unipaymentPopupSubmissionToken = "";
+            if (!isCartSource) root.unipaymentSelectedFinancing = null;
+        }
+
+        function showCalculationRetry() {
+            errorBox.textContent = t(
+                "data-calculate-failed-message",
+                "Неуспешно изчисление. Моля, опитайте отново.",
+            );
+        }
+
+        function abortCalculationRequest() {
+            if (calculateRequest && calculateRequest.controller) {
+                calculateRequest.controller.abort();
+            }
+            calculateRequest = null;
+        }
+
+        function hasCurrentCalculationRequest(selection) {
+            var request = calculateRequest;
+            if (!request || request.sequence !== calculateSequence || request.offer !== config ||
+                request.endpoint !== root.getAttribute("data-popup-endpoint") ||
+                (request.controller && request.controller.signal.aborted)) return false;
+            var payload = calculationPayload("calculate", selection);
+            return !!payload && request.previewBody === payload.toString();
+        }
+
+        function requestCalculation(action, selection) {
             window.clearTimeout(calculateTimer);
             calculateTimer = null;
-            if (applyInFlight) return Promise.reject(new Error("submission"));
-            var payload = calculationPayload(action);
+            if (applyInFlight || modal.hidden || !root.isConnected) return Promise.reject(new Error("submission"));
+            var payload = calculationPayload(action, selection);
             var endpoint = root.getAttribute("data-popup-endpoint");
             if (!payload || !endpoint)
                 return Promise.reject(new Error("selection"));
+            if (!isCartSource) {
+                if (!offerSelectionKey) offerSelectionKey = selection.key;
+                observedSelectionKey = selection.key;
+            }
             invalidateCalculation();
-            if (
-                calculateRequest &&
-                typeof calculateRequest.abort === "function"
-            )
-                calculateRequest.abort();
-            calculateRequest =
-                typeof AbortController === "function"
-                    ? new AbortController()
-                    : null;
-            var sequence = ++calculateSequence;
+            abortCalculationRequest();
+            var request = {
+                controller: typeof AbortController === "function" ? new AbortController() : null,
+                sequence: ++calculateSequence,
+                offer: config,
+                endpoint: endpoint,
+                previewBody: action === "calculate" ? payload.toString() : null,
+            };
+            calculateRequest = request;
+            var sequence = request.sequence;
             applyButton.disabled = true;
             setSecondaryDisabled(true);
             var options = {
@@ -928,38 +1100,71 @@
                         "application/x-www-form-urlencoded;charset=UTF-8",
                 },
             };
-            if (calculateRequest) options.signal = calculateRequest.signal;
+            if (request.controller) options.signal = request.controller.signal;
             return fetch(endpoint, options)
                 .then(function (response) {
                     return response.json().then(function (body) {
-                        if (!response.ok || !body.success)
-                            throw new Error(body.message || "calculation");
                         if (sequence !== calculateSequence || applyInFlight || root.isConnected === false || modal.hidden)
                             throw new Error("stale");
-                        applyCalculation(body.calculation);
+                        if (!matchesSelection(selection.key)) {
+                            if (action === "calculate") calculateNow();
+                            throw new Error("stale");
+                        }
+                        if (!response.ok || !body.success)
+                            throw new Error(body.message || "calculation");
+                        applyCalculation(body.calculation, selection.key);
                         return body;
                     });
                 })
-                .catch(function (error) {
+                .then(function (body) {
+                    if (calculateRequest === request) calculateRequest = null;
+                    return body;
+                }, function (error) {
+                    if (calculateRequest === request) calculateRequest = null;
                     if (
                         sequence === calculateSequence && !applyInFlight && root.isConnected !== false && !modal.hidden &&
                         error.name !== "AbortError" &&
                         error.message !== "stale"
-                    )
-                        errorBox.textContent = error.message === "consent_context" ? t("data-consent-context-invalid-message", "Обновете страницата и изберете схема отново.") : t(
-                            "data-calculate-failed-message",
-                            "Неуспешно изчисление. Моля, опитайте отново.",
-                        );
+                    ) {
+                        if (error.message === "consent_context")
+                            errorBox.textContent = t("data-consent-context-invalid-message", "Обновете страницата и изберете схема отново.");
+                        else showCalculationRetry();
+                    }
                     throw error;
                 });
         }
 
         function calculateNow() {
-            requestCalculation("calculate").catch(function () {});
+            if (applyInFlight || redirectPending || modal.hidden || !root.isConnected) return;
+            var selection = readSelection();
+            if (!selection || (!isCartSource && !matchesOffer(selection))) {
+                invalidatePreview();
+                setStep(1);
+                if (selection) root.unipaymentRefresh();
+                else showCalculationRetry();
+                return;
+            }
+            requestCalculation("calculate", selection).catch(function () {});
+        }
+
+        function matchesOffer(selection) {
+            if (offerSelectionKey) return offerSelectionKey === selection.key;
+            return selection.productId === initialProductId && selection.quantity === initialOfferQuantity;
+        }
+
+        function currentCalculationSelection() {
+            if (!lastCalculation) return null;
+            var selection = readSelection();
+            if (selection && (isCartSource || selection.key === calculationSelectionKey))
+                return selection;
+            invalidatePreview();
+            setStep(1);
+            calculateNow();
+            return null;
         }
 
         function open(type, trigger) {
-            if (redirectPending) return;
+            if (redirectPending || !config) return;
             resetPopup();
             activeType = type;
             lastOpenTrigger = trigger || null;
@@ -1021,17 +1226,27 @@
         }
 
         function handleSecondary() {
-            if (isCartSource || !lastCalculation || redirectPending) return;
-            if (secondaryActionUsesNativeAddToCart(
-                root.getAttribute("data-button-action"),
-            )) {
+            if (isCartSource || redirectPending) return;
+            var selection = currentCalculationSelection();
+            if (!selection) return;
+            if (
+                secondaryActionUsesNativeAddToCart(
+                    root.getAttribute("data-button-action"),
+                )
+            ) {
                 addToCart("");
                 return;
             }
             redirectPending = true;
+            var preselect = {};
+            pendingPreselect = preselect;
             preselectOperationToken = createPreselectOperationToken();
-            requestCalculation("preselect")
+            var request = requestCalculation("preselect", selection);
+            var sequence = calculateSequence;
+            request
                 .then(function (body) {
+                    if (sequence !== calculateSequence || !matchesSelection(selection.key)) throw new Error("stale");
+                    pendingPreselect = null;
                     applyButton.disabled = true;
                     setSecondaryDisabled(true);
                     redirectToCheckout(
@@ -1041,14 +1256,22 @@
                         ),
                     );
                 })
-                .catch(function () {
+                .catch(function (error) {
+                    if (pendingPreselect !== preselect) return;
+                    pendingPreselect = null;
                     redirectPending = false;
+                    var offer = preselect.offer;
+                    if (offer && applyRefreshedOffer(offer.sequence, offer.key, offer.payload)) return;
+                    if (error.message === "stale") {
+                        calculateNow();
+                    }
                 });
         }
 
         function transitionToStep2() {
-            if (redirectPending) return;
-            if (!lastCalculation) return;
+            if (redirectPending || !consents.resolved()) return;
+            var selection = currentCalculationSelection();
+            if (!selection) return;
             if (!customerForm || !submitButton || !step3) {
                 errorBox.textContent = t(
                     "data-customer-form-missing-message",
@@ -1058,9 +1281,9 @@
             }
             var state = {
                 productId:
-                    parseInt(root.getAttribute("data-product-id"), 10) || 0,
-                productAttributeId: productAttributeId(document),
-                quantity: quantity(),
+                    parseInt(selection.productId, 10) || 0,
+                productAttributeId: selection.attributeId,
+                quantity: selection.quantity,
                 type: activeType,
                 schemeType: lastCalculation.scheme_type,
                 kopCode: lastCalculation.kop_code,
@@ -1110,7 +1333,8 @@
             if (!forceIssue && popupSubmissionToken) {
                 return Promise.resolve(popupSubmissionToken);
             }
-            var payload = calculationPayload("issue_submission_token");
+            var selection = readSelection();
+            var payload = calculationPayload("issue_submission_token", selection);
             var endpoint = root.getAttribute("data-popup-endpoint");
             if (!payload || !endpoint) {
                 return Promise.reject(new Error("token"));
@@ -1132,6 +1356,11 @@
             })
                 .then(function (response) {
                     return response.json().then(function (body) {
+                        if (sequence !== calculateSequence || root.isConnected === false || modal.hidden) throw new Error("stale");
+                        if (!matchesSelection(selection.key)) {
+                            currentCalculationSelection();
+                            throw new Error("stale");
+                        }
                         if (
                             !response.ok ||
                             !body.success ||
@@ -1139,8 +1368,7 @@
                         ) {
                             throw new Error((body && body.message) || "token");
                         }
-                        if (sequence !== calculateSequence || root.isConnected === false || modal.hidden) throw new Error("stale");
-                        applyCalculation(body.calculation);
+                        applyCalculation(body.calculation, selection.key);
                         popupSubmissionToken = body.popup_submission_token;
                         root.unipaymentPopupSubmissionToken =
                             popupSubmissionToken;
@@ -1162,6 +1390,8 @@
         function requestStep2Validation() {
             if (redirectPending) return;
             if (!customerForm || !submitButton || !step3) return;
+            var selection = currentCalculationSelection();
+            if (!selection) return;
             if (!updateSubmitState(true)) return;
             var endpoint = root.getAttribute("data-popup-endpoint");
             if (!endpoint) return;
@@ -1169,7 +1399,7 @@
             calculateTimer = null;
             window.clearTimeout(refreshTimer);
             refreshTimer = null;
-            refreshSequence += 1;
+            cancelOfferRequest();
             if (submitButton) {
                 submitButton.disabled = true;
                 submitButton.setAttribute("aria-disabled", "true");
@@ -1177,6 +1407,7 @@
             submitError.textContent = "";
             var submitSequence = calculateSequence;
             var operation = ++submissionSequence;
+            var applyDispatched = false;
             redirectPending = true;
             setProcessingState(true);
             showSmartUcfLoading();
@@ -1184,8 +1415,9 @@
 
             ensurePopupSubmissionToken(false)
                 .then(function (token) {
-                    if (submitSequence !== calculateSequence || modal.hidden || root.isConnected === false || !consents.ready()) throw new Error("stale");
-                    var payload = calculationPayload("apply");
+                    if (submitSequence !== calculateSequence || modal.hidden || !root.isConnected ||
+                        !consents.ready() || !matchesSelection(selection.key)) throw new Error("stale");
+                    var payload = calculationPayload("apply", selection);
                     if (!payload) throw new Error("selection");
                     if (!isCartSource) {
                         if (!token && !popupSubmissionToken) {
@@ -1208,6 +1440,7 @@
                     appendAcceptedConsents(payload);
                     // The sent operation has its own identity. Preview changes may not discard its result.
                     applyInFlight = true;
+                    applyDispatched = true;
                     return fetch(endpoint, {
                         method: "POST",
                         credentials: "same-origin",
@@ -1303,9 +1536,15 @@
                     applyInFlight = false;
                     redirectPending = false;
                     setProcessingState(false);
+                    if (!isCartSource && !applyDispatched && (!lastCalculation || !matchesSelection(selection.key))) {
+                        setStep(1);
+                        calculateNow();
+                        return;
+                    }
                     setStep(2);
-                    if (!lastCalculation) {
+                    if (!lastCalculation || !matchesSelection(calculationSelectionKey)) {
                         submitError.textContent = t("data-consent-context-invalid-message", "Обновете страницата и изберете схема отново.");
+                        if (lastCalculation) currentCalculationSelection();
                     }
                     if (!step2.hidden) updateSubmitState(false);
                 });
@@ -1472,40 +1711,20 @@
             }
             first.value = "0";
             first.readOnly = false;
-            invalidateCalculation();
-            popupSubmissionToken = "";
-            root.unipaymentPopupSubmissionToken = "";
-            applyButton.disabled = true;
-            setSecondaryDisabled(true);
-            if (submitButton) {
-                submitButton.disabled = true;
-                submitButton.setAttribute("aria-disabled", "true");
-            }
+            invalidatePreview();
             calculateNow();
         });
         first.addEventListener("input", function () {
             if (first.readOnly) return;
             first.value = first.value.replace(/\D/g, "");
-            invalidateCalculation();
+            invalidatePreview();
             if (applyInFlight) return;
-            popupSubmissionToken = "";
-            root.unipaymentPopupSubmissionToken = "";
-            applyButton.disabled = true;
-            setSecondaryDisabled(true);
-            if (submitButton) {
-                submitButton.disabled = true;
-                submitButton.setAttribute("aria-disabled", "true");
-            }
             window.clearTimeout(calculateTimer);
             calculateTimer = window.setTimeout(calculateNow, 800);
         });
         first.addEventListener("change", function () {
             if (first.readOnly) return;
-            if (applyInFlight) {
-                invalidateCalculation();
-                return;
-            }
-            window.clearTimeout(calculateTimer);
+            invalidatePreview();
             calculateNow();
         });
         root.addEventListener("keydown", function (event) {
@@ -1518,8 +1737,19 @@
         });
 
         root.unipaymentUpdate = function (next) {
+            if (!isCartSource) {
+                if (redirectPending || applyInFlight) return;
+                var selection = readSelection();
+                invalidatePreview();
+                applyOffer(next, next && selection ? selection.key : "");
+                return;
+            }
             invalidateCalculation();
             if (applyInFlight) return;
+            applyOffer(next);
+        };
+
+        function applyOffer(next, requestKey) {
             config = next;
             root.setAttribute("data-calculator", JSON.stringify(next || {}));
             root.hidden = !next;
@@ -1536,6 +1766,10 @@
                         price.textContent = buttonInstallmentLabel(offer);
                 },
             );
+            if (requestKey !== undefined) {
+                refreshedOfferKey = requestKey;
+                offerSelectionKey = requestKey;
+            }
             if (
                 !next ||
                 (activeType && (!next.offers || !next.offers[activeType]))
@@ -1546,64 +1780,87 @@
                 rebuildSchemes(activeType);
                 calculateNow();
             }
-        };
+        }
+
+        function applyRefreshedOffer(sequence, requestKey, payload) {
+            if (sequence !== refreshSequence || !root.isConnected || applyInFlight || !matchesSelection(requestKey))
+                return false;
+            if (redirectPending) {
+                // A successful Buy navigates away. A stale Buy can still use this refresh.
+                if (pendingPreselect) {
+                    pendingPreselect.offer = { sequence: sequence, key: requestKey, payload: payload };
+                }
+                return false;
+            }
+            var next = payload && payload.success ? payload.calculator : null;
+            window.clearTimeout(refreshTimer);
+            refreshTimer = null;
+            invalidatePreview();
+            applyOffer(next, next ? requestKey : "");
+            return true;
+        }
+
+        function cancelOfferRequest() {
+            refreshSequence += 1;
+            refreshRequestKey = "";
+            if (refreshRequest) refreshRequest.abort();
+            refreshRequest = null;
+        }
 
         root.unipaymentInvalidatePopup = function () {
-            refreshSequence += 1;
-            if (modal.hidden) return;
-            invalidateCalculation();
-            if (applyInFlight) return;
-            popupSubmissionToken = "";
-            root.unipaymentPopupSubmissionToken = "";
-            applyButton.disabled = true;
-            setSecondaryDisabled(true);
-            if (submitButton) {
-                submitButton.disabled = true;
-                submitButton.setAttribute("aria-disabled", "true");
+            if (!isCartSource) {
+                if (redirectPending && !pendingPreselect && !applyInFlight) return;
+                var selection = readSelection();
+                var key = selection ? selection.key : null;
+                if (key === observedSelectionKey) return;
+                observedSelectionKey = key;
             }
+            cancelOfferRequest();
+            if (modal.hidden) return;
+            invalidatePreview();
+            if (!isCartSource && !redirectPending && !applyInFlight) setStep(1);
         };
 
         root.unipaymentRefresh = function () {
-            if (applyInFlight) return;
+            if (isCartSource || applyInFlight || (redirectPending && !pendingPreselect)) return;
             window.clearTimeout(refreshTimer);
             refreshTimer = window.setTimeout(function () {
-                if (applyInFlight) return;
+                refreshTimer = null;
+                if (applyInFlight || !root.isConnected || (redirectPending && !pendingPreselect)) return;
                 var endpoint = root.getAttribute("data-endpoint");
-                var productId =
-                    parseInt(root.getAttribute("data-product-id"), 10) || 0;
-                if (!endpoint || !productId) return;
-                var currentAttributeId = productAttributeId(document);
-                var currentQuantity = quantity();
-                var requestKey =
-                    productId +
-                    ":" +
-                    currentAttributeId +
-                    ":" +
-                    currentQuantity;
-                if (requestKey === lastRequestKey) {
-                    if (!modal.hidden && activeType) calculateNow();
+                if (!endpoint || !nonNegativeInteger(root.getAttribute("data-product-id"))) return;
+                var selection = readSelection();
+                if (!selection) {
+                    if (!modal.hidden && activeType) showCalculationRetry();
                     return;
                 }
-                lastRequestKey = requestKey;
-                if (
-                    refreshRequest &&
-                    typeof refreshRequest.abort === "function"
-                )
-                    refreshRequest.abort();
+                var requestKey = selection.key;
+                if (requestKey === refreshedOfferKey) {
+                    if (!lastCalculation && !modal.hidden && activeType && !hasCurrentCalculationRequest(selection)) {
+                        calculateNow();
+                    }
+                    return;
+                }
+                if (requestKey === refreshRequestKey ||
+                    (pendingPreselect && pendingPreselect.offer &&
+                        pendingPreselect.offer.sequence === refreshSequence && pendingPreselect.offer.key === requestKey))
+                    return;
+                cancelOfferRequest();
                 refreshRequest =
                     typeof AbortController === "function"
                         ? new AbortController()
                         : null;
-                var sequence = ++refreshSequence;
+                refreshRequestKey = requestKey;
+                var sequence = refreshSequence;
                 var url =
                     endpoint +
                     (endpoint.indexOf("?") === -1 ? "?" : "&") +
                     "id_product=" +
-                    encodeURIComponent(productId) +
+                    encodeURIComponent(selection.productId) +
                     "&id_product_attribute=" +
-                    encodeURIComponent(currentAttributeId) +
+                    encodeURIComponent(selection.attributeId) +
                     "&quantity=" +
-                    encodeURIComponent(currentQuantity);
+                    encodeURIComponent(selection.quantity);
                 var options = {
                     credentials: "same-origin",
                     headers: { "X-Requested-With": "XMLHttpRequest" },
@@ -1615,19 +1872,17 @@
                         return response.json();
                     })
                     .then(function (payload) {
-                        if (sequence === refreshSequence)
-                            root.unipaymentUpdate(
-                                payload.success ? payload.calculator : null,
-                            );
+                        if (sequence !== refreshSequence) return;
+                        refreshRequestKey = "";
+                        refreshRequest = null;
+                        applyRefreshedOffer(sequence, requestKey, payload);
                     })
                     .catch(function (error) {
-                        if (
-                            sequence === refreshSequence &&
-                            (!error || error.name !== "AbortError")
-                        ) {
-                            lastRequestKey = "";
-                            root.unipaymentUpdate(null);
-                        }
+                        if (sequence !== refreshSequence) return;
+                        refreshRequestKey = "";
+                        refreshRequest = null;
+                        if (!error || error.name !== "AbortError")
+                            applyRefreshedOffer(sequence, requestKey, null);
                     });
             }, 80);
         };
@@ -1643,25 +1898,83 @@
             root.unipaymentRefresh();
         });
     }
-    function scheduleDomRefresh() {
-        document.querySelectorAll(selector).forEach(function (root) { if (root.unipaymentInvalidatePopup) root.unipaymentInvalidatePopup(); });
+    function invalidateProductPopups() {
+        document.querySelectorAll(selector).forEach(function (root) {
+            if (root.unipaymentInvalidatePopup) root.unipaymentInvalidatePopup();
+        });
+    }
+    function scheduleDomRefresh(payload) {
+        if (payload !== undefined) {
+            if (payload && payload.is_quick_view) return;
+            var hint = productUpdateHint(document, payload);
+            if (hint) {
+                var roots = document.querySelectorAll(selector);
+                var owned = Array.prototype.some.call(roots, function (root) {
+                    return nonNegativeInteger(root.getAttribute("data-product-id")) === hint.productId;
+                });
+                if (roots.length && !owned) return;
+                // Keep the confirmed selection across the deferred refresh and root replacement.
+                pendingProductUpdateHint = hint;
+                productRequiringLiveAttribute = null;
+            }
+            productSelectionUpdating = false;
+            initialize();
+        }
+        invalidateProductPopups();
         window.clearTimeout(domRefreshTimer);
+        // Let the theme finish replacing details and additional-info markup.
         domRefreshTimer = window.setTimeout(refresh, 0);
     }
-    function mutationNeedsRefresh(mutation) {
-        var target =
-            mutation.target && mutation.target.nodeType === 1
-                ? mutation.target
-                : mutation.target.parentElement;
-        return !target || !target.closest(selector);
-    }
     function initializeProductObservers() {
-        var productActions = document.querySelector(".product-actions");
-        if (!productActions || typeof MutationObserver !== "function") return;
+        if (typeof MutationObserver !== "function" || !document.body) return;
+        var productRootSelector = selector + "[data-product-id]";
+        var observedMarkup = productDetailsElementSelector + ", " + productRootSelector;
+        var ignoredTargets = selector + ", " + unrelatedProductSelector;
+
+        function productDomState() {
+            var roots = document.querySelectorAll(productRootSelector);
+            var state = [];
+            roots.forEach(function (root) {
+                if (!root.closest(unrelatedProductSelector)) {
+                    state.push({
+                        root: root,
+                        attribute: productAttributeId(document, root, null, null),
+                    });
+                }
+            });
+            return state;
+        }
+
+        function containsProductMarkup(node) {
+            return node.nodeType === 1 && !node.closest(unrelatedProductSelector) &&
+                (node.matches(observedMarkup) || node.querySelector(observedMarkup));
+        }
+
+        function touchesProductMarkup(mutation) {
+            var target = mutation.target;
+            if (target.nodeType !== 1 || !target.isConnected || target.closest(ignoredTargets)) return false;
+            if (mutation.type === "attributes") return target.matches(productDetailsElementSelector);
+            return Array.prototype.some.call(mutation.addedNodes, containsProductMarkup) ||
+                Array.prototype.some.call(mutation.removedNodes, containsProductMarkup);
+        }
+
+        var previous = productDomState();
         var observer = new MutationObserver(function (mutations) {
-            if (mutations.some(mutationNeedsRefresh)) scheduleDomRefresh();
+            if (!mutations.some(touchesProductMarkup)) return;
+            var current = productDomState();
+            var changed = current.length !== previous.length || current.some(function (state, index) {
+                return state.root !== previous[index].root || state.attribute !== previous[index].attribute;
+            });
+            previous = current;
+            if (changed && current.length) scheduleDomRefresh();
         });
-        observer.observe(productActions, { childList: true, subtree: true });
+        // Details and their enclosing block can both be replaced by the theme.
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ["data-product"],
+        });
     }
     function start() {
         initialize();
@@ -1670,23 +1983,43 @@
     if (document.readyState === "loading")
         document.addEventListener("DOMContentLoaded", start);
     else start();
-    if (window.prestashop && typeof window.prestashop.on === "function")
-        window.prestashop.on("updatedProduct", scheduleDomRefresh);
+
+    // updatedProductCombination is an updateProduct eventType.
+    if (window.prestashop && typeof window.prestashop.on === "function") {
+        window.prestashop.on("updateProduct", function (payload) {
+            if (!payload || payload.is_quick_view) return;
+            var target = payload.event && payload.event.target;
+            var quantityUpdate = payload.eventType === "updatedProductQuantity" ||
+                (target && target.matches && target.matches(quantitySelector));
+            if (!quantityUpdate && !target && payload.eventType !== "updatedProductCombination") return;
+            if (!quantityUpdate) {
+                // An unverified completion needs live state before it can replace a known combination.
+                if (pendingProductUpdateHint && pendingProductUpdateHint.attributeId > 0)
+                    productRequiringLiveAttribute = pendingProductUpdateHint.productId;
+                pendingProductUpdateHint = null;
+                productSelectionUpdating = true;
+                productSelectionRevision += 1;
+            }
+            invalidateProductPopups();
+        });
+        window.prestashop.on("updatedProduct", function (payload) {
+            scheduleDomRefresh(payload || null);
+        });
+    }
+    document.addEventListener("updatedProduct", function (event) {
+        scheduleDomRefresh(event && event.detail ? event.detail : null);
+    });
     document.addEventListener("input", function (event) {
         if (
             event.target &&
-            event.target.matches(
-                '#quantity_wanted, input[name="qty"], input[name="quantity"]',
-            )
+            event.target.matches(quantitySelector)
         )
             refresh();
     });
     document.addEventListener("change", function (event) {
         if (
             event.target &&
-            event.target.matches(
-                '#quantity_wanted, input[name="qty"], input[name="quantity"]',
-            )
+            event.target.matches(quantitySelector)
         )
             refresh();
     });

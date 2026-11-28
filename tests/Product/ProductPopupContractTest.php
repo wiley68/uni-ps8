@@ -61,7 +61,7 @@ assertProductPopupContract(
 );
 assertProductPopupContract(strpos($javascript, 'payload.set("popup_offer_type", activeType)') !== false, 'popup context must be sent for authoritative mixed-scheme validation');
 assertProductPopupContract(strpos($javascript, 'payload.set("scheme_key", fields.scheme_key)') !== false && strpos($javascript, 'payload.set("kop_code", fields.kop_code)') !== false, 'full Product Popup scheme identity must be sent for server-side validation');
-assertProductPopupContract(strpos($javascript, 'calculationPayload("apply")') !== false, 'Step 2 submit must send the Step 1 identity for authoritative apply');
+assertProductPopupContract(strpos($javascript, 'calculationPayload("apply", selection)') !== false, 'Step 2 submit must send the Step 1 identity for authoritative apply');
 assertProductPopupContract(strpos($javascript, 'issue_submission_token') !== false, 'Step 1→2 must issue popup_submission_token');
 assertProductPopupContract(strpos($javascript, 'popup_submission_token') !== false, 'apply must send popup_submission_token');
 assertProductPopupContract(strpos($javascript, 'payload.set("phone2"') === false && strpos($javascript, 'payload.set("egn"') === false, 'apply must omit the removed fields');
@@ -76,15 +76,15 @@ assertProductPopupContract(strpos($javascript, 'event.key === "Escape"') !== fal
 assertProductPopupContract(strpos($javascript, '.product-add-to-cart button[data-button-action="add-to-cart"]') !== false, 'native PrestaShop add-to-cart integration missing');
 assertProductPopupContract(strpos($javascript, 'function addToCart(') !== false && strpos($javascript, 'button.click()') !== false, 'add-to-cart mode must still use native Product Page add-to-cart control');
 assertProductPopupContract(strpos($javascript, 'secondaryActionUsesNativeAddToCart') !== false, 'secondary action mode must be explicit');
-assertProductPopupContract(strpos($javascript, 'requestCalculation("preselect")') !== false && strpos($javascript, 'redirectToCheckout(') !== false, 'Buy preselection must redirect directly after server-side silent cart add');
+assertProductPopupContract(strpos($javascript, 'requestCalculation("preselect", selection)') !== false && strpos($javascript, 'redirectToCheckout(') !== false, 'Buy preselection must redirect directly after server-side silent cart add');
 assertProductPopupContract(
-    (bool) preg_match('/handleSecondary\\([\\s\\S]*?requestCalculation\\("preselect"\\)[\\s\\S]*?redirectToCheckout\\(/', $javascript)
-        && !preg_match('/handleSecondary\\([\\s\\S]*?requestCalculation\\("preselect"\\)[\\s\\S]*?addToCart\\(/', $javascript),
+    (bool) preg_match('/handleSecondary\\([\\s\\S]*?requestCalculation\\("preselect", selection\\)[\\s\\S]*?redirectToCheckout\\(/', $javascript)
+        && !preg_match('/handleSecondary\\([\\s\\S]*?requestCalculation\\("preselect", selection\\)[\\s\\S]*?addToCart\\(/', $javascript),
     'Buy preselection must not invoke native add-to-cart click flow'
 );
 assertProductPopupContract(strpos($controller, 'ProductPopupCheckoutPreselectionService') !== false, 'preselect must use server-side silent cart mutation service');
 assertProductPopupContract(strpos($javascript, 'setStep(2)') !== false && strpos($javascript, 'unipaymentSelectedFinancing') !== false, 'Apply Step 1 transition state missing');
-assertProductPopupContract(strpos($javascript, 'productAttributeId(document)') !== false && strpos($javascript, 'quantity()') !== false, 'dynamic Product context integration missing');
+assertProductPopupContract(strpos($javascript, 'productAttributeId(document, root, pendingProductUpdateHint, fallback)') !== false && strpos($javascript, 'quantity(root, numericProductId)') !== false, 'dynamic Product context integration missing');
 assertProductPopupContract(strpos($javascript, 'unipaymentInvalidatePopup') !== false, 'dynamic Product changes must invalidate stale open-popup state immediately');
 
 assertProductPopupContract(strpos($controller, 'ProductContextFactory())->create') !== false, 'server-authoritative product price reconstruction missing');
